@@ -82,14 +82,16 @@ def test_classes_and_labels():
 def test_mainnet_endpoints():
     assert DEFAULT_RPCS["eip155:8453"] == "https://mainnet.base.org"
     assert DEFAULT_RPCS["eip155:5042"] == "https://rpc.mainnet.arc.io"
+    assert DEFAULT_RPCS["eip155:42161"] == "https://arb1.arbitrum.io/rpc"
     assert DEFAULT_XRPL_JSON_RPCS["xrpl:0"].startswith("https://")
     assert DEFAULT_XRPL_RPCS["xrpl:0"].startswith("https://")
 
 
 def test_mainnet_registry_entries_exist_and_are_empty():
-    for n in ("eip155:8453", "eip155:5042", "stellar:pubnet"):
+    for n in ("eip155:8453", "eip155:5042", "eip155:42161", "stellar:pubnet"):
         assert TRUSTED_ESCROWS[n] == ()
     assert TRUSTED_ESCROWS["eip155:5042002"]
+    assert TRUSTED_ESCROWS["eip155:421614"]
 
 
 def test_report_carries_the_network(vectors):

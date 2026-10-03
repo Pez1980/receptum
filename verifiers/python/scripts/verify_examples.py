@@ -34,6 +34,7 @@ def cases() -> list[tuple[str, tuple[dict, list[str]], bytes | None, str]]:
     soroban = doc("packages/adapter-stellar/e2e-soroban-results.json")["flows"]
     claimable = doc("packages/adapter-stellar/e2e-claimable-results.json")["flows"]
     arc = doc("packages/adapter-evm/e2e-results.json")["flows"]
+    arbitrum = doc("packages/adapter-evm/e2e-results.arbitrum-sepolia.json")["flows"]
     mcp = doc("packages/mcp/e2e-results.json")
     return [
         ("x402 · Base Sepolia, anchored on Arc", wrapper(doc("examples/x402-base-sepolia.json")),
@@ -53,6 +54,14 @@ def cases() -> list[tuple[str, tuple[dict, list[str]], bytes | None, str]]:
          read("examples/deliverables/arc-testnet-escrow-b.txt"), "VERIFIED"),
         ("ReceptumEscrow · Arc · standalone anchor demo (no escrow behind it)",
          (arc[3]["signedReceipt"], [f"eip155:5042002:{arc[3]['txs']['anchor']}"]), None, "NOT VERIFIED"),
+        ("ReceptumEscrow · Arbitrum Sepolia · buyer accepts",
+         wrapper(doc("examples/arbitrum-sepolia-escrow-a.json")),
+         read("examples/deliverables/arbitrum-sepolia-escrow-a.txt"), "VERIFIED"),
+        ("ReceptumEscrow · Arbitrum Sepolia · auto-release", (arbitrum[1]["signedReceipt"], []),
+         read("examples/deliverables/arbitrum-sepolia-escrow-b.txt"), "VERIFIED"),
+        ("ReceptumEscrow · Arbitrum Sepolia · standalone anchor demo (no escrow behind it)",
+         (arbitrum[3]["signedReceipt"], [f"eip155:421614:{arbitrum[3]['txs']['anchor']}"]), None,
+         "NOT VERIFIED"),
         ("XRPL Escrow · crypto-condition release", wrapper(doc("examples/xrpl-testnet-escrow-a.json")),
          read("examples/deliverables/xrpl-testnet-escrow-a.txt"), "VERIFIED"),
         ("XRPL TokenEscrow · issued token (RCT, 3-character code), crypto-condition release",

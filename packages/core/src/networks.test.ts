@@ -12,9 +12,16 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("network classification", () => {
   it("classifies the supported networks", () => {
-    for (const n of ["eip155:84532", "eip155:5042002", "eip155:31337", "xrpl:1", "stellar:testnet"])
+    for (const n of [
+      "eip155:84532",
+      "eip155:5042002",
+      "eip155:421614",
+      "eip155:31337",
+      "xrpl:1",
+      "stellar:testnet",
+    ])
       expect(networkClass(n)).toBe("testnet");
-    for (const n of ["eip155:8453", "eip155:5042", "xrpl:0", "stellar:pubnet"])
+    for (const n of ["eip155:8453", "eip155:5042", "eip155:42161", "xrpl:0", "stellar:pubnet"])
       expect(networkClass(n)).toBe("mainnet");
     expect(networkClass("eip155:1")).toBe("unknown");
     expect(networkClass(undefined)).toBe("unknown");

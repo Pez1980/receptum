@@ -8,6 +8,7 @@ Not yet published; this release ships everything below. Testnets stay the defaul
 
 ### Added
 
+- **Arbitrum**: `ReceptumEscrow` deployed on Arbitrum Sepolia (`eip155:421614`) at `0x1cd7ed69a10d5aafcf2fcb927a431183b3c43862` — byte-identical runtime code to the published artifact and the Arc deployment (code hash `0x58c8beee…1af24861`) — and added to `TRUSTED_ESCROWS` in `@receptum/verify` and the Python verifier. Live flows (buyer accepts, auto-release, refund after deadline, standalone anchor) with the seller's EVM binding (`examples/bindings/evm-arbitrum-sepolia.json`); released receipts VERIFIED in both verifiers. Arbitrum One (`eip155:42161`, native USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`) is a mainnet entry behind the opt-in, with an empty registry entry and `deploy-mainnet.mjs eip155:42161`. `scripts/e2e-testnet.mjs` takes the network as an argument (testnets only).
 - **Account bindings** (SPEC §4.1): a statement signed by the seller's `did:key` and by the payout account's own key (EIP-191 on EVM, ripple-keypairs on XRPL, SEP-53 on Stellar) proves the seller controls `payment.payee`. Carried in `SignedReceipt.bindings`, outside the hashed receipt. Verifier level 2.5; `requireBinding` in `@receptum/client` and `@receptum/mcp`; `@receptum/server` can refuse to charge when its bindings don't cover `payTo`.
 - **Soroban `ReceptumEscrow`** on Stellar testnet (`@receptum/adapter-stellar`, `SorobanEscrowRail`), same state machine as the EVM contract.
 - **x402 `exact` on Stellar testnet and XRPL testnet** (XRP), with settlement checks in `@receptum/verify`.
@@ -23,7 +24,7 @@ Not yet published; this release ships everything below. Testnets stay the defaul
   - `@receptum/verify` and the Python verifier: read-only mainnet endpoints, empty mainnet `TRUSTED_ESCROWS` entries (a genuine mainnet escrow is `pending`, `untrusted deployment`), `network`/`networkClass` in reports and a MAINNET/TESTNET header line in both CLIs.
   - `@receptum/server`: `facilitatorUrlFor` (no default mainnet facilitator) and `allowMainnet` in `handlePaidJob`. `@receptum/client`: `networks` + `allowMainnet` in `createReceptumFetch`.
 - Negative test vectors (`spec/vectors/rrf-v1.json` `invalid`), account-binding vectors, XRPL currency and issued-amount vectors.
-- `scripts/verify-examples.mjs` and `verifiers/python/scripts/verify_examples.py`: re-verify every published testnet receipt (20 cases, identical lists and output) against live chains.
+- `scripts/verify-examples.mjs` and `verifiers/python/scripts/verify_examples.py`: re-verify every published testnet receipt (23 cases, identical lists and output) against live chains.
 - Published deliverables and seller bindings for every escrow receipt: the Stellar claimable-balance and XRPL escrow e2e runs were repeated so their released flows are VERIFIED (`packages/adapter-stellar/e2e-claimable-results.json`, `examples/xrpl-testnet-escrow-{a,c}.json`, `examples/deliverables/`).
 
 ### Changed (verifier behaviour)

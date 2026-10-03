@@ -15,6 +15,7 @@ const wrapper = (doc) => ({
 const soroban = json("packages/adapter-stellar/e2e-soroban-results.json").flows;
 const claimable = json("packages/adapter-stellar/e2e-claimable-results.json").flows;
 const arc = json("packages/adapter-evm/e2e-results.json").flows;
+const arbitrum = json("packages/adapter-evm/e2e-results.arbitrum-sepolia.json").flows;
 const mcp = json("packages/mcp/e2e-results.json");
 
 const cases = [
@@ -63,6 +64,24 @@ const cases = [
   [
     "ReceptumEscrow · Arc · standalone anchor demo (no escrow behind it)",
     { signed: arc[3].signedReceipt, anchors: [`eip155:5042002:${arc[3].txs.anchor}`] },
+    null,
+    "NOT VERIFIED",
+  ],
+  [
+    "ReceptumEscrow · Arbitrum Sepolia · buyer accepts",
+    wrapper(json("examples/arbitrum-sepolia-escrow-a.json")),
+    "examples/deliverables/arbitrum-sepolia-escrow-a.txt",
+    "VERIFIED",
+  ],
+  [
+    "ReceptumEscrow · Arbitrum Sepolia · auto-release",
+    { signed: arbitrum[1].signedReceipt, anchors: [] },
+    "examples/deliverables/arbitrum-sepolia-escrow-b.txt",
+    "VERIFIED",
+  ],
+  [
+    "ReceptumEscrow · Arbitrum Sepolia · standalone anchor demo (no escrow behind it)",
+    { signed: arbitrum[3].signedReceipt, anchors: [`eip155:421614:${arbitrum[3].txs.anchor}`] },
     null,
     "NOT VERIFIED",
   ],

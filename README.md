@@ -6,7 +6,7 @@
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
 - **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec — check receipts on every rail without trusting the TypeScript code
-- **Status:** v0.2.0, working end to end on **four testnets** (October 2026): x402 payments on Base, Stellar and the XRP Ledger, escrow on Arc, Stellar (Soroban) and the XRP Ledger. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
+- **Status:** v0.2.0, working end to end on **five testnets** (October 2026): x402 payments on Base, Stellar and the XRP Ledger, escrow on Arc, Arbitrum Sepolia, Stellar (Soroban) and the XRP Ledger. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
 
 ## Install
 
@@ -34,7 +34,7 @@ All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0
 | [`@receptum/client`](packages/client)                   | Pay over x402 and reject results whose receipt, output hash or settlement don't match                                  |
 | [`@receptum/mcp`](packages/mcp)                         | Signed receipts for x402-paid MCP tools (`@x402/mcp`)                                                                  |
 | [`@receptum/verify`](packages/verify)                   | Library + `receptum-verify` CLI: file, signature, settlement and anchor checks                                         |
-| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet and Base Sepolia                                                 |
+| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet, Arbitrum Sepolia and Base Sepolia                               |
 | [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRPL native Escrow with crypto-conditions + memo anchors                                                               |
 | [`@receptum/adapter-stellar`](packages/adapter-stellar) | Soroban `ReceptumEscrow` contract + rail, claimable-balance escrow (USDC), `MEMO_HASH` anchors, x402 settlement checks |
 
@@ -55,6 +55,8 @@ pnpm build && node scripts/verify-examples.mjs
 | Paid MCP tool call with receipt, anchored on Arc                                 | Base Sepolia → Arc testnet | VERIFIED                                       | [packages/mcp/E2E_RESULTS.md](packages/mcp/E2E_RESULTS.md)                                                                                |
 | `ReceptumEscrow`: buyer accepts · auto-release (also refund)                     | Arc testnet                | VERIFIED                                       | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)                                                                |
 | `ReceptumEscrow` standalone anchor demo (reference is no escrow)                 | Arc testnet                | NOT VERIFIED (correct: nothing was escrowed)   | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)                                                                |
+| `ReceptumEscrow`: buyer accepts · auto-release (also refund)                     | Arbitrum Sepolia           | VERIFIED                                       | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md#arbitrum-sepolia-eip155421614)                                  |
+| `ReceptumEscrow` standalone anchor demo (reference is no escrow)                 | Arbitrum Sepolia           | NOT VERIFIED (correct: nothing was escrowed)   | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md#arbitrum-sepolia-eip155421614)                                  |
 | Native Escrow with crypto-condition: XRP release · RCT TokenEscrow (also refund) | XRPL testnet               | VERIFIED                                       | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md)                                                              |
 | Native Escrow, evaluator mode: the evaluator finishes from its own account       | XRPL testnet               | VERIFIED                                       | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md#evaluator-mode-and-tokenescrow-at-the-10-15-scale-2026-10-04) |
 | TokenEscrow, 1.5 RCPT (40-hex code), buyer accepts                               | XRPL testnet               | VERIFIED                                       | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md#evaluator-mode-and-tokenescrow-at-the-10-15-scale-2026-10-04) |
@@ -64,7 +66,7 @@ pnpm build && node scripts/verify-examples.mjs
 | Claimable-balance escrow: buyer rejected (also refund of an undelivered escrow)  | Stellar testnet            | NOT VERIFIED (correct: the seller wasn't paid) | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md#claimable-balance-escrow-escrowstellar-claimable)       |
 | Tampered receipt (amount edited)                                                 | —                          | NOT VERIFIED                                   | [examples/x402-base-sepolia-tampered.json](examples/x402-base-sepolia-tampered.json)                                                      |
 
-Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them — the same 20 cases, every rail included — and prints the same lines (`python verifiers/python/scripts/verify_examples.py`).
+Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them — the same 23 cases, every rail included — and prints the same lines (`python verifiers/python/scripts/verify_examples.py`).
 
 ## Quick look
 

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "receptum-verify"
+version = "0.1.0"
+description = "Independent verifier for the Receptum Receipt Format (RRF) v1"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{ name = "Swiftleads AI, Inc. and contributors" }]
+dependencies = ["cryptography==50.0.2"]
+
+[project.optional-dependencies]
+test = ["pytest==8.4.2"]
+
+[project.scripts]
+receptum-verify-py = "receptum_verify.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["online: needs network access to public testnet RPCs (deselect with -m 'not online')"]

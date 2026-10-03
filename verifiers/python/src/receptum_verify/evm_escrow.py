@@ -15,6 +15,7 @@ from typing import Any
 
 from .evm import DEFAULT_RPCS, CheckResult, JsonRpc, RpcError, _chain_id
 from .hashes import keccak256
+from .networks import TRUSTED_ESCROWS, is_trusted_deployment, untrusted_deployment
 
 __all__ = [
     "ESCROWS_SELECTOR",
@@ -27,11 +28,8 @@ __all__ = [
 # keccak256 of ReceptumEscrow's deployed (runtime) bytecode, receptumEscrowDeployedBytecode in
 # packages/adapter-evm/src/artifact.ts (tests/test_evm_escrow.py pins it to that artifact).
 RECEPTUM_ESCROW_CODE_HASH = "58c8beee19bb48209d7398ba2ecad2b6ec48a77e4929ac82286ac29b1af24861"
-# ReceptumEscrow deployments published by the project (packages/adapter-evm/E2E_RESULTS.md).
-TRUSTED_EVM_ESCROWS: dict[str, tuple[str, ...]] = {
-    "eip155:5042002": ("0x20d69c6c647559f48a7e6b0a3f922e99a4068f16",),
-    "eip155:421614": ("0x1cd7ed69a10d5aafcf2fcb927a431183b3c43862",),
-}
+# Deprecated alias: the registry lives in networks.TRUSTED_ESCROWS (one registry for every rail).
+TRUSTED_EVM_ESCROWS = TRUSTED_ESCROWS
 # bytes4(keccak256("escrows(uint256)"))
 ESCROWS_SELECTOR = keccak256(b"escrows(uint256)")[:4].hex()
 _STATUS = ["none", "open", "delivered", "released", "refunded"]
@@ -159,12 +157,8 @@ def check_evm_escrow(
         return CheckResult("fail", f"escrow {status}: {'; '.join(problems)}")
     if status not in ("released", "delivered"):
         return CheckResult("fail", f"escrow is {status}, not released")
-    if not any(_same_addr(t, contract) for t in (*TRUSTED_EVM_ESCROWS.get(network, ()), *trusted)):
-        return CheckResult(
-            "pending",
-            "ReceptumEscrow code, but this deployment isn't in the trusted registry "
-            "(pass --trust-escrow to accept it)",
-        )
+    if not is_trusted_deployment(network, contract, tuple(trusted)):
+        return CheckResult("pending", untrusted_deployment(network, "ReceptumEscrow code"))
     if not payee:
         return CheckResult(
             "unavailable", "receipt does not name a payee, so the recipient can't be confirmed"

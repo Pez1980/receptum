@@ -75,11 +75,39 @@ def test_success():
     assert "10000 drops" in res.detail
 
 
-def test_issued_currency_is_never_pass_in_rrf_v1():
+def test_issued_token_amounts_are_10e15_units():
     delivered = {"currency": "USD", "issuer": ISSUER, "value": "1"}
-    res = check(receipt(asset=f"USD.{ISSUER}", amount="1"), tx_reply(meta={"delivered_amount": delivered}))
-    assert res.status == "unavailable", res.detail
-    assert "RRF v1" in res.detail
+    reply = tx_reply(meta={"delivered_amount": delivered})
+    res = check(receipt(asset=f"USD.{ISSUER}", amount="1000000000000000"), reply)
+    assert res.status == "pass", res.detail
+    # The old 6-decimal reading, or the bare value, is not the receipt amount.
+    for amount in ("1000000", "1"):
+        res = check(receipt(asset=f"USD.{ISSUER}", amount=amount), reply)
+        assert res.status == "fail" and "receipt says" in res.detail
+    # A delivered value with no exact 10^-15 integer fails, whatever the receipt says.
+    tiny = tx_reply(meta={"delivered_amount": {**delivered, "value": "1e-16"}})
+    assert check(receipt(asset=f"USD.{ISSUER}", amount="0"), tiny).status == "fail"
+    # Exponent forms convert exactly.
+    exp = tx_reply(meta={"delivered_amount": {**delivered, "value": "25e-2"}})
+    assert check(receipt(asset=f"USD.{ISSUER}", amount="250000000000000"), exp).status == "pass"
+    # XRP delivered for an issued asset, or the reverse, fails.
+    assert check(receipt(asset=f"USD.{ISSUER}", amount="1"), tx_reply()).status == "fail"
+    assert check(receipt(), reply).status == "fail"
+
+
+def test_display_symbols_are_not_ledger_codes():
+    def never(method, params):
+        raise AssertionError("must not be called")
+
+    for code in ("RLUSD", "rlusd", "USDC", "ABCDEFGHIJKLMNOPQRSTU"):
+        res = check_xrpl_x402_exact(receipt(asset=f"{code}.{ISSUER}", amount="1"), rpc=never)
+        assert res.status == "fail" and "as on the ledger" in res.detail, code
+    rlusd = "524C555344000000000000000000000000000000"
+    delivered = {"currency": rlusd, "issuer": ISSUER, "value": "0.25"}
+    reply = tx_reply(meta={"delivered_amount": delivered})
+    assert check(receipt(asset=f"{rlusd}.{ISSUER}", amount="250000000000000"), reply).status == "pass"
+    lower = f"{rlusd.lower()}.{ISSUER}"  # 40-hex compares case-insensitively
+    assert check(receipt(asset=lower, amount="250000000000000"), reply).status == "pass"
 
 
 def test_currency_codes_are_case_sensitive():
@@ -95,8 +123,8 @@ def test_currency_codes_are_case_sensitive():
 
 def test_currency_compared_by_160_bit_identity():
     rec = receipt(asset=f"USD.{ISSUER}", amount="1")
-    standard = {"currency": "0000000000000000000000005553440000000000", "issuer": ISSUER, "value": "1"}
-    assert check(rec, tx_reply(meta={"delivered_amount": standard})).status == "unavailable"
+    standard = {"currency": "0000000000000000000000005553440000000000", "issuer": ISSUER, "value": "1e-15"}
+    assert check(rec, tx_reply(meta={"delivered_amount": standard})).status == "pass"
     nonstandard = {**standard, "currency": "5553440000000000000000000000000000000000"}
     assert check(rec, tx_reply(meta={"delivered_amount": nonstandard})).status == "fail"
     hex_asset = receipt(asset=f"5553440000000000000000000000000000000000.{ISSUER}", amount="1")
@@ -215,9 +243,40 @@ def _vectors():
 
 @pytest.mark.parametrize("case", _vectors(), ids=lambda c: c["code"])
 def test_currency_identity_vectors(case):
-    from receptum_verify.xrpl_x402 import _asset_currency_id
+    from receptum_verify.xrpl_assets import currency_id
 
-    assert _asset_currency_id(case["code"]) == case["id"]
+    assert currency_id(case["code"]) == case["id"]
     if case["id"] is None:
         res = check_xrpl_x402_exact(receipt(asset=f"{case['code']}.{ISSUER}", amount="1"), rpc=lambda m, p: None)
         assert res.status == "fail"
+
+
+def _amount_vectors():
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[3] / "spec" / "vectors" / "xrpl-issued-amount-v1.json"
+    return json.loads(path.read_text("utf-8"))
+
+
+@pytest.mark.parametrize("case", _amount_vectors()["values"], ids=lambda c: c["value"])
+def test_issued_value_to_units_vectors(case):
+    from receptum_verify.xrpl_assets import value_to_units
+
+    if case["units"] is None:
+        with pytest.raises(ValueError):
+            value_to_units(case["value"])
+    else:
+        assert value_to_units(case["value"]) == case["units"]
+
+
+@pytest.mark.parametrize("case", _amount_vectors()["units"], ids=lambda c: c["units"])
+def test_units_to_value_vectors(case):
+    from receptum_verify.xrpl_assets import units_to_value, value_to_units
+
+    if case["value"] is None:
+        with pytest.raises(ValueError):
+            units_to_value(case["units"])
+    else:
+        assert units_to_value(case["units"]) == case["value"]
+        assert value_to_units(case["value"]) == case["units"]

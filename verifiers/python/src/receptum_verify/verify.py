@@ -10,9 +10,9 @@ from .binding import DEFAULT_XRPL_RPCS, check_payee_binding
 from .evm import DEFAULT_RPCS, CheckResult, check_evm_anchor, check_x402_exact, parse_anchor
 from .evm_escrow import check_evm_escrow
 from .jws import verify_signed_receipt
-from .networks import network_class, untrusted_deployment
+from .networks import network_class
 from .soroban import DEFAULT_SOROBAN_RPCS, check_soroban_escrow
-from .stellar import STELLAR_TESTNET, check_stellar_anchor, check_stellar_x402_exact
+from .stellar import STELLAR_NETWORKS, check_stellar_anchor, check_stellar_x402_exact
 from .stellar_claimable import check_stellar_claimable
 from .xrpl_escrow import check_xrpl_escrow_payment
 from .xrpl_x402 import DEFAULT_XRPL_JSON_RPCS, check_xrpl_anchor, check_xrpl_x402_exact
@@ -178,7 +178,7 @@ def check_settlement(
         return CheckResult("unavailable", f'only the x402 "exact" scheme is recognised, not {rail}')
     if rail == "x402:exact" and network.startswith("xrpl:"):
         return check_xrpl_x402_exact(receipt, rpcs)
-    if rail == "x402:exact" and network == STELLAR_TESTNET:
+    if rail == "x402:exact" and network in STELLAR_NETWORKS:
         return check_stellar_x402_exact(receipt, payer, payee, horizons=horizons)
     if rail == "x402:exact" and network.startswith("eip155:"):
         return check_x402_exact(receipt, rpcs)
@@ -206,7 +206,7 @@ def check_anchor(
         return check_evm_anchor(ref, receipt_hash, rpcs)
     if network in DEFAULT_XRPL_JSON_RPCS or (network.startswith("xrpl:") and network in (user_rpcs or {})):
         return check_xrpl_anchor(ref, receipt_hash, rpcs)
-    if network == STELLAR_TESTNET or network in (horizons or {}):
+    if network in STELLAR_NETWORKS or network in (horizons or {}):
         return check_stellar_anchor(network, tx, receipt_hash, horizons=horizons)
     return CheckResult("unavailable", f"anchor network {network} is not supported by this verifier")
 

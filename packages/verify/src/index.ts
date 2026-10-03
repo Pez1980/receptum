@@ -28,6 +28,7 @@ import {
   SorobanRpcClient,
   stellarNetwork,
   findSacTransfer,
+  parseEscrowId as parseStellarEscrowId,
   parseSorobanEscrowId,
   tokenContractId,
 } from "@receptum/adapter-stellar";
@@ -172,7 +173,14 @@ const CONTRADICTIONS = [
   /^escrow \S+ not found$/,
   /^EscrowCreate for \S+ not found/,
   /not a ReceptumEscrow record/,
+  // Soroban: no contract instance at the reference (as missing EVM code, SPEC §7.3).
+  /^contract \S+ not found$/,
+  // Claimable balance without exactly the Receptum claimant shape (SPEC §7.5).
+  /^not a Receptum escrow/,
 ];
+
+/** SPEC §7.5: a claimable-balance reference is the balance id, exactly (hex or `B…` strkey). */
+const CLAIMABLE_REFERENCE = /^(?:00000000[0-9A-Fa-f]{64}|B[A-Z2-7]{57})$/;
 
 /** Maps an exception from an online check to fail (contradiction) or unavailable (SPEC §6). */
 function fromError(level: Check["level"], name: string, err: unknown): Check {
@@ -242,6 +250,13 @@ function sameStellarAsset(a: string, b: string, network: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** The NetworkID the connected rippled reports in `server_info`, if any. */
+async function xrplServedNetworkId(client: Client): Promise<number | undefined> {
+  const info = await client.request({ command: "server_info" });
+  const id = (info.result.info as { network_id?: unknown }).network_id;
+  return typeof id === "number" ? id : undefined;
 }
 
 async function withXrpl<T>(network: string, fn: (client: Client) => Promise<T>): Promise<T> {
@@ -382,6 +397,14 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
     }
     if (rail === STELLAR_ESCROW_RAIL) {
       if (!STELLAR_IDS.includes(network)) return unavailable(`unsupported network ${network}`);
+      try {
+        if (!CLAIMABLE_REFERENCE.test(reference)) throw new TypeError();
+        parseStellarEscrowId(reference);
+      } catch {
+        return fail(
+          `invalid Stellar escrow id: ${reference} (expected the claimable balance id: 00000000 + 64 hex, or its B… strkey)`,
+        );
+      }
       const state = await new StellarClaimableEscrowRail({
         network: stellarNetwork(network),
       }).getEscrow(reference);
@@ -462,11 +485,19 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       } catch (err) {
         return fail(err instanceof Error ? err.message : String(err));
       }
-      const r = await withXrpl(network, (client) =>
-        verifyXrplEscrowPayment(signed, (id) =>
+      const r = await withXrpl(network, async (client) => {
+        // SPEC §7.3: the server must serve payment.network, as for x402 (otherwise unavailable).
+        const served = await xrplServedNetworkId(client);
+        const want = Number(network.slice("xrpl:".length));
+        if (served !== undefined && served !== want)
+          return {
+            status: "unavailable" as const,
+            detail: `could not be checked: the XRPL server serves NetworkID ${served}, not ${want}`,
+          };
+        return verifyXrplEscrowPayment(signed, (id) =>
           new XrplEscrowRail({ client, network }).getEscrow(id),
-        ),
-      );
+        );
+      });
       return { level: 3, name, ...r };
     }
     return unavailable(`no settlement check for rail ${rail} on ${network}`);
@@ -528,6 +559,10 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
       // anchor:xrpl — a validated tesSUCCESS tx whose first receptum/1 memo carries receiptHash.
       if (!/^[0-9A-Fa-f]{64}$/.test(reference)) return fail("anchor transaction hash is malformed");
       return await withXrpl(network, async (client) => {
+        const served = await xrplServedNetworkId(client);
+        const want = Number(network.slice("xrpl:".length));
+        if (served !== undefined && served !== want)
+          return unavailable(`the XRPL server serves NetworkID ${served}, not ${want}`);
         let result: {
           validated?: boolean;
           meta?: unknown;
@@ -539,8 +574,9 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
             result: typeof result;
           });
         } catch (err) {
+          // Servers may lack history: an unknown transaction is undecided (as for x402, §7.1).
           if ((err as { data?: { error?: string } })?.data?.error === "txnNotFound")
-            return fail("anchor transaction not found");
+            return unavailable("anchor transaction not found on this server (it may lack history)");
           throw err;
         }
         if (result.validated !== true)

@@ -201,4 +201,6 @@ def test_stellar_anchor():
     assert check_stellar_anchor("stellar:testnet", TX.upper(), RH, fetch=anchor_tx()).status == "fail"
     down = FakeHorizon({f"/transactions/{TX}": HorizonError("down")})
     assert check_stellar_anchor("stellar:testnet", TX, RH, fetch=down).status == "unavailable"
-    assert check_stellar_anchor("stellar:pubnet", TX, RH, fetch=anchor_tx()).status == "unavailable"
+    # Pubnet is read-only like testnet (default Horizon https://horizon.stellar.org).
+    assert check_stellar_anchor("stellar:pubnet", TX, RH, fetch=anchor_tx()).status == "pass"
+    assert check_stellar_anchor("stellar:futurenet", TX, RH, fetch=anchor_tx()).status == "unavailable"

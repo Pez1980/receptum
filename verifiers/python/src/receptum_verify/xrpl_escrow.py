@@ -14,8 +14,11 @@ State is derived from validated history only:
   the owner account (or a missing account). A page limit reached with a ``marker`` left, or a server
   whose history doesn't reach the account's creation, is ``unavailable``.
 
-The rules a reviewer may want to change are separate functions: ``escrow_amount_units`` (how an
-escrowed amount maps to ``payment.amount``) and one ``_<mode>_terms`` function per acceptance mode.
+Amounts: XRP drops, or an issued value (TokenEscrow) as an integer number of 10^-15 units, converted
+exactly (``xrpl_assets``); a value with no such integer gets amount ``""``, which no receipt can
+match. Acceptance: ``buyer`` and ``evaluator`` need a ``Condition`` and a delivery that left at least
+the declared review window before ``CancelAfter``; ``evaluator`` is proven by the ``Account`` of the
+``EscrowFinish`` that released the escrow (SPEC §7.3).
 """
 
 from __future__ import annotations
@@ -27,12 +30,11 @@ from typing import Any, Callable, Iterator
 
 from .binding import is_classic_address
 from .evm import CheckResult
+from .xrpl_assets import XrplAmountRangeError, amount_id, asset_id, value_to_units
 from .xrpl_x402 import (
     DEFAULT_XRPL_JSON_RPCS,
     RECEIPT_MEMO_TYPE,
     XrplRpcError,
-    _asset_currency_id,
-    _currency_id,
     xrpl_json_rpc,
 )
 
@@ -49,12 +51,9 @@ __all__ = [
 ]
 
 ESCROW_MEMO_TYPE = b"receptum/escrow".hex().upper()
-XRPL_TESTNET = "xrpl:1"
+_NETWORK = re.compile(r"^xrpl:(0|[1-9][0-9]{0,9})\Z")
 RIPPLE_EPOCH = 946684800
 DEFAULT_MAX_PAGES = 10
-# Fractional digits mapping an issued-token escrow value to payment.amount (the TypeScript
-# adapter's default iouDecimals). SPEC v1 does not define this unit; see escrow_amount_units.
-ISSUED_DECIMALS = 6
 
 Rpc = Callable[[str, dict], Any]
 
@@ -121,59 +120,20 @@ def parse_receipt_memos(memos: Any) -> tuple[str | None, str | None]:
     return receipt_hash, escrow_id
 
 
-_ISSUED_VALUE = re.compile(r"^([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?\Z")
-
-
-def _unscale(value: Any, decimals: int) -> str:
-    m = _ISSUED_VALUE.match(value) if isinstance(value, str) else None
-    if not m:
-        raise ValueError(f"unsupported amount value: {value}")
-    frac = m.group(2) or ""
-    digits = m.group(1) + frac
-    exp = int(m.group(3) or 0) - len(frac) + decimals
-    while exp < 0 and digits.endswith("0"):
-        digits = digits[:-1]
-        exp += 1
-    if exp < 0:
-        raise ValueError(f"{value} has more than {decimals} decimals")
-    return str(int(digits + "0" * exp))
-
-
 def escrow_amount_units(amount: Any) -> str:
-    """The escrowed ``Amount`` as an integer ``payment.amount``: XRP drops as-is; an issued value
-    scaled by ``ISSUED_DECIMALS`` (the reference adapter's default). Raises ValueError."""
+    """The escrowed ``Amount`` as a receipt's ``payment.amount``: XRP drops as-is; an issued value
+    as integer 10^-15 units (SPEC §7.3). A well-formed value with no exact 10^-15 integer gives
+    ``""`` (no receipt amount can match it, so the check fails). Raises ValueError otherwise."""
     if isinstance(amount, str):
         if not re.fullmatch(r"0|[1-9][0-9]*", amount):
             raise ValueError(f"invalid XRP amount: {amount}")
         return amount
     if isinstance(amount, dict):
-        return _unscale(amount.get("value"), ISSUED_DECIMALS)
+        try:
+            return value_to_units(amount.get("value"))
+        except XrplAmountRangeError:
+            return ""
     raise ValueError("invalid escrow Amount")
-
-
-def _amount_id(amount: Any) -> tuple[str, str | None] | None:
-    """Protocol identity of a ledger amount: ("XRP", None) or (160-bit currency, issuer)."""
-    if isinstance(amount, str):
-        return "XRP", None
-    if isinstance(amount, dict):
-        cur = _currency_id(amount.get("currency"))
-        issuer = amount.get("issuer")
-        if cur is not None and isinstance(issuer, str):
-            return cur, issuer
-    return None
-
-
-def _asset_id(asset: Any) -> tuple[str, str | None] | None:
-    """Identity of a receipt's ``payment.asset`` (``XRP`` or ``<currency>.<issuer>``), or None."""
-    if asset == "XRP":
-        return "XRP", None
-    if not isinstance(asset, str):
-        return None
-    symbol, dot, issuer = asset.rpartition(".")
-    if not dot or not symbol or not is_classic_address(issuer):
-        return None
-    cur = _asset_currency_id(symbol)
-    return (cur, issuer) if cur else None
 
 
 # --- ledger access ---------------------------------------------------------------------------
@@ -333,8 +293,11 @@ class XrplEscrowState:
     finish_after: int | None
     # Ripple-epoch close time of the ledger holding the delivery memo, when delivered.
     delivery_close_time: int | None
-    # Account that submitted the EscrowFinish / EscrowCancel, when settled.
+    # Account that submitted the EscrowFinish / EscrowCancel, when settled, and its hash.
     settled_by: str | None = None
+    settlement_tx: str | None = None
+    # The escrowed issued value exactly as on the ledger (Amount.value), for issued tokens.
+    value: str | None = None
 
 
 def _assert_complete(ledger: XrplLedger, owner: str, reached_creation: bool, scanned: int) -> None:
@@ -439,9 +402,11 @@ def read_xrpl_escrow(ledger: XrplLedger, escrow_id: str, max_pages: int = DEFAUL
         status = "released" if closed[0] == "EscrowFinish" else "refunded"
     else:
         status = "delivered" if delivery else "open"
-    ident = _amount_id(fields.get("Amount"))
+    ident = amount_id(fields.get("Amount"))
     if ident is None:
         raise ValueError(f"escrow {escrow_id} holds an invalid currency")
+    amount = fields.get("Amount")
+    value = amount.get("value") if isinstance(amount, dict) else None
     condition = fields.get("Condition")
     cancel_after = fields.get("CancelAfter") or None
     finish_after = fields.get("FinishAfter") or None
@@ -459,6 +424,8 @@ def read_xrpl_escrow(ledger: XrplLedger, escrow_id: str, max_pages: int = DEFAUL
         finish_after=finish_after,
         delivery_close_time=_ripple_time(delivery[1].close_time) if delivery else None,
         settled_by=closed[2].tx.get("Account") if closed else None,
+        settlement_tx=closed[2].hash if closed else None,
+        value=value if isinstance(value, str) else None,
     )
 
 
@@ -472,51 +439,8 @@ def _review_window(state: XrplEscrowState) -> int | None:
     return state.cancel_after - state.delivery_close_time
 
 
-def _conditional_terms(mode: str, acc: dict, state: XrplEscrowState) -> list[str]:
-    """Shared by buyer and evaluator mode: release needed a fulfillment, and the delivery left at
-    least the declared review window before CancelAfter."""
-    problems = []
-    if not state.condition:
-        problems.append(f"escrow has no Condition, so release did not need the {mode}'s acceptance")
-    window = _review_window(state)
-    if window is not None and acc["reviewWindowSeconds"] > window:
-        problems.append(
-            f"acceptance.reviewWindowSeconds {acc['reviewWindowSeconds']} exceeds the {window} s "
-            "the ledger left between delivery and CancelAfter"
-        )
-    return problems
-
-
-def _buyer_terms(acc: dict, state: XrplEscrowState) -> tuple[list[str], CheckResult | None]:
-    return _conditional_terms("buyer", acc, state), None
-
-
-def _evaluator_terms(acc: dict, state: XrplEscrowState) -> tuple[list[str], CheckResult | None]:
-    # The ledger shows a fulfillment was needed, not who held it (SPEC §7.3).
-    return _conditional_terms("evaluator", acc, state), CheckResult(
-        "unavailable",
-        "the ledger shows a fulfillment was needed, not who held it: acceptance.evaluator can't "
-        "be confirmed on XRPL",
-    )
-
-
-def _auto_terms(acc: dict, state: XrplEscrowState) -> tuple[list[str], CheckResult | None]:
-    if state.condition:
-        return [
-            "escrow needs a fulfillment to release; it cannot auto-release as acceptance.mode "
-            "auto states"
-        ], None
-    return [], CheckResult(
-        "unavailable",
-        "an unconditional XRPL escrow has no on-ledger review window; auto terms can't be confirmed",
-    )
-
-
-ACCEPTANCE_RULES = {"buyer": _buyer_terms, "evaluator": _evaluator_terms, "auto": _auto_terms}
-
-
-def _same_asset(asset: str, state: XrplEscrowState) -> bool:
-    want = _asset_id(asset)
+def _same_asset(asset: Any, state: XrplEscrowState) -> bool:
+    want = asset_id(asset)
     if want is None:
         return False
     if want[0] == "XRP":
@@ -524,27 +448,80 @@ def _same_asset(asset: str, state: XrplEscrowState) -> bool:
     return state.currency == want[0] and state.issuer == want[1]
 
 
+def _bare(network: str, caip10: Any) -> str | None:
+    if not isinstance(caip10, str):
+        return None
+    chain, _, addr = caip10.rpartition(":")
+    return addr if chain == network and addr else None
+
+
+def evaluator_account(network: str, evaluator: Any) -> str | None | bool:
+    """The evaluator's XRPL address when ``acceptance.evaluator`` is a CAIP-10 account in the
+    ``xrpl`` namespace; False when it is such an account but not a valid classic address on
+    ``network``; None when it is not an XRPL account at all (a DID, another chain)."""
+    if not isinstance(evaluator, str) or evaluator.startswith("did:") or not evaluator.startswith("xrpl:"):
+        return None
+    address = _bare(network, evaluator)
+    return address if address and is_classic_address(address) else False
+
+
 def check_xrpl_escrow(
     signed: dict, state: XrplEscrowState, payer: str | None, payee: str | None
 ) -> CheckResult:
-    """Decides level 3 from an escrow state read from the validated ledger. ``payer``/``payee``
-    are the bare accounts already checked to be on ``payment.network`` (None when absent)."""
+    """Decides level 3 from an escrow state read from the validated ledger (SPEC §7.3, "XRPL
+    escrows"). ``payer``/``payee`` are the bare accounts already checked to be on
+    ``payment.network`` (None when absent)."""
     pay = signed["receipt"]["payment"]
     acc = signed["receipt"]["acceptance"]
-    mode_problems, outcome = ACCEPTANCE_RULES[acc["mode"]](acc, state)
+    mode = acc["mode"]
+    network = pay["network"]
+    evaluator = evaluator_account(network, acc.get("evaluator")) if mode == "evaluator" else None
+    finished_by = state.settled_by if state.status == "released" else None
+    conditional = bool(state.condition)
+    window = _review_window(state)
     problems = [
         p
         for p in (
             state.receipt_hash != signed["receiptHash"]
             and "recorded delivery is for a different receipt",
-            state.amount != pay["amount"] and "amount differs",
+            state.amount != pay["amount"]
+            and (
+                f"escrowed value {state.value or '?'} is not a whole number of 10^-15 units, so "
+                "no receipt amount can name it"
+                if state.amount == ""
+                else "amount differs"
+            ),
             not _same_asset(pay["asset"], state)
             and "asset differs (compared by protocol currency bytes and issuer)",
             payer and state.buyer != payer and "buyer differs from payment.payer",
             payee and state.seller != payee and "seller differs from payment.payee",
+            mode != "auto"
+            and not conditional
+            and f"escrow has no Condition, so release did not need the {mode}'s acceptance",
+            mode == "auto"
+            and conditional
+            and "escrow needs a fulfillment to release; it cannot auto-release as acceptance.mode "
+            "auto states",
+            mode != "auto"
+            and window is not None
+            and acc["reviewWindowSeconds"] > window
+            and f"acceptance.reviewWindowSeconds {acc['reviewWindowSeconds']} exceeds the {window} s "
+            "the ledger left between delivery and CancelAfter",
+            evaluator is False
+            and f"acceptance.evaluator {acc.get('evaluator')} is not a valid XRPL account on "
+            f"{network}, so it cannot have finished this escrow",
+            isinstance(evaluator, str)
+            and evaluator == state.seller
+            and "acceptance.evaluator is the seller's own account: a seller finishing its own "
+            "escrow is not an evaluator's decision",
+            isinstance(evaluator, str)
+            and finished_by is not None
+            and finished_by != evaluator
+            and f"escrow was finished by {finished_by}, not by the evaluator {evaluator}: the "
+            "release was not the evaluator's decision",
         )
         if p
-    ] + mode_problems
+    ]
     if problems:
         return CheckResult("fail", f"escrow {state.status}: {'; '.join(problems)}")
     if state.status in ("refunded", "open"):
@@ -559,16 +536,39 @@ def check_xrpl_escrow(
             "unavailable",
             "the delivery's ledger close time is unknown, so the review window can't be checked",
         )
-    if outcome is not None:
-        return outcome
+    if mode == "auto":
+        return CheckResult(
+            "unavailable",
+            "an unconditional XRPL escrow has no on-ledger review window; auto terms can't be "
+            "confirmed",
+        )
+    if mode == "evaluator" and not evaluator:
+        return CheckResult(
+            "unavailable",
+            "acceptance.evaluator is not an XRPL account, so the ledger cannot show it decided "
+            "(SPEC §7.3: the evaluator must finish the escrow from its own xrpl account)",
+        )
     if state.status == "delivered":
-        return CheckResult("pending", "delivered; awaiting the buyer's fulfillment")
-    window = _review_window(state)
+        return CheckResult(
+            "pending",
+            "delivered; awaiting the evaluator's EscrowFinish"
+            if mode == "evaluator"
+            else "delivered; awaiting the buyer's fulfillment",
+        )
+    if mode == "evaluator" and finished_by is None:
+        return CheckResult(
+            "unavailable", "the ledger history does not show which account finished the escrow"
+        )
     left = "no CancelAfter" if window is None else f"{window} s before CancelAfter"
+    if mode == "evaluator":
+        tx = f" (EscrowFinish {state.settlement_tx})" if state.settlement_tx else ""
+        decided = f"finished by the evaluator's own account {evaluator}{tx}"
+    else:
+        decided = "the buyer-held condition was fulfilled"
     return CheckResult(
         "pass",
-        "escrow finished to the payee; amount, asset, parties, delivery memo and buyer-held "
-        f"condition match (delivered {left})",
+        "escrow finished to the payee; amount, asset, parties and delivery memo match; "
+        f"{decided} (delivered {left})",
     )
 
 
@@ -585,22 +585,26 @@ def check_xrpl_escrow_payment(
     lookups that can't be completed are ``unavailable``, never ``fail`` or ``pass``."""
     pay = signed["receipt"]["payment"]
     network = pay["network"]
-    if network != XRPL_TESTNET:
+    m = _NETWORK.match(network) if isinstance(network, str) else None
+    url = {**DEFAULT_XRPL_JSON_RPCS, **(rpcs or {})}.get(network) if m else None
+    if not m or not url:
         return CheckResult("unavailable", f"unsupported network {network}")
+    want = int(m.group(1))
     try:
         parse_xrpl_escrow_id(pay["reference"])
     except ValueError as exc:
         return CheckResult("fail", str(exc))
     if rpc is None:
-        url = {**DEFAULT_XRPL_JSON_RPCS, **(rpcs or {})}.get(network)
-        if not url:
-            return CheckResult("unavailable", f"no XRPL JSON-RPC endpoint configured for {network}")
         rpc = xrpl_json_rpc(url)
     ledger = XrplLedger(rpc)
     try:
+        # SPEC §7.3: the server must serve payment.network, as for x402 (otherwise unavailable).
         served = ledger.network_id()
-        if served is not None and served != 1:
-            return CheckResult("unavailable", f"the XRPL server serves NetworkID {served}, not 1")
+        if served is not None and served != want:
+            return CheckResult(
+                "unavailable",
+                f"could not be checked: the XRPL server serves NetworkID {served}, not {want}",
+            )
         state = read_xrpl_escrow(ledger, pay["reference"], max_pages)
     except XrplHistoryIncomplete as exc:
         return CheckResult("unavailable", f"could not be checked: XRPL history incomplete: {exc}")

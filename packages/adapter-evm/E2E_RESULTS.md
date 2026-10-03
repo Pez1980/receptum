@@ -47,3 +47,5 @@ Deployed by `0xc94D23f247571E591b4405eF97Fb5565979B5C87` in [`0x74b77bca…eb8bc
 Full signed receipts: `e2e-results.arbitrum-sepolia.json`. Receipts carry the seller's account binding `examples/bindings/evm-arbitrum-sepolia.json`.
 
 <!-- /e2e:eip155:421614 -->
+
+**Current verdicts** (`node scripts/verify-examples.mjs` and `python verifiers/python/scripts/verify_examples.py`, identical): on both networks A and B are **VERIFIED** with their published deliverables and the seller binding; D is an anchor demo whose receipt names `<network>:demo-x402` as the escrow reference — the anchor itself passes, but the reference is no escrow id, so the receipt is **NOT VERIFIED** (correct). Both verifiers decide from the escrow's storage record (`escrows(id)`), never from the `Delivered` event (SPEC §7).

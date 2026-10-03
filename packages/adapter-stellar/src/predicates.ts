@@ -92,9 +92,9 @@ function window(p: HorizonPredicate): [number, number] | null {
 }
 
 /**
- * Recovers escrow terms from a balance's claimants, or throws if the balance
- * does not have exactly the Receptum shape (so arbitrary balances are never
- * mistaken for escrows).
+ * Recovers escrow terms from a balance's claimants, or throws a TypeError whose message starts
+ * with `not a Receptum escrow` if the balance does not have exactly the Receptum shape (so
+ * arbitrary balances are never mistaken for escrows; verifiers fail them, SPEC §7.5).
  */
 export function parseEscrowTerms(claimants: HorizonClaimant[]): EscrowTerms {
   if (claimants.length !== 2) throw new TypeError("not a Receptum escrow: expected 2 claimants");
@@ -116,6 +116,10 @@ export function parseEscrowTerms(claimants: HorizonClaimant[]): EscrowTerms {
     deadline: buyer.from,
     releaseAt: seller.releaseAt,
   };
-  assertValidTerms(terms);
+  try {
+    assertValidTerms(terms);
+  } catch (err) {
+    throw new TypeError(`not a Receptum escrow: ${(err as Error).message}`, { cause: err });
+  }
   return terms;
 }

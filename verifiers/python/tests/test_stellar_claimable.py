@@ -259,12 +259,18 @@ def test_no_payee_is_unavailable():
     assert res.status == "unavailable"
 
 
-def test_unknown_escrow_fails_and_non_receptum_balances_are_unavailable():
+def test_unknown_escrow_and_non_receptum_balances_fail():
     res = run(Chain(), reference="00000000" + "99" * 32)
     assert res.status == "fail" and "unknown escrow" in res.detail
+    # A balance without exactly the Receptum claimant shape is not this rail's escrow (SPEC §7.5).
     chain = Chain()
     chain.ops[BAL] = [create_op(cl=[{"destination": SELLER, "predicate": {"unconditional": True}}])]
-    assert run(chain).status == "unavailable"
+    res = run(chain)
+    assert res.status == "fail" and "not a Receptum escrow" in res.detail
+    chain = Chain()
+    chain.ops[BAL] = [create_op(cl=claimants(buyer=SELLER))]
+    res = run(chain)
+    assert res.status == "fail" and "not a Receptum escrow" in res.detail
 
 
 def test_escrow_ids():
@@ -275,8 +281,11 @@ def test_escrow_ids():
     for bad in ("01000000" + "00" * 32, BAL[:-2], "B" + "A" * 57):
         with pytest.raises(ValueError):
             parse_balance_id(bad)
-    # As for the TypeScript verifier, a malformed reference is undecided, not a contradiction.
-    assert run(Chain(), reference="nope").status == "unavailable"
+    # SPEC §7.5 defines the reference exactly: anything else fails without asking Horizon.
+    for ref in ("nope", f" {BAL}", BAL + "\n", "01000000" + "00" * 32, "B" + "A" * 57):
+        res = run(Chain(), reference=ref)
+        assert res.status == "fail" and "invalid Stellar escrow id" in res.detail, ref
+    assert run(Chain().deliver("d1").claim(SELLER), reference=BAL.upper()).status == "pass"
 
 
 @pytest.mark.parametrize(

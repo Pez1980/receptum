@@ -4,8 +4,12 @@
 //
 // Wallets and the seller key live OUTSIDE the repo, in $RECEPTUM_WALLETS_DIR
 // (default ~/.config/receptum/wallets, dir 0700, files 0600). Only public data
-// (addresses, tx hashes, receipts) is printed and written to E2E_RESULTS.md.
+// (addresses, tx hashes, receipts) is printed and written to E2E_RESULTS.md, the published
+// receipts examples/xrpl-testnet-escrow-{a,c}.json (with the seller binding of
+// examples/bindings/xrpl-testnet.json, matched on the payee) and their synthetic delivered bytes
+// examples/deliverables/xrpl-testnet-escrow-{a,c}.txt. Every released escrow must be VERIFIED.
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -24,12 +28,17 @@ import {
   XrplAnchor,
   XrplEscrowRail,
 } from "../dist/index.js";
+import { verify } from "../../verify/dist/index.js";
 
 const TESTNET = "wss://s.altnet.rippletest.net:51233";
 const NETWORK = "xrpl:1";
 const EXPLORER = "https://testnet.xrpl.org/transactions/";
 const RLUSD_ISSUER = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV"; // Ripple's RLUSD testnet issuer
 const TOKEN = "RCT"; // self-issued test token for the TokenEscrow path
+const EXAMPLES = new URL("../../../examples/", import.meta.url);
+const BINDINGS = ["xrpl-testnet.json"].map((n) =>
+  JSON.parse(readFileSync(new URL(`bindings/${n}`, EXAMPLES), "utf8")),
+);
 
 // ─── secrets: outside the repo, owner-only ─────────────────────────────────
 
@@ -94,12 +103,13 @@ const closeTime = async (client) =>
   (await client.request({ command: "ledger", ledger_index: "validated" })).result.ledger.close_time;
 
 function makeReceipt(handle, jobId, reviewWindowSeconds) {
+  const output = `output for ${jobId} ${randomBytes(8).toString("hex")}`;
   const receipt = createReceipt({
     jobId,
     seller: { id: sellerKey.did, name: "receptum e2e seller" },
     buyer: { id: caip10(NETWORK, handle.buyer) },
     inputSha256: [sha256Hex(`input for ${jobId}`)],
-    outputSha256: sha256Hex(`output for ${jobId}`),
+    outputSha256: sha256Hex(output),
     payment: {
       rail: handle.rail,
       network: handle.network,
@@ -111,7 +121,10 @@ function makeReceipt(handle, jobId, reviewWindowSeconds) {
     },
     acceptance: { mode: "buyer", reviewWindowSeconds },
   });
-  return signReceipt(receipt, sellerKey);
+  const signed = signReceipt(receipt, sellerKey);
+  // The seller binding sits outside the hashed receipt (SPEC §4.1).
+  const binding = BINDINGS.find((b) => b.statement.account === receipt.payment.payee);
+  return { signed: binding ? { ...signed, bindings: [binding] } : signed, output };
 }
 
 /** create → deliver → buyer verifies and hands over the fulfillment → seller releases. */
@@ -135,7 +148,7 @@ async function releaseFlow(client, name, params) {
   assert((await buyerRail.getEscrow(handle.escrowId)).status === "open", "open");
   await expectError(sellerRail.release(handle.escrowId), `${name} release before acceptance`);
 
-  const signed = makeReceipt(handle, `${name}-job`, params.reviewWindowSeconds);
+  const { signed, output } = makeReceipt(handle, `${name}-job`, params.reviewWindowSeconds);
   const delivered = await sellerRail.deliver(handle.escrowId, signed.receiptHash);
   step(`${name} deliver (receipt memo)`, delivered.reference);
 
@@ -150,7 +163,14 @@ async function releaseFlow(client, name, params) {
   step(`${name} EscrowFinish (release)`, released.reference);
   const final = await buyerRail.getEscrow(handle.escrowId);
   assert(final.status === "released" && final.receiptHash === signed.receiptHash, "released");
-  return { handle, signed, delivered, released, final };
+  // Delivered bytes (not a path) + seller binding + the escrow's own commitment: VERIFIED.
+  const report = await verify(signed, { file: new TextEncoder().encode(output) });
+  assert(
+    report.verdict === "VERIFIED",
+    `${name} VERIFIED, got ${report.verdict}: ${report.missing.join("; ")}`,
+  );
+  console.log(`  ${name}: receptum-verify ${report.verdict}`);
+  return { handle, signed, output, report, delivered, released, final };
 }
 
 // ─── run ───────────────────────────────────────────────────────────────────
@@ -326,19 +346,38 @@ ${JSON.stringify({ A: a.final, B: finalB, C: c.final }, null, 2)}
 
 ## Signed receipts
 
+Every released escrow was re-verified with \`@receptum/verify\` from the delivered bytes and the seller binding: A **${a.report.verdict}**, C **${c.report.verdict}**. Published as \`examples/xrpl-testnet-escrow-a.json\` and \`examples/xrpl-testnet-escrow-c.json\` (deliverables in \`examples/deliverables/\`).
+
 Escrow A (XRP), receiptHash \`${a.signed.receiptHash}\`:
 
 \`\`\`json
 ${JSON.stringify(a.signed, null, 2)}
 \`\`\`
 
-Escrow C (${TOKEN} via TokenEscrow), receiptHash \`${c.signed.receiptHash}\`:
+Escrow C (${TOKEN} via TokenEscrow, 5 tokens = \`${c.signed.receipt.payment.amount}\` units of 10^-15), receiptHash \`${c.signed.receiptHash}\`:
 
 \`\`\`json
 ${JSON.stringify(c.signed, null, 2)}
 \`\`\`
 `;
-  writeFileSync(new URL("../E2E_RESULTS.md", import.meta.url), md);
+  // Keep the later sections (evaluator mode, TokenEscrow) written by e2e-evaluator-token.mjs.
+  const path = new URL("../E2E_RESULTS.md", import.meta.url);
+  const previous = existsSync(path) ? readFileSync(path, "utf8") : "";
+  const keep = previous.indexOf("\n## Evaluator mode");
+  const text = md + (keep >= 0 ? previous.slice(keep) : "");
+  for (const secret of [seeds.buyer, seeds.seller, seeds.issuer])
+    assert(!text.includes(secret), "results must not contain a seed");
+  writeFileSync(path, text);
+  for (const [k, flow] of [
+    ["a", a],
+    ["c", c],
+  ]) {
+    writeFileSync(
+      new URL(`xrpl-testnet-escrow-${k}.json`, EXAMPLES),
+      JSON.stringify(flow.signed, null, 2) + "\n",
+    );
+    writeFileSync(new URL(`deliverables/xrpl-testnet-escrow-${k}.txt`, EXAMPLES), flow.output);
+  }
   console.log("All checks passed. Wrote packages/adapter-xrpl/E2E_RESULTS.md");
 } finally {
   await client.disconnect();

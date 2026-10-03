@@ -124,4 +124,6 @@ Rails enforce acceptance differently. Adapters SHOULD publish their `EscrowCapab
 
 ## 9. Privacy
 
+Receipts are pseudonymous by design: parties are identified only by wallet accounts (CAIP-10) and the seller's public key (`did:key`) — never by name, email or other personal data. `seller.name` is an optional display label. `payment.payee` and `payment.payer` are the same public addresses that already appear in the settlement on-chain.
+
 Receipts MUST NOT contain media, prompts, personal data or raw job ids. Because inputs are hashed, low-entropy inputs could be guessed by brute force; sellers SHOULD salt or avoid publishing hashes of guessable inputs.

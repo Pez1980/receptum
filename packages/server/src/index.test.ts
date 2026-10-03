@@ -209,3 +209,47 @@ describe("handlePaidJob", () => {
     expect(x402.settlePayment).not.toHaveBeenCalled();
   });
 });
+
+describe("account bindings", async () => {
+  const { createAccountBinding } = await import("@receptum/core");
+  const { evmAccountSigner, evmBindingVerifier } = await import("@receptum/adapter-evm");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  // anvil default accounts #0/#1 — PUBLIC test keys.
+  const payTo = privateKeyToAccount(
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  );
+  const stranger = privateKeyToAccount(
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  );
+  const boundReq = { ...req, payTo: payTo.address };
+  const bindingFor = (account = payTo) =>
+    createAccountBinding({ key: seller, signer: evmAccountSigner(account, "eip155:84532") });
+  const boundConfig = async (account = payTo, verify = true): Promise<PaidJobConfig> => {
+    const x402 = fakeX402({
+      buildPaymentRequirements: vi.fn(async () => [boundReq]),
+      findMatchingRequirements: vi.fn(() => boundReq),
+    });
+    return {
+      ...config(x402),
+      bindings: [await bindingFor(account)],
+      ...(verify ? { bindingVerifiers: [evmBindingVerifier] } : {}),
+    };
+  };
+  const pay = headers({ "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) });
+
+  it("attaches the seller's bindings to the receipt, outside the hashed receipt", async () => {
+    const cfg = await boundConfig();
+    const res = await handlePaidJob(pay, job, cfg);
+    expect(res.status).toBe(200);
+    expect(res.receipt?.bindings).toEqual(cfg.bindings);
+    expect(verifySignedReceipt(res.receipt!).ok).toBe(true);
+    const { checkPayeeBinding } = await import("@receptum/core");
+    expect(checkPayeeBinding(res.receipt!, { verifiers: [evmBindingVerifier] }).ok).toBe(true);
+  });
+
+  it("refuses to charge when its bindings don't cover the payee", async () => {
+    const cfg = await boundConfig(stranger);
+    await expect(handlePaidJob(pay, job, cfg)).rejects.toThrow(/does not cover the payee/);
+    expect(cfg.x402.settlePayment).not.toHaveBeenCalled();
+  });
+});

@@ -6,8 +6,9 @@ type Tx = Record<string, unknown> & { TransactionType: string; Account: string }
 interface Entry {
   hash: string;
   tx: Tx;
-  meta: { TransactionResult: string; AffectedNodes: unknown[] };
+  meta: { TransactionResult: string; AffectedNodes: unknown[]; TransactionIndex: number };
   close_time_iso: string;
+  ledger_index: number;
 }
 
 export function fakeLedger() {
@@ -15,6 +16,7 @@ export function fakeLedger() {
   const history = new Map<string, Entry[]>();
   const byHash = new Map<string, Entry>();
   let sequence = 100;
+  let ledgerIndex = 1000;
   const state = {
     closeTime: 800_000_000,
     nextResult: "tesSUCCESS",
@@ -28,6 +30,7 @@ export function fakeLedger() {
     tx_json: e.tx,
     meta: e.meta,
     close_time_iso: e.close_time_iso,
+    ledger_index: e.ledger_index,
   });
   const record = (entry: Entry, accounts: unknown[]) => {
     byHash.set(entry.hash, entry);
@@ -42,6 +45,8 @@ export function fakeLedger() {
       escrow?: { owner: string; seq: number };
       account?: string;
       transaction?: string;
+      forward?: boolean;
+      ledger_index_min?: number;
     }) {
       switch (req.command) {
         case "server_info":
@@ -54,7 +59,11 @@ export function fakeLedger() {
           return { result: { node } };
         }
         case "account_tx": {
-          const txs = [...(history.get(req.account ?? "") ?? [])].reverse();
+          const min = req.ledger_index_min ?? -1;
+          const all = (history.get(req.account ?? "") ?? []).filter(
+            (e) => min < 0 || e.ledger_index >= min,
+          );
+          const txs = req.forward ? [...all] : [...all].reverse();
           return {
             result: {
               transactions: txs.map((e) => ({ validated: true, ...entryResult(e) })),
@@ -77,8 +86,9 @@ export function fakeLedger() {
       const entry: Entry = {
         hash,
         tx,
-        meta: { TransactionResult: state.nextResult, AffectedNodes: [] },
+        meta: { TransactionResult: state.nextResult, AffectedNodes: [], TransactionIndex: 0 },
         close_time_iso: new Date((state.closeTime + 946_684_800) * 1000).toISOString(),
+        ledger_index: ledgerIndex++,
       };
       if (state.nextResult !== "tesSUCCESS") {
         state.nextResult = "tesSUCCESS";
@@ -93,6 +103,7 @@ export function fakeLedger() {
           Amount: tx.Amount,
           Condition: tx.Condition,
           CancelAfter: tx.CancelAfter,
+          PreviousTxnID: hash,
         });
         accounts.push(tx.Destination);
       } else if (tx.TransactionType === "EscrowFinish" || tx.TransactionType === "EscrowCancel") {

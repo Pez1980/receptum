@@ -1,4 +1,10 @@
-import { sha256Hex, verifySignedReceipt, type SignedReceipt } from "@receptum/core";
+import {
+  checkPayeeBinding,
+  sha256Hex,
+  verifySignedReceipt,
+  type BindingVerifier,
+  type SignedReceipt,
+} from "@receptum/core";
 import { decodePaymentResponseHeader } from "@x402/core/http";
 
 export const RECEIPT_HEADER = "Receptum-Receipt";
@@ -42,7 +48,19 @@ export interface ReceiptCheck {
   sellerAllowed: boolean;
   /** The receipt matches what the buyer expected to pay for. */
   expectationsMet: boolean;
+  /**
+   * A valid account binding (SPEC §4.1) proves the seller controls `payment.payee`.
+   * Only enforced with `requireBinding`; otherwise reported as checked (or false when absent).
+   */
+  payeeBound: boolean;
   reasons: string[];
+}
+
+export interface BindingOptions {
+  /** Require a valid seller ↔ payee account binding (SPEC §4.1). */
+  requireBinding?: boolean;
+  /** Verifiers for the payee's namespace, e.g. `evmBindingVerifier` from @receptum/adapter-evm. */
+  bindingVerifiers?: readonly BindingVerifier[];
 }
 
 const bare = (account?: string) => account?.split(":").pop()?.toLowerCase();
@@ -57,7 +75,7 @@ export function checkDelivery(
   receipt: SignedReceipt,
   settlement?: Settlement,
   allowedSellers?: readonly string[],
-  options: { expected?: Expected; requireSettlement?: boolean } = {},
+  options: { expected?: Expected; requireSettlement?: boolean } & BindingOptions = {},
 ): ReceiptCheck {
   const reasons: string[] = [];
   const sig = verifySignedReceipt(receipt);
@@ -70,6 +88,7 @@ export function checkDelivery(
       settlementMatches: false,
       sellerAllowed: false,
       expectationsMet: false,
+      payeeBound: false,
       reasons: [`signature: ${sig.reason}`],
     };
   }
@@ -115,6 +134,12 @@ export function checkDelivery(
   }
   const expectationsMet = reasons.length === before;
 
+  const bound = checkPayeeBinding(
+    receipt,
+    options.bindingVerifiers ? { verifiers: options.bindingVerifiers } : {},
+  );
+  if (options.requireBinding && !bound.ok) reasons.push(`account binding: ${bound.reason}`);
+
   return {
     ok: reasons.length === 0,
     signature: sig.ok,
@@ -122,6 +147,7 @@ export function checkDelivery(
     settlementMatches,
     sellerAllowed,
     expectationsMet,
+    payeeBound: bound.ok,
     reasons,
   };
 }
@@ -134,7 +160,7 @@ export interface ReceiptedResponse {
   settlement?: ReturnType<typeof decodePaymentResponseHeader>;
 }
 
-export interface ReceptumFetchOptions {
+export interface ReceptumFetchOptions extends BindingOptions {
   /** A fetch that pays x402 requests, e.g. from @x402/fetch's wrapFetchWithPayment. */
   paidFetch: typeof fetch;
   /** Only accept receipts signed by these seller ids (did:key). */
@@ -167,13 +193,11 @@ export function createReceptumFetch(options: ReceptumFetchOptions) {
     const paymentHeader =
       response.headers.get("PAYMENT-RESPONSE") ?? response.headers.get("X-PAYMENT-RESPONSE");
     const settlement = paymentHeader ? decodePaymentResponseHeader(paymentHeader) : undefined;
-    const check = checkDelivery(
-      body,
-      receipt,
-      settlement,
-      options.allowedSellers,
-      options.expected ? { expected: options.expected } : {},
-    );
+    const check = checkDelivery(body, receipt, settlement, options.allowedSellers, {
+      ...(options.expected ? { expected: options.expected } : {}),
+      ...(options.requireBinding ? { requireBinding: true } : {}),
+      ...(options.bindingVerifiers ? { bindingVerifiers: options.bindingVerifiers } : {}),
+    });
     if (!check.ok)
       throw new ReceiptError(`receipt check failed: ${check.reasons.join("; ")}`, check);
     return { response, body, receipt, check, ...(settlement ? { settlement } : {}) };

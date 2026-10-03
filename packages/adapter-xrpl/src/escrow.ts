@@ -26,7 +26,9 @@ import {
 } from "./encoding.js";
 import {
   accountTxs,
+  compareTx,
   errorCode,
+  getTx,
   submit,
   validatedCloseTime,
   XRPL_TESTNET,
@@ -72,7 +74,13 @@ type EscrowFields = Pick<LedgerEntry.Escrow, "Account" | "Destination" | "Cancel
   Amount: XrplAmount;
   Condition?: string;
   FinishAfter?: number;
+  /** For an Escrow entry: the EscrowCreate that made it (escrows are never modified). */
+  PreviousTxnID?: string;
 };
+
+/** Ripple-epoch seconds of a validated transaction's ledger close, if known. */
+const rippleCloseTime = (t: LedgerTx): number | undefined =>
+  t.closeTime ? unixTimeToRippleTime(Date.parse(t.closeTime)) : undefined;
 
 /**
  * XRPL native Escrow as a Receptum `EscrowRail`.
@@ -125,12 +133,19 @@ export class XrplEscrowRail implements EscrowRail {
     };
   }
 
+  /**
+   * Escrow state from chronological ledger history: settlement from the EscrowFinish /
+   * EscrowCancel that removed the entry; delivery from the FIRST successful receipt memo the
+   * seller sent for this escrow after its EscrowCreate, no later than CancelAfter and before
+   * settlement. Later memos are ignored.
+   */
   async getEscrow(escrowId: string): Promise<EscrowState> {
     const open = await this.entry(escrowId);
     const closed = open ? null : await this.closing(escrowId);
     const fields = open ?? closed?.fields;
     if (!fields) throw new Error(`escrow ${escrowId} not found`);
-    const delivery = await this.delivery(escrowId, fields.Destination);
+    const created = await this.creation(escrowId, fields);
+    const delivery = await this.delivery(escrowId, fields, created, closed?.tx);
     const status: EscrowStatus = closed
       ? closed.type === "EscrowFinish"
         ? "released"
@@ -260,7 +275,7 @@ export class XrplEscrowRail implements EscrowRail {
   /** The EscrowFinish/EscrowCancel that removed the escrow, with its final fields. */
   private async closing(
     escrowId: string,
-  ): Promise<{ type: "EscrowFinish" | "EscrowCancel"; fields: EscrowFields } | null> {
+  ): Promise<{ type: "EscrowFinish" | "EscrowCancel"; fields: EscrowFields; tx: LedgerTx } | null> {
     const { owner, sequence } = parseEscrowId(escrowId);
     for await (const t of accountTxs(this.client, owner, this.maxPages)) {
       const type = t.tx.TransactionType;
@@ -270,18 +285,49 @@ export class XrplEscrowRail implements EscrowRail {
         (n) => isDeletedNode(n) && n.DeletedNode.LedgerEntryType === "Escrow",
       );
       if (node && isDeletedNode(node)) {
-        return { type, fields: node.DeletedNode.FinalFields as unknown as EscrowFields };
+        return { type, fields: node.DeletedNode.FinalFields as unknown as EscrowFields, tx: t };
       }
     }
     return null;
   }
 
-  /** Latest delivery memo sent by the seller for this escrow. */
+  /** The validated EscrowCreate for this escrow (via PreviousTxnID, else the owner's history). */
+  private async creation(escrowId: string, fields: EscrowFields): Promise<LedgerTx> {
+    const { owner, sequence } = parseEscrowId(escrowId);
+    const isCreate = (t: LedgerTx | null): t is LedgerTx =>
+      !!t &&
+      t.tx.TransactionType === "EscrowCreate" &&
+      t.tx.Account === owner &&
+      (t.tx.TicketSequence || t.tx.Sequence) === sequence;
+    if (fields.PreviousTxnID) {
+      const t = await getTx(this.client, fields.PreviousTxnID);
+      if (isCreate(t)) return t;
+    }
+    for await (const t of accountTxs(this.client, owner, this.maxPages)) if (isCreate(t)) return t;
+    throw new Error(`EscrowCreate for ${escrowId} not found in ledger history`);
+  }
+
+  /**
+   * First delivery memo by the seller for this escrow, in ledger order, strictly after the
+   * EscrowCreate, with a close time ≤ CancelAfter and before the settling transaction.
+   */
   private async delivery(
     escrowId: string,
-    seller: string,
+    fields: EscrowFields,
+    created: LedgerTx,
+    settled?: LedgerTx,
   ): Promise<{ receiptHash: Sha256Hex; tx: LedgerTx } | null> {
-    for await (const t of accountTxs(this.client, seller, this.maxPages)) {
+    const seller = fields.Destination;
+    const history = accountTxs(this.client, seller, this.maxPages, {
+      forward: true,
+      ...(created.ledgerIndex !== undefined ? { fromLedger: created.ledgerIndex } : {}),
+    });
+    for await (const t of history) {
+      if (compareTx(t, created) <= 0) continue;
+      if (settled && compareTx(t, settled) >= 0) break;
+      const closeTime = rippleCloseTime(t);
+      // Unknown close time can't be placed before CancelAfter: stop rather than guess.
+      if (fields.CancelAfter && (closeTime === undefined || closeTime > fields.CancelAfter)) break;
       if (t.tx.Account !== seller) continue;
       const memo = parseReceiptMemos(t.tx.Memos);
       if (memo.escrowId === escrowId && memo.receiptHash) {

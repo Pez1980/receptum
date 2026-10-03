@@ -1,0 +1,60 @@
+{
+  "receipt": {
+    "version": "receptum/1",
+    "receiptId": "RCPT-XN5P-YHW5",
+    "jobIdHash": "51b05676621dfdecfe584d686b7e6c9e024d3c62a07f70f320a5a27a25631dab",
+    "seller": {
+      "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "name": "render.example"
+    },
+    "inputSha256": ["52a2b0d6fc0254196da0ae5e5914f4723da0a4cce978e69bc6b57dc807660e6f"],
+    "outputSha256": "29c0ed75b8e0f4eba27f9bd9465b97502eb032ca082a6d016e8cffb7d048c7cc",
+    "payment": {
+      "rail": "escrow:receptum-evm",
+      "network": "eip155:5042002",
+      "asset": "0x3600000000000000000000000000000000000000",
+      "amount": "2500000",
+      "reference": "eip155:5042002:0x20d69c6c647559f48a7e6b0a3f922e99a4068f16:1",
+      "payer": "eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5",
+      "payee": "eip155:5042002:0x6344D17a80775A71b51A61124767AbCD22B0328B"
+    },
+    "acceptance": {
+      "mode": "buyer",
+      "reviewWindowSeconds": 3600
+    },
+    "deliveredAt": "2026-10-03T13:57:21.416Z",
+    "buyer": {
+      "id": "eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+    },
+    "remedy": {
+      "kind": "rerender",
+      "withinDays": 30
+    }
+  },
+  "receiptHash": "c3940e5a5d10912d445763088d1c6236959e78d180c60d8472ae9e7f8a14d36b",
+  "proof": {
+    "type": "jws",
+    "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+    "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..E_ClQ3SE3TpzwYcQexcRYTZxf7l4pWPQqTw3ky0TLDOdJVNCQW5dACCf4ZIPaxQTAvhOMQ2jxBLGsgiD4-ZRBA"
+  },
+  "bindings": [
+    {
+      "statement": {
+        "type": "receptum/account-binding/1",
+        "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "account": "eip155:5042002:0x6344D17a80775A71b51A61124767AbCD22B0328B",
+        "issuedAt": "2026-10-03T17:01:50.252Z",
+        "expiresAt": "2027-10-03T17:01:50.252Z"
+      },
+      "didProof": {
+        "type": "jws",
+        "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..OQ94bbDVEsQozkwLqXOk3EVtslE1_4llbo09BDWuCYZoShz6C4SpWChaAcv5gFlDPHaczy8mwCkXz3Z2uM4EDg"
+      },
+      "accountProof": {
+        "type": "eip191",
+        "signature": "0xb9877161c870045072a7404e4ed6fa57e01436aa178c4be050e27e0c0db5c2224086ca6a25830f85320cd61b8cea6b254f88260b35d5e361d68d8454289a2f071b"
+      }
+    }
+  ]
+}

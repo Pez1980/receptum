@@ -1,11 +1,14 @@
 import {
   canonicalJson,
+  checkPayeeBinding,
   createReceipt,
   sha256Hex,
   signReceipt,
   verifySignedReceipt,
+  type AccountBinding,
   type Anchor,
   type AnchorRecord,
+  type BindingVerifier,
   type DeliveryReceipt,
   type SellerKey,
   type Sha256Hex,
@@ -44,6 +47,16 @@ export interface PaidJobConfig {
   remedy?: DeliveryReceipt["remedy"];
   /** Optional on-chain anchor for the receipt hash (e.g. EvmAnchor, XrplAnchor, StellarAnchor). */
   anchor?: Anchor;
+  /**
+   * Account bindings (SPEC §4.1) proving `seller` controls its `payTo` account(s). Bindings for
+   * this seller's did are attached to every receipt (`SignedReceipt.bindings`).
+   */
+  bindings?: AccountBinding[];
+  /**
+   * Verifiers for the payout namespaces (e.g. `evmBindingVerifier`). When set, the server checks
+   * BEFORE settlement that a valid binding covers the payee and refuses to charge otherwise.
+   */
+  bindingVerifiers?: BindingVerifier[];
 }
 
 export interface JobResult {
@@ -170,9 +183,18 @@ export async function handlePaidJob(
       });
     // Validate the job's receipt data before charging, so the buyer is never charged for a
     // result we then fail to deliver.
-    const preflight = signReceipt(draft("pending", matched.amount, matched.network), config.seller);
+    const bindings = config.bindings?.filter((b) => b.statement?.did === config.seller.did);
+    const withBindings = (signed: SignedReceipt): SignedReceipt =>
+      bindings?.length ? { ...signed, bindings } : signed;
+    const preflight = withBindings(
+      signReceipt(draft("pending", matched.amount, matched.network), config.seller),
+    );
     if (!verifySignedReceipt(preflight).ok)
       throw new Error("seller key can't produce a valid receipt signature");
+    if (config.bindingVerifiers) {
+      const bound = checkPayeeBinding(preflight, { verifiers: config.bindingVerifiers });
+      if (!bound.ok) throw new Error(`account binding does not cover the payee: ${bound.reason}`);
+    }
 
     const settled = await config.x402.settlePayment(payload, matched);
     if (!settled.success) {
@@ -183,9 +205,16 @@ export async function handlePaidJob(
       );
     }
 
-    const signed = signReceipt(
-      draft(settled.transaction, settled.amount ?? matched.amount, settled.network, settled.payer),
-      config.seller,
+    const signed = withBindings(
+      signReceipt(
+        draft(
+          settled.transaction,
+          settled.amount ?? matched.amount,
+          settled.network,
+          settled.payer,
+        ),
+        config.seller,
+      ),
     );
     let anchor: AnchorRecord | undefined;
     let anchorError: string | undefined;

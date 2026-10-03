@@ -22,6 +22,7 @@
     "contracts:test": "forge test"
   },
   "dependencies": {
+    "@noble/curves": "^1.9.1",
     "@receptum/core": "workspace:*",
     "viem": "^2.57.2"
   },

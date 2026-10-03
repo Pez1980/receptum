@@ -1,13 +1,26 @@
-import { sha256File, sha256Hex, verifySignedReceipt, type SignedReceipt } from "@receptum/core";
+import {
+  checkPayeeBinding,
+  sha256File,
+  sha256Hex,
+  verifySignedReceipt,
+  type BindingVerifier,
+  type SignedReceipt,
+} from "@receptum/core";
 import {
   anchorCalldata,
+  evmBindingVerifier,
   NETWORKS,
   receptumEscrowAbi,
   receptumEscrowDeployedBytecode,
   parseEscrowId,
 } from "@receptum/adapter-evm";
 import { StellarAnchor } from "@receptum/adapter-stellar";
-import { XrplAnchor, XrplEscrowRail } from "@receptum/adapter-xrpl";
+import {
+  XrplAnchor,
+  XrplEscrowRail,
+  xrplBindingVerifier,
+  xrplOnlineBindingVerifier,
+} from "@receptum/adapter-xrpl";
 import {
   createPublicClient,
   decodeEventLog,
@@ -23,8 +36,11 @@ import { Client } from "xrpl";
 export type CheckStatus = "pass" | "fail" | "pending" | "skipped";
 
 export interface Check {
-  /** 1 = file ↔ receipt, 2 = receipt ↔ seller, 3 = receipt ↔ settlement/anchor (SPEC §6). */
-  level: 1 | 2 | 3;
+  /**
+   * 1 = file ↔ receipt, 2 = receipt ↔ seller, 2.5 = seller ↔ payee (account binding, SPEC §4.1),
+   * 3 = receipt ↔ settlement/anchor (SPEC §6).
+   */
+  level: 1 | 2 | 2.5 | 3;
   name: string;
   status: CheckStatus;
   detail: string;
@@ -297,6 +313,66 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
   }
 }
 
+/** Offline binding verifiers for every namespace the verifier supports (stellar is built in). */
+export const BINDING_VERIFIERS: readonly BindingVerifier[] = [
+  evmBindingVerifier,
+  xrplBindingVerifier,
+];
+
+/**
+ * Level 2.5: does a valid account binding prove the seller controls `payment.payee`?
+ * pass = valid binding; fail = bindings present but none valid; pending = no binding at all
+ * (legacy receipt) — `skipped` instead when `allowUnbound`. Online, XRPL keys are checked
+ * against the account's current master/regular key.
+ */
+export async function verifyBinding(
+  signed: SignedReceipt,
+  options: { offline?: boolean; allowUnbound?: boolean } = {},
+): Promise<Check> {
+  const name = "Seller controls payee";
+  const payee = signed.receipt.payment.payee;
+  if (!payee) return { level: 2.5, name, status: "skipped", detail: "receipt names no payee" };
+  if (!signed.bindings?.length)
+    return options.allowUnbound
+      ? {
+          level: 2.5,
+          name,
+          status: "skipped",
+          detail: "no account binding (allowed: --allow-unbound)",
+        }
+      : {
+          level: 2.5,
+          name,
+          status: "pending",
+          detail: "no account binding: nothing proves the seller controls the payee",
+        };
+  const verifiers = [...BINDING_VERIFIERS];
+  let mode = "offline";
+  try {
+    if (!options.offline && payee.startsWith("xrpl:1:")) {
+      const address = payee.slice("xrpl:1:".length);
+      verifiers.unshift(await withXrpl((client) => xrplOnlineBindingVerifier(client, address)));
+      mode = "online, current account keys";
+    }
+  } catch (err) {
+    return {
+      level: 2.5,
+      name,
+      status: "fail",
+      detail: `could not load XRPL account keys: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  const res = checkPayeeBinding(signed, { verifiers });
+  return res.ok
+    ? {
+        level: 2.5,
+        name,
+        status: "pass",
+        detail: `${res.binding.statement.did} ↔ ${payee}: ${res.detail} (${mode})`,
+      }
+    : { level: 2.5, name, status: "fail", detail: res.reason };
+}
+
 export interface VerifyOptions {
   file?: string | Uint8Array;
   /** Anchor references to check, `<caip2>:<tx>`. */
@@ -305,6 +381,11 @@ export interface VerifyOptions {
   offline?: boolean;
   /** Extra ReceptumEscrow deployments to trust, in addition to TRUSTED_ESCROWS. */
   trustedEscrows?: string[];
+  /**
+   * Accept receipts without an account binding as complete (legacy receipts). Invalid bindings
+   * still fail.
+   */
+  allowUnbound?: boolean;
 }
 
 /** Runs every applicable check. `ok` is true when nothing failed. */
@@ -313,6 +394,19 @@ export async function verify(
   options: VerifyOptions = {},
 ): Promise<VerifyReport> {
   const checks = await verifyOffline(signed, options.file);
+  const signatureOk = checks.some((c) => c.level === 2 && c.status === "pass");
+  const binding: Check = signatureOk
+    ? await verifyBinding(signed, {
+        ...(options.offline ? { offline: true } : {}),
+        ...(options.allowUnbound ? { allowUnbound: true } : {}),
+      })
+    : {
+        level: 2.5,
+        name: "Seller controls payee",
+        status: "skipped",
+        detail: "receipt signature is invalid",
+      };
+  checks.push(binding);
   if (!options.offline) {
     checks.push(await verifyPayment(signed, options.trustedEscrows));
     for (const a of options.anchors ?? []) checks.push(await verifyAnchor(signed, a));
@@ -321,7 +415,8 @@ export async function verify(
   const payment = checks.find((c) => c.level === 3 && c.name.startsWith("Payment"));
   return {
     ok,
-    complete: ok && payment?.status === "pass",
+    // A payee that the seller hasn't proven it controls is not a complete verification.
+    complete: ok && payment?.status === "pass" && binding.status !== "pending",
     receiptHash: signed.receiptHash,
     seller: signed.receipt.seller.id,
     checks,

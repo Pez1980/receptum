@@ -5,6 +5,7 @@
 - `open` (buyer, after ERC-20 approval) → `deliver(id, receiptHash)` (seller, before the deadline) → `accept` / `reject` (buyer or evaluator; reject only within the review window) → `release` (anyone, after the window) / `refund` (anyone, after the deadline with no delivery).
 - Funding is checked by balance delta (fee-on-transfer/rebasing tokens and non-contract tokens are rejected), every fund-moving call is reentrancy-locked, the evaluator can't be the buyer or seller, and `sellerRefund` lets the seller return funds at any time before release.
 - Sellers are paid in full on release. Events: `Opened`, `Delivered(id, receiptHash)`, `Released`, `Refunded`.
+- `evmAccountSigner(account, network)` / `evmBindingVerifier` — account bindings (SPEC §4.1) for EOAs: EIP-191 `personal_sign` over the statement's JCS, verified offline by address recovery (low-s, v ∈ {27, 28}). Contract wallets are not supported.
 - `EvmAnchor` anchors a receiptHash as calldata `utf8("receptum/1") ‖ receiptHash` in a zero-value self-transaction (for x402 payments without escrow).
 
 Tests: 24 Foundry tests incl. adversarial tokens (fee-on-transfer, no-return, malformed return, reentrant, blocklisting) and two fuzz tests (`forge test`), plus an anvil integration test for the TypeScript rail.

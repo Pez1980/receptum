@@ -102,3 +102,61 @@ describe("createReceptumFetch", () => {
     ).rejects.toThrow(/output hash/);
   });
 });
+
+describe("requireBinding", async () => {
+  const { createAccountBinding } = await import("@receptum/core");
+  const { evmAccountSigner, evmBindingVerifier } = await import("@receptum/adapter-evm");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  // anvil default account #0 — a PUBLIC test key.
+  const payeeAccount = privateKeyToAccount(
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  );
+  const bound = signReceipt(
+    createReceipt({
+      jobId: "j",
+      seller: { id: seller.did },
+      inputSha256: [sha256Hex("in")],
+      outputSha256: sha256Hex(body),
+      payment: {
+        rail: "x402:exact",
+        network: "eip155:84532",
+        asset: "0xUSDC",
+        amount: "250000",
+        reference: "0xsettle",
+        payee: `eip155:84532:${payeeAccount.address.toLowerCase()}`,
+      },
+    }),
+    seller,
+  );
+  const binding = await createAccountBinding({
+    key: seller,
+    signer: evmAccountSigner(payeeAccount, "eip155:84532"),
+  });
+  const opts = { requireBinding: true, bindingVerifiers: [evmBindingVerifier] };
+
+  it("accepts a receipt whose seller is bound to the payee", () => {
+    const r = checkDelivery(body, { ...bound, bindings: [binding] }, ok, undefined, opts);
+    expect(r).toMatchObject({ ok: true, payeeBound: true });
+  });
+  it("refuses a missing, foreign or unverifiable binding", async () => {
+    expect(checkDelivery(body, bound, ok, undefined, opts).reasons).toContain(
+      "account binding: receipt carries no account bindings",
+    );
+    const foreign = await createAccountBinding({
+      key: generateSellerKey(),
+      signer: evmAccountSigner(payeeAccount, "eip155:84532"),
+    });
+    expect(checkDelivery(body, { ...bound, bindings: [foreign] }, ok, undefined, opts).ok).toBe(
+      false,
+    );
+    // Without the eip155 verifier, the binding can't be checked: fail closed.
+    expect(
+      checkDelivery(body, { ...bound, bindings: [binding] }, ok, undefined, {
+        requireBinding: true,
+      }).reasons.join(),
+    ).toMatch(/no binding verifier for namespace eip155/);
+  });
+  it("only reports the binding when not required", () => {
+    expect(checkDelivery(body, bound, ok)).toMatchObject({ ok: true, payeeBound: false });
+  });
+});

@@ -118,3 +118,36 @@ describe("verifyToolResult", () => {
     expect(verifyToolResult({ content: [] }).ok).toBe(false);
   });
 });
+
+describe("account bindings", async () => {
+  const { createAccountBinding } = await import("@receptum/core");
+  const { evmAccountSigner, evmBindingVerifier } = await import("@receptum/adapter-evm");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  // anvil default account #0 — a PUBLIC test key.
+  const payTo = privateKeyToAccount(
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  );
+  const binding = await createAccountBinding({
+    key: seller,
+    signer: evmAccountSigner(payTo, "eip155:84532"),
+  });
+  const price = { asset: "0xUSDC", amount: "100000", payTo: payTo.address };
+  const check = { requireBinding: true, bindingVerifiers: [evmBindingVerifier] };
+
+  it("requireBinding passes with the seller's binding and fails without", async () => {
+    const withB = await withReceipts(paid({ [X402_SETTLEMENT_META_KEY]: settled }), {
+      seller,
+      price,
+      bindings: [binding],
+    })({}, {});
+    expect(verifyToolResult(withB, [seller.did], check)).toMatchObject({ ok: true });
+    const without = await withReceipts(paid({ [X402_SETTLEMENT_META_KEY]: settled }), {
+      seller,
+      price,
+    })({}, {});
+    expect(verifyToolResult(without, [seller.did]).ok).toBe(true);
+    expect(verifyToolResult(without, [seller.did], check).reasons).toContain(
+      "account binding: receipt carries no account bindings",
+    );
+  });
+});

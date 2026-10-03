@@ -32,6 +32,9 @@ importers:
 
   examples/agent-buyer:
     dependencies:
+      '@receptum/adapter-evm':
+        specifier: workspace:*
+        version: link:../../packages/adapter-evm
       '@receptum/client':
         specifier: workspace:*
         version: link:../../packages/client
@@ -47,6 +50,24 @@ importers:
       viem:
         specifier: ^2.57.2
         version: 2.57.2(typescript@6.0.3)(zod@3.25.76)
+
+  examples/bindings:
+    dependencies:
+      '@receptum/adapter-evm':
+        specifier: workspace:*
+        version: link:../../packages/adapter-evm
+      '@receptum/adapter-xrpl':
+        specifier: workspace:*
+        version: link:../../packages/adapter-xrpl
+      '@receptum/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: ^2.57.2
+        version: 2.57.2(typescript@6.0.3)(zod@3.25.76)
+      xrpl:
+        specifier: ^5.3.0
+        version: 5.3.0
 
   examples/toy-renderer:
     dependencies:
@@ -71,6 +92,9 @@ importers:
 
   packages/adapter-evm:
     dependencies:
+      '@noble/curves':
+        specifier: ^1.9.1
+        version: 1.9.1
       '@receptum/core':
         specifier: workspace:*
         version: link:../core
@@ -92,6 +116,9 @@ importers:
       '@receptum/core':
         specifier: workspace:*
         version: link:../core
+      ripple-keypairs:
+        specifier: ^3.1.0
+        version: 3.1.0
       xrpl:
         specifier: ^5.3.0
         version: 5.3.0
@@ -104,6 +131,13 @@ importers:
       '@x402/core':
         specifier: ^2.28.0
         version: 2.28.0
+    devDependencies:
+      '@receptum/adapter-evm':
+        specifier: workspace:*
+        version: link:../adapter-evm
+      viem:
+        specifier: ^2.57.2
+        version: 2.57.2(typescript@6.0.3)(zod@3.25.76)
 
   packages/core: {}
 
@@ -116,6 +150,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.0
         version: 1.32.0(zod@3.25.76)
+      '@receptum/adapter-evm':
+        specifier: workspace:*
+        version: link:../adapter-evm
       '@x402/core':
         specifier: ^2.28.0
         version: 2.28.0
@@ -140,6 +177,13 @@ importers:
       '@x402/core':
         specifier: ^2.28.0
         version: 2.28.0
+    devDependencies:
+      '@receptum/adapter-evm':
+        specifier: workspace:*
+        version: link:../adapter-evm
+      viem:
+        specifier: ^2.57.2
+        version: 2.57.2(typescript@6.0.3)(zod@3.25.76)
 
   packages/verify:
     dependencies:

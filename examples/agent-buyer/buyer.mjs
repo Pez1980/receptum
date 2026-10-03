@@ -8,6 +8,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { createReceptumFetch } from "@receptum/client";
+import { evmBindingVerifier } from "@receptum/adapter-evm";
 
 const url = process.env.RENDER_URL ?? "http://localhost:4021/render";
 const dir = process.env.RECEPTUM_WALLETS_DIR ?? join(homedir(), ".config/receptum/wallets");
@@ -31,6 +32,9 @@ const buy = createReceptumFetch({
     maxAmount: "250000",
     payer: privateKeyToAccount(wallets.buyer.privateKey).address,
   },
+  // Only accept receipts whose seller proves it controls the account that was paid.
+  requireBinding: true,
+  bindingVerifiers: [evmBindingVerifier],
 });
 
 const result = await buy(url, {

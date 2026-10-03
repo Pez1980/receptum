@@ -1,0 +1,109 @@
+{
+  "description": "Receptum account binding (receptum/account-binding/1) test vectors, SPEC §4.1. Every key here is a PUBLIC TEST VALUE: the RFC 8032 §7.1 TEST 1 seed (did:key and Stellar), anvil default account #0 (EVM), and the XRPL genesis key (passphrase masterpassphrase). Never use them for real funds.",
+  "testSeedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+  "sellerDid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+  "vectors": [
+    {
+      "name": "eip155 (EIP-191 personal_sign), Base Sepolia",
+      "chainKey": {
+        "kind": "secp256k1 private key (anvil #0)",
+        "value": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      },
+      "jcs": "{\"account\":\"eip155:84532:0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\"did\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"expiresAt\":\"2027-10-01T00:00:00.000Z\",\"issuedAt\":\"2026-10-01T00:00:00.000Z\",\"type\":\"receptum/account-binding/1\"}",
+      "binding": {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "account": "eip155:84532:0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "issuedAt": "2026-10-01T00:00:00.000Z",
+          "expiresAt": "2027-10-01T00:00:00.000Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..yRSKtTcsuqH_rsFJdKN-jojbIkGQy-fmnvRGzCQz7MaGLW7mCIJz3vZ4Ah_IQaCal1vtTZeu4oH52a_TfBe2DQ"
+        },
+        "accountProof": {
+          "type": "eip191",
+          "signature": "0xaf2bb03f04b727135fd5046fdf42d27d6cb1e325953b460325f75e827f64c6013a64fd966eeaa46f7ef8b1c210d07f2a3d6d748fec382e66b05632c28bb7e8bf1b"
+        }
+      }
+    },
+    {
+      "name": "xrpl (ripple-keypairs secp256k1, master key), testnet",
+      "chainKey": {
+        "kind": "XRPL secp256k1 key from passphrase (entropy = SHA-512(passphrase)[0..16])",
+        "value": "masterpassphrase"
+      },
+      "jcs": "{\"account\":\"xrpl:1:rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh\",\"did\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"expiresAt\":\"2027-10-01T00:00:00.000Z\",\"issuedAt\":\"2026-10-01T00:00:00.000Z\",\"type\":\"receptum/account-binding/1\"}",
+      "binding": {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "account": "xrpl:1:rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+          "issuedAt": "2026-10-01T00:00:00.000Z",
+          "expiresAt": "2027-10-01T00:00:00.000Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..UUPHDOYO8g0ZqXT_M4Q_UYA3DajjKDH37nFIuyqLcICuRIpZMlPMnFVaMUYuEw6BHOXHcN6ogpuAOXbfwijHDg"
+        },
+        "accountProof": {
+          "type": "xrpl",
+          "publicKey": "0330E7FC9D56BB25D6893BA3F317AE5BCF33B3291BD63DB32654A313222F7FD020",
+          "signature": "30450221009313A8108C0B1C360D9DD89F714757A6244A367518906D04FF9621423EADEDAF02200CB940170AE5A270A535DB470D07F510ABEDBC2E75DCEFB6B1E3B23FBD377C2A"
+        }
+      }
+    },
+    {
+      "name": "stellar (SEP-53), testnet",
+      "chainKey": {
+        "kind": "Ed25519 seed (RFC 8032 TEST 1)",
+        "value": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+      },
+      "jcs": "{\"account\":\"stellar:testnet:GDLVVGABQKYQVN6VJP7NHSLEA45A5YLS6PNKMIZFV4BBU2HXA5IRVHUR\",\"did\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"expiresAt\":\"2027-10-01T00:00:00.000Z\",\"issuedAt\":\"2026-10-01T00:00:00.000Z\",\"type\":\"receptum/account-binding/1\"}",
+      "binding": {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "account": "stellar:testnet:GDLVVGABQKYQVN6VJP7NHSLEA45A5YLS6PNKMIZFV4BBU2HXA5IRVHUR",
+          "issuedAt": "2026-10-01T00:00:00.000Z",
+          "expiresAt": "2027-10-01T00:00:00.000Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..Ym2dunLZXQkySNwDeZctLMY2biGiyIkSBQp2qLLAIx1dcy1bhny-YvYwix0MjlHVjb-Bg_fkL09kaZ2Qa5MJBg"
+        },
+        "accountProof": {
+          "type": "sep53",
+          "signature": "a+bR+z6Nfd4VR5MDpp4WwxlwA0mSztdSj+RKDvqmkgmDBIHsqKZPXK1ETC5SfOp5ymoGcgffYjigu8Ivfg7ICA=="
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "eip155 account swapped (did signature valid, account signature by someone else)",
+      "binding": {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "account": "eip155:84532:0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "issuedAt": "2026-10-01T00:00:00.000Z",
+          "expiresAt": "2027-10-01T00:00:00.000Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..W8fyOBTbnYMm-4FUpoo6vs7-M8lTFfE6kwWjT26j6jG4mCyy0Zpo3w0oP_U7cKF1eXjV4J4IROkxL7h_PSH8AA"
+        },
+        "accountProof": {
+          "type": "eip191",
+          "signature": "0xaf2bb03f04b727135fd5046fdf42d27d6cb1e325953b460325f75e827f64c6013a64fd966eeaa46f7ef8b1c210d07f2a3d6d748fec382e66b05632c28bb7e8bf1b"
+        }
+      }
+    }
+  ]
+}

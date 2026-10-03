@@ -1,5 +1,12 @@
-import { Memo, Operation, type xdr } from "@stellar/stellar-sdk";
-import type { EscrowHandle, EscrowRail, Sha256Hex } from "@receptum/core";
+import {
+  FeeBumpTransaction,
+  Memo,
+  Operation,
+  TransactionBuilder,
+  type Transaction,
+  type xdr,
+} from "@stellar/stellar-sdk";
+import type { EscrowCapabilities, EscrowHandle, EscrowRail, Sha256Hex } from "@receptum/core";
 import {
   assetToString,
   deliveryDataKey,
@@ -13,11 +20,27 @@ import { HorizonClient, isNotFound, type HorizonOptions } from "./horizon.js";
 import { STELLAR_ESCROW_RAIL, STELLAR_TESTNET, TESTNET_USDC } from "./network.js";
 import { escrowClaimants, parseEscrowTerms, type HorizonClaimant } from "./predicates.js";
 import type { StellarSigner } from "./signer.js";
-import { deriveEscrowState, type EscrowHistory, type StellarEscrowState } from "./state.js";
+import {
+  deriveEscrowState,
+  type BatchClaim,
+  type DeliveryTxLike,
+  type EscrowHistory,
+  type StellarEscrowState,
+} from "./state.js";
+
+/**
+ * What the claimable-balance escrow enforces on-chain: buyer or auto acceptance, a review window
+ * measured from the delivery deadline, and buyer refunds (or rejections) during the buyer window.
+ */
+export const CLAIMABLE_ESCROW_CAPABILITIES: EscrowCapabilities = {
+  acceptanceModes: ["buyer", "auto"],
+  reviewWindowFromDelivery: false,
+  refundAfterDelivery: true,
+};
 
 export interface StellarEscrowOptions extends HorizonOptions {
-  /** The account acting through this instance: the buyer or the seller of an escrow. */
-  signer: StellarSigner;
+  /** The account acting through this instance: the buyer or the seller. Omit for read-only use. */
+  signer?: StellarSigner;
   /** Asset for escrows opened by this instance (`native` or `CODE:ISSUER`). Default: testnet USDC. */
   asset?: string;
   /**
@@ -28,6 +51,11 @@ export interface StellarEscrowOptions extends HorizonOptions {
   requireDeliveryForRelease?: boolean;
   /** Clock override for tests (ms since epoch). */
   now?: () => number;
+  /**
+   * Most seller transactions scanned between an escrow's creation and its deadline to find the
+   * delivery anchor (default 1000). Exceeding it is an error, never a silent "not delivered".
+   */
+  maxHistory?: number;
 }
 
 export interface OpenEscrowParams {
@@ -56,18 +84,21 @@ export type OpenedEscrow = EscrowHandle & { releasableAfter: string; reference: 
 export class StellarClaimableEscrowRail implements EscrowRail {
   readonly id = STELLAR_ESCROW_RAIL;
   readonly network = STELLAR_TESTNET.caip2;
+  readonly capabilities = CLAIMABLE_ESCROW_CAPABILITIES;
   private readonly horizon: HorizonClient;
-  private readonly signer: StellarSigner;
+  private readonly signerOrNone: StellarSigner | undefined;
   private readonly asset: string;
   private readonly requireDelivery: boolean;
   private readonly now: () => number;
+  private readonly maxHistory: number;
 
   constructor(options: StellarEscrowOptions) {
     this.horizon = new HorizonClient(options);
-    this.signer = options.signer;
+    this.signerOrNone = options.signer;
     this.asset = assetToString(parseAsset(options.asset ?? TESTNET_USDC));
     this.requireDelivery = options.requireDeliveryForRelease ?? true;
     this.now = options.now ?? Date.now;
+    this.maxHistory = options.maxHistory ?? 1000;
   }
 
   private nowSeconds(): number {
@@ -116,7 +147,9 @@ export class StellarClaimableEscrowRail implements EscrowRail {
   async deliver(escrowId: string, receiptHash: Sha256Hex): Promise<{ reference: string }> {
     const state = await this.getEscrow(escrowId);
     this.assertRole(state, "seller", "deliver");
-    if (state.status !== "open" && state.status !== "delivered") {
+    if (state.status !== "open") {
+      // Only the first delivery anchor counts (state is derived from history), so redelivering
+      // could never change the committed receipt.
       throw new Error(`cannot deliver: escrow is ${state.status}`);
     }
     if (this.nowSeconds() >= Date.parse(state.refundableAfter) / 1000) {
@@ -151,7 +184,7 @@ export class StellarClaimableEscrowRail implements EscrowRail {
       }
       const ops: xdr.Operation[] = [Operation.claimClaimableBalance({ balanceId })];
       // Free the delivery entry's reserve in the same transaction.
-      if (state.receiptHash) {
+      if ((await this.deliveryEntry(state.seller, balanceId)) !== null) {
         ops.push(Operation.manageData({ name: deliveryDataKey(balanceId), value: null }));
       }
       const memo = state.receiptHash ? receiptMemo(state.receiptHash) : undefined;
@@ -212,6 +245,11 @@ export class StellarClaimableEscrowRail implements EscrowRail {
 
   // ─── internals ──────────────────────────────────────────────────────────
 
+  private get signer(): StellarSigner {
+    if (!this.signerOrNone) throw new Error("this StellarClaimableEscrowRail has no signer");
+    return this.signerOrNone;
+  }
+
   private async buyerClaim(
     state: StellarEscrowState,
     action: "refund" | "reject",
@@ -251,48 +289,53 @@ export class StellarClaimableEscrowRail implements EscrowRail {
 
   private async history(balanceId: string): Promise<EscrowHistory> {
     const server = this.horizon.server;
-    let records: OperationRecordLike[];
-    try {
-      const page = await server
-        .operations()
-        .forClaimableBalance(balanceId)
-        .order("asc")
-        .limit(200)
-        .call();
-      records = page.records as unknown as OperationRecordLike[];
-    } catch (err) {
-      if (isNotFound(err)) throw new Error(`unknown escrow ${balanceId}`, { cause: err });
-      throw err;
-    }
-    const create = records.find((r) => r.type === "create_claimable_balance");
-    if (!create?.claimants || !create.asset || !create.amount) {
-      throw new Error(`unknown escrow ${balanceId}`);
-    }
-    const terms = parseEscrowTerms(create.claimants);
+    const create = await this.createRecord(balanceId);
+    if (!create) throw new Error(`unknown escrow ${balanceId}`);
+    const terms = parseEscrowTerms(create.claimants!);
+    const createTx = await server.transactions().transaction(create.transaction_hash).call();
     const history: EscrowHistory = {
       escrowId: balanceId,
       create: {
-        asset: create.asset,
-        amount: create.amount,
-        claimants: create.claimants,
+        asset: create.asset!,
+        amount: create.amount!,
+        claimants: create.claimants!,
         transactionHash: create.transaction_hash,
+        createdAt: createTx.created_at,
       },
-      deliveryEntry: await this.deliveryEntry(terms.seller, balanceId),
+      deliveryTxs: await this.deliveryTxs(terms.seller, createTx.paging_token, terms.deadline),
     };
-    const claim = records.find(
+    const claim = create.ops.find(
       (r) => r.type === "claim_claimable_balance" && r.transaction_successful !== false,
     );
     if (claim?.claimant) {
-      const [tx, ops] = await Promise.all([
-        server.transactions().transaction(claim.transaction_hash).call(),
-        server.operations().forTransaction(claim.transaction_hash).limit(200).call(),
-      ]);
+      const ops = (
+        await server.operations().forTransaction(claim.transaction_hash).limit(200).call()
+      ).records as unknown as OperationRecordLike[];
+      const batch: BatchClaim[] = [];
+      for (const op of ops) {
+        if (op.type !== "claim_claimable_balance" || !op.balance_id || !op.claimant) continue;
+        const id = op.balance_id.toLowerCase();
+        const rec = id === balanceId ? create : await this.createRecord(id);
+        if (!rec) continue;
+        let t;
+        try {
+          t = parseEscrowTerms(rec.claimants!);
+        } catch {
+          continue; // not a Receptum escrow: it can't consume payments
+        }
+        batch.push({
+          escrowId: id,
+          claimant: op.claimant,
+          buyer: t.buyer,
+          seller: t.seller,
+          asset: rec.asset!,
+          amount: rec.amount!,
+        });
+      }
       history.claim = {
         claimant: claim.claimant,
         transactionHash: claim.transaction_hash,
-        memoType: tx.memo_type,
-        ...(tx.memo !== undefined ? { memo: tx.memo } : {}),
-        payments: (ops.records as unknown as OperationRecordLike[])
+        payments: ops
           .filter((r) => r.type === "payment" && r.from && r.to && r.amount)
           .map((r) => ({
             from: r.from!,
@@ -300,9 +343,64 @@ export class StellarClaimableEscrowRail implements EscrowRail {
             amount: r.amount!,
             asset: r.asset_type === "native" ? "native" : `${r.asset_code}:${r.asset_issuer}`,
           })),
+        batch,
       };
     }
     return history;
+  }
+
+  /** The balance's create operation (with all its operations), or null if it isn't a balance. */
+  private async createRecord(
+    balanceId: string,
+  ): Promise<(OperationRecordLike & { ops: OperationRecordLike[] }) | null> {
+    let records: OperationRecordLike[];
+    try {
+      const page = await this.horizon.server
+        .operations()
+        .forClaimableBalance(balanceId)
+        .order("asc")
+        .limit(200)
+        .call();
+      records = page.records as unknown as OperationRecordLike[];
+    } catch (err) {
+      if (isNotFound(err)) return null;
+      throw err;
+    }
+    const create = records.find((r) => r.type === "create_claimable_balance");
+    if (!create?.claimants || !create.asset || !create.amount) return null;
+    return { ...create, ops: records };
+  }
+
+  /**
+   * The seller's transactions after `cursor` (the creating transaction), oldest first, until the
+   * first one at or after the deadline. Delivery is derived from these, never from current data.
+   */
+  private async deliveryTxs(
+    seller: string,
+    cursor: string,
+    deadline: number,
+  ): Promise<DeliveryTxLike[]> {
+    const out: DeliveryTxLike[] = [];
+    let page = await this.horizon.server
+      .transactions()
+      .forAccount(seller)
+      .cursor(cursor)
+      .order("asc")
+      .limit(200)
+      .call();
+    while (page.records.length > 0) {
+      for (const tx of page.records) {
+        if (Date.parse(tx.created_at) / 1000 >= deadline) return out;
+        if (out.length >= this.maxHistory) {
+          throw new Error(
+            `seller has more than ${this.maxHistory} transactions before the deadline; raise maxHistory to derive delivery`,
+          );
+        }
+        out.push(toDeliveryTx(tx));
+      }
+      page = await page.next();
+    }
+    return out;
   }
 
   private async deliveryEntry(seller: string, balanceId: string): Promise<string | null> {
@@ -325,9 +423,43 @@ interface OperationRecordLike {
   amount?: string;
   claimants?: HorizonClaimant[];
   claimant?: string;
+  balance_id?: string;
   from?: string;
   to?: string;
   asset_type?: string;
   asset_code?: string;
   asset_issuer?: string;
+}
+
+/** Horizon transaction record → the fields delivery derivation needs. */
+export function toDeliveryTx(tx: {
+  hash: string;
+  successful: boolean;
+  created_at: string;
+  memo_type: string;
+  memo?: string;
+  source_account: string;
+  envelope_xdr: string;
+}): DeliveryTxLike {
+  const dataOps: DeliveryTxLike["dataOps"] = [];
+  if (tx.successful && tx.memo_type === "hash") {
+    let parsed = TransactionBuilder.fromXDR(tx.envelope_xdr, STELLAR_TESTNET.networkPassphrase);
+    if (parsed instanceof FeeBumpTransaction) parsed = parsed.innerTransaction;
+    for (const op of (parsed as Transaction).operations) {
+      if (op.type !== "manageData") continue;
+      dataOps.push({
+        account: op.source ?? (parsed as Transaction).source,
+        name: op.name,
+        value: op.value ? Buffer.from(op.value).toString("base64") : null,
+      });
+    }
+  }
+  return {
+    hash: tx.hash,
+    successful: tx.successful,
+    createdAt: tx.created_at,
+    memoType: tx.memo_type,
+    ...(tx.memo !== undefined ? { memo: tx.memo } : {}),
+    dataOps,
+  };
 }

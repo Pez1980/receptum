@@ -29,3 +29,7 @@ broadcast/
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+# Soroban (Rust)
+packages/adapter-stellar/contracts/*/target/
+packages/adapter-stellar/contracts/*/test_snapshots/

@@ -14,7 +14,17 @@ import {
   receptumEscrowDeployedBytecode,
   parseEscrowId,
 } from "@receptum/adapter-evm";
-import { StellarAnchor } from "@receptum/adapter-stellar";
+import {
+  RECEPTUM_SOROBAN_WASM_HASH,
+  SOROBAN_ESCROW_RAIL,
+  STELLAR_ESCROW_RAIL,
+  StellarAnchor,
+  StellarClaimableEscrowRail,
+  SorobanRpcClient,
+  findSacTransfer,
+  parseSorobanEscrowId,
+  tokenContractId,
+} from "@receptum/adapter-stellar";
 import {
   XrplAnchor,
   XrplEscrowRail,
@@ -106,8 +116,13 @@ export function accountOn(network: string, caip10: string | undefined): string |
   if (i <= 0 || caip10.slice(0, i) !== network) return null;
   return caip10.slice(i + 1);
 }
-const sameAddr = (a?: string | null, b?: string | null) =>
-  !!a && !!b && getAddress(a) === getAddress(b);
+const sameAddr = (a?: string | null, b?: string | null) => {
+  try {
+    return !!a && !!b && getAddress(a) === getAddress(b);
+  } catch {
+    return false; // not an EVM address (e.g. a Soroban contract id passed to --trust-escrow)
+  }
+};
 const GENUINE_ESCROW_CODE = keccak256(receptumEscrowDeployedBytecode);
 
 /**
@@ -117,7 +132,18 @@ const GENUINE_ESCROW_CODE = keccak256(receptumEscrowDeployedBytecode);
  */
 export const TRUSTED_ESCROWS: Record<string, readonly string[]> = {
   "eip155:5042002": ["0x20d69c6c647559f48a7e6b0a3f922e99a4068f16"],
+  // Soroban ReceptumEscrow (packages/adapter-stellar/contracts/receptum-escrow/deployment.testnet.json).
+  "stellar:testnet": ["CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG"],
 };
+
+/** Same Stellar asset, whether written `CODE:ISSUER`, `native` or as its contract id. */
+function sameStellarAsset(a: string, b: string): boolean {
+  try {
+    return tokenContractId(a) === tokenContractId(b);
+  } catch {
+    return false;
+  }
+}
 
 async function withXrpl<T>(fn: (client: Client) => Promise<T>): Promise<T> {
   const client = new Client(XRPL_TESTNET_WSS);
@@ -193,6 +219,95 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
           "delivery committed; funds still held awaiting acceptance or the review window",
         );
       return pass("escrow released to the payee; committed receiptHash and terms match");
+    }
+    if (rail === SOROBAN_ESCROW_RAIL) {
+      if (network !== "stellar:testnet")
+        return { level: 3, name, status: "skipped", detail: `unsupported network ${network}` };
+      const ref = parseSorobanEscrowId(reference);
+      const rpc = new SorobanRpcClient();
+      if ((await rpc.contractWasmHash(ref.contractId)) !== RECEPTUM_SOROBAN_WASM_HASH)
+        return fail("referenced contract does not run the published ReceptumEscrow wasm");
+      const e = await rpc.readEscrow(ref.contractId, ref.id);
+      const acc = signed.receipt.acceptance;
+      let token: string | null = null;
+      try {
+        token = tokenContractId(asset);
+      } catch {
+        // reported below
+      }
+      const problems = [
+        e.receiptHash !== signed.receiptHash && "committed receiptHash differs",
+        e.amount.toString() !== amount && "amount differs",
+        e.token !== token && "token differs from payment.asset",
+        payerAddr && e.buyer !== payerAddr && "buyer differs from payment.payer",
+        payeeAddr && e.seller !== payeeAddr && "seller differs from payment.payee",
+        e.reviewWindowSeconds !== acc.reviewWindowSeconds &&
+          "review window differs from acceptance.reviewWindowSeconds",
+        acc.mode === "evaluator" &&
+          (!e.evaluator || e.evaluator !== accountOn(network, acc.evaluator)) &&
+          "evaluator differs from acceptance.evaluator",
+        acc.mode !== "evaluator" &&
+          e.evaluator &&
+          "escrow has an evaluator the receipt doesn't declare",
+      ].filter(Boolean);
+      if (problems.length) return fail(`escrow ${e.status}: ${problems.join("; ")}`);
+      if (e.status !== "released" && e.status !== "delivered")
+        return fail(`escrow is ${e.status}, not released`);
+      const trusted = [...(TRUSTED_ESCROWS[network] ?? []), ...trustedEscrows].includes(
+        ref.contractId,
+      );
+      if (!trusted)
+        return pending(
+          "ReceptumEscrow wasm, but this deployment isn't in the trusted registry (pass --trust-escrow to accept it)",
+        );
+      if (!payeeAddr)
+        return pending("receipt does not name a payee, so the recipient can't be confirmed");
+      if (e.status === "delivered")
+        return pending(
+          "delivery committed; funds still held awaiting acceptance or the review window",
+        );
+      return pass("Soroban escrow released to the payee; committed receiptHash and terms match");
+    }
+    if (rail === STELLAR_ESCROW_RAIL) {
+      if (network !== "stellar:testnet")
+        return { level: 3, name, status: "skipped", detail: `unsupported network ${network}` };
+      const state = await new StellarClaimableEscrowRail({}).getEscrow(reference);
+      const acc = signed.receipt.acceptance;
+      const window =
+        (Date.parse(state.releasableAfter!) - Date.parse(state.refundableAfter)) / 1000;
+      const problems = [
+        state.receiptHash !== signed.receiptHash &&
+          "no delivery anchor for this receipt before the deadline",
+        state.amount !== amount && "amount differs",
+        !sameStellarAsset(state.asset, asset) && "asset differs",
+        payerAddr && state.buyer !== payerAddr && "buyer differs from payment.payer",
+        payeeAddr && state.seller !== payeeAddr && "seller differs from payment.payee",
+        window !== acc.reviewWindowSeconds &&
+          "review window differs from acceptance.reviewWindowSeconds",
+        acc.mode === "evaluator" && "claimable-balance escrows can't enforce an evaluator",
+      ].filter(Boolean);
+      if (problems.length) return fail(`escrow ${state.status}: ${problems.join("; ")}`);
+      if (!payeeAddr)
+        return pending("receipt does not name a payee, so the recipient can't be confirmed");
+      if (state.status === "delivered")
+        return pending("delivered; awaiting the buyer window to pass or the buyer's acceptance");
+      if (state.status !== "released") return fail(`escrow is ${state.status}`);
+      return pass(
+        `claimable balance released to the payee (${state.releasedBy}); first delivery anchor ${state.deliveredBy} matches`,
+      );
+    }
+    if (rail.startsWith("x402:") && network === "stellar:testnet") {
+      if (!payeeAddr)
+        return pending("receipt does not name a payee, so the recipient can't be confirmed");
+      const r = await findSacTransfer(reference, {
+        asset,
+        amount,
+        to: payeeAddr,
+        ...(payerAddr ? { from: payerAddr } : {}),
+      });
+      return r.ok
+        ? pass(`${amount} base units paid to ${payeeAddr} in ledger ${r.ledger}`)
+        : fail(r.reason);
     }
     if (rail.startsWith("x402:") && network.startsWith("eip155:")) {
       const evm = evmClient(network);
@@ -379,7 +494,7 @@ export interface VerifyOptions {
   anchors?: string[];
   /** Skip all network checks. */
   offline?: boolean;
-  /** Extra ReceptumEscrow deployments to trust, in addition to TRUSTED_ESCROWS. */
+  /** Extra ReceptumEscrow deployments (EVM addresses or Soroban contract ids) to trust, in addition to TRUSTED_ESCROWS. */
   trustedEscrows?: string[];
   /**
    * Accept receipts without an account binding as complete (legacy receipts). Invalid bindings

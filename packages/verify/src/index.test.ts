@@ -93,3 +93,36 @@ describe("seller controls payee (L2.5)", async () => {
     ).toBe("fail");
   });
 });
+
+describe("verify (Stellar, no network needed)", () => {
+  const stellarReceipt = (payment: Partial<Parameters<typeof createReceipt>[0]["payment"]>) =>
+    signReceipt(
+      createReceipt({
+        jobId: "s",
+        seller: { id: seller.did },
+        inputSha256: [sha256Hex("source")],
+        outputSha256: sha256Hex(file),
+        payment: {
+          rail: "escrow:receptum-soroban",
+          network: "stellar:testnet",
+          asset: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+          amount: "1000000",
+          reference: "not-an-escrow-id",
+          ...payment,
+        },
+      }),
+      seller,
+    );
+
+  it("fails a Soroban escrow receipt whose reference isn't a Soroban escrow id", async () => {
+    const r = await verify(stellarReceipt({}));
+    expect(r.ok).toBe(false);
+    expect(r.checks.at(-1)?.detail).toMatch(/invalid Soroban escrowId/);
+  });
+
+  it("refuses to fully verify a Stellar x402 payment that names no payee", async () => {
+    const r = await verify(stellarReceipt({ rail: "x402:exact", reference: "ab".repeat(32) }));
+    expect(r.complete).toBe(false);
+    expect(r.checks.at(-1)?.status).toBe("pending");
+  });
+});

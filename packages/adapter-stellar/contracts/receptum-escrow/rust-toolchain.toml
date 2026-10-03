@@ -1,0 +1,6 @@
+# Pinned so the release wasm (and its hash) is reproducible.
+[toolchain]
+channel = "1.99.0"
+targets = ["wasm32v1-none"]
+components = ["rustfmt", "clippy"]
+profile = "minimal"

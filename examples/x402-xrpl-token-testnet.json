@@ -1,0 +1,132 @@
+{
+  "network": "xrpl:1",
+  "facilitator": "https://x402.org/facilitator",
+  "asset": {
+    "symbol": "RCPT",
+    "currency": "5243505400000000000000000000000000000000",
+    "issuer": "rHcy1VS1axUMqKcnUx7eM5k1hr5desdBGh",
+    "value": "0.25",
+    "units": "250000000000000"
+  },
+  "facilitatorKind": {
+    "x402Version": 2,
+    "scheme": "exact",
+    "network": "xrpl:1",
+    "extra": {
+      "areFeesSponsored": false
+    }
+  },
+  "settlement": {
+    "success": true,
+    "payer": "rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf",
+    "transaction": "FC8DAC064AF82AEF25025DE6E17CA7FD4C90655C8BCFC635861627BE9B5D6959",
+    "network": "xrpl:1"
+  },
+  "settlementUrl": "https://testnet.xrpl.org/transactions/FC8DAC064AF82AEF25025DE6E17CA7FD4C90655C8BCFC635861627BE9B5D6959",
+  "anchor": "xrpl:1:43141CB714BAB2D835CF723CC1CD4C81C879E049E787B6F026F9CAA55D0887A3",
+  "anchorUrl": "https://testnet.xrpl.org/transactions/43141CB714BAB2D835CF723CC1CD4C81C879E049E787B6F026F9CAA55D0887A3",
+  "signedReceipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-SX2E-BK4X",
+      "jobIdHash": "c06f9b99abda84844a140de3ad2606d8f1904fb99446ef4bedee96d92148283e",
+      "seller": {
+        "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "name": "render.example (xrpl, issued token)"
+      },
+      "inputSha256": ["08ab548fb172f98eedeb98d14f43507bc2be368d9a98381973cae463dd2eb5e9"],
+      "outputSha256": "09c5a4d7103a3eca94b3a916ff08f060e6625b258a330ba628765454a17f7158",
+      "payment": {
+        "rail": "x402:exact",
+        "network": "xrpl:1",
+        "asset": "5243505400000000000000000000000000000000.rHcy1VS1axUMqKcnUx7eM5k1hr5desdBGh",
+        "amount": "250000000000000",
+        "reference": "FC8DAC064AF82AEF25025DE6E17CA7FD4C90655C8BCFC635861627BE9B5D6959",
+        "payee": "xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+        "payer": "xrpl:1:rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf"
+      },
+      "acceptance": {
+        "mode": "auto",
+        "reviewWindowSeconds": 0
+      },
+      "deliveredAt": "2026-10-03T20:43:35.979Z",
+      "remedy": {
+        "kind": "rerender",
+        "withinDays": 30
+      }
+    },
+    "receiptHash": "3c4d7ba7476125d97a01cccb1f827f7fef0a239cd9b25c46739882f9b5125411",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..4pP6FLOYe45JNodKdSzzbL9ZpvpTCoonlc1wKgj89m4G0Gar2IfggELpW3k86_fqn9DvcGx1cSkL-0WcaXD4BA"
+    },
+    "bindings": [
+      {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "account": "xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+          "issuedAt": "2026-10-03T17:54:09.575Z",
+          "expiresAt": "2027-10-03T17:54:09.575Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..nvPyZCvAeRi5m9P0q-Hz8Q0YczWUMgcfZM7S2EE0_8mrm2Atwy3Y-KNokvWIocLhCzW3b5yQa34qJ_QRGtkuCg"
+        },
+        "accountProof": {
+          "type": "xrpl",
+          "publicKey": "EDF467790A9257C18B222ED2C7EADCF72A5A66A44CC47D92FC4C00FEA4944E2EF3",
+          "signature": "9E58CEDAD9A133A0D0C89900D6EF85585FE696E5546012A2B15AA51CCC99C6775FA9A35C217277ED7314D76CD28C43FE6D1C7BEDD4931358508A421339732B0E"
+        }
+      }
+    ]
+  },
+  "check": {
+    "ok": true,
+    "signature": true,
+    "outputMatches": true,
+    "settlementMatches": true,
+    "sellerAllowed": true,
+    "expectationsMet": true,
+    "payeeBound": true,
+    "reasons": []
+  },
+  "verify": {
+    "ok": true,
+    "complete": true,
+    "checks": [
+      {
+        "level": 1,
+        "name": "File matches receipt",
+        "status": "pass",
+        "detail": "SHA-256 09c5a4d7103a3eca94b3a916ff08f060e6625b258a330ba628765454a17f7158 = outputSha256"
+      },
+      {
+        "level": 2,
+        "name": "Seller signature",
+        "status": "pass",
+        "detail": "signed by did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t"
+      },
+      {
+        "level": 2.5,
+        "name": "Seller controls payee",
+        "status": "pass",
+        "detail": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t ↔ xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s: signed by the (enabled) master key of r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s (online, current account keys)"
+      },
+      {
+        "level": 3,
+        "name": "Payment on xrpl:1",
+        "status": "pass",
+        "detail": "0.25 5243505400000000000000000000000000000000.rHcy1VS1axUMqKcnUx7eM5k1hr5desdBGh (250000000000000 × 10^-15) delivered to r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s in ledger 21255605 (validated)"
+      },
+      {
+        "level": 3,
+        "name": "Anchor on xrpl:1",
+        "status": "pass",
+        "detail": "memo anchored in validated ledger 21255607"
+      }
+    ]
+  }
+}

@@ -34,6 +34,12 @@ const cases = [
     "VERIFIED",
   ],
   [
+    "x402 · XRPL testnet, issued token (RCPT), memo anchor",
+    wrapper(json("examples/x402-xrpl-token-testnet.json")),
+    "examples/x402-xrpl-token-testnet-output.svg",
+    "VERIFIED",
+  ],
+  [
     "x402-paid MCP tool · Base Sepolia, anchored on Arc",
     { signed: mcp.receipt, anchors: [mcp.anchor] },
     "examples/deliverables/mcp-base-sepolia-tool-result.json",
@@ -55,6 +61,18 @@ const cases = [
     "XRPL Escrow · crypto-condition release",
     wrapper(json("examples/xrpl-testnet-escrow-a.json")),
     "examples/deliverables/xrpl-testnet-escrow-a.txt",
+    "VERIFIED",
+  ],
+  [
+    "XRPL Escrow · evaluator finishes from its own account",
+    wrapper(json("examples/xrpl-testnet-escrow-evaluator.json")),
+    "examples/deliverables/xrpl-testnet-escrow-evaluator.txt",
+    "VERIFIED",
+  ],
+  [
+    "XRPL TokenEscrow · issued token (RCPT), buyer accepts",
+    wrapper(json("examples/xrpl-testnet-escrow-token.json")),
+    "examples/deliverables/xrpl-testnet-escrow-token.txt",
     "VERIFIED",
   ],
   [

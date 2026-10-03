@@ -72,9 +72,20 @@ Resulting guarantees:
 | Buyer  | refund **without anyone's approval** once the ledger close time is past `CancelAfter`, if they never revealed the fulfillment.                                                            |
 | Nobody | finish after `CancelAfter`, or cancel before it.                                                                                                                                          |
 
-**Acceptance modes.** `buyer` and `evaluator` map directly: whoever holds the preimage accepts by revealing it (the buyer can also submit `EscrowFinish` themselves). `auto` (release when the review window lapses) **cannot be enforced trustlessly** with native escrow today; it needs the buyer's agent, or a delegated evaluator service, to reveal the fulfillment when the window ends. Smart Escrows (XLS-100, `FinishFunction`) could remove that dependency once enabled.
+**Acceptance modes.** `buyer`: whoever holds the preimage accepts by revealing it (the buyer can also submit `EscrowFinish` themselves). `evaluator`: the buyer gives the fulfillment, off-ledger, only to the evaluator; the seller delivers (memo) and hands the deliverable and the signed receipt to the evaluator, who checks them and calls `accept(escrowId, { evaluator })` — an `EscrowFinish` signed by the evaluator's own account. That account, recorded as the finishing transaction's `Account` (`state.xrpl.settledBy`), is the on-ledger proof of who decided: `@receptum/verify` passes an evaluator-mode receipt only when `acceptance.evaluator` is `xrpl:<NetworkID>:<that account>` (SPEC §7.3); a release by anyone else fails, and a DID evaluator stays `unavailable`. `auto` (release when the review window lapses) **cannot be enforced trustlessly** with native escrow today; it needs the buyer's agent, or a delegated evaluator service, to reveal the fulfillment when the window ends. Smart Escrows (XLS-100, `FinishFunction`) could remove that dependency once enabled.
 
-**Rejection.** Rejecting a delivery means not revealing the fulfillment; the funds return at `CancelAfter` (SPEC §5 "per rail rules").
+**Rejection.** Rejecting a delivery (buyer or evaluator) means not finishing; the funds return at `CancelAfter` (SPEC §5 "per rail rules"), and a refunded escrow never verifies.
+
+```ts
+// Evaluator mode: the buyer hands secret.fulfillment to the evaluator (off-ledger) at creation.
+const evaluatorRail = new XrplEscrowRail({
+  client,
+  wallet: evaluatorWallet,
+  fulfillment: (escrowId) => fulfillmentsFromBuyer.get(escrowId),
+});
+// …after checking the deliverable against the receipt and the on-chain receiptHash:
+await evaluatorRail.accept(escrow.escrowId, { evaluator: `xrpl:1:${evaluatorWallet.address}` });
+```
 
 **Trade-offs, plainly:**
 
@@ -86,12 +97,12 @@ Resulting guarantees:
 ## Assets
 
 - **XRP** — amounts in drops.
-- **Issued tokens** (`"<currency>.<issuer>"`, e.g. `RLUSD.r…`) via the `TokenEscrow` amendment (XLS-85). Integer amounts are scaled by `iouDecimals` (default 6: `"1250000"` ⇄ `1.25`). The issuer must have set `asfAllowTrustLineLocking`, the buyer must not be the issuer, and the seller should hold a trust line before release.
+- **Issued tokens** (`"<currency>.<issuer>"`, currency as on the ledger: a 3-character code or 40 hex digits, e.g. `524C555344000000000000000000000000000000.r…` for RLUSD — display symbols like `RLUSD.r…` are refused) via the `TokenEscrow` amendment (XLS-85). Amounts are the token value in integer **10^-15 units**, fixed by SPEC §7.3 (`"1500000000000000"` ⇄ `1.5`), converted exactly (`toXrplAmount`, `fromXrplAmount`; `xrplValueToUnits` / `xrplUnitsToValue` in `@receptum/core`). Values that are not whole 10^-15 units, or need more than 16 significant digits, are refused. The issuer must have set `asfAllowTrustLineLocking`, the buyer must not be the issuer, and the seller should hold a trust line before release.
 - **Testnet status (Oct 2026):** `TokenEscrow` is **enabled** on testnet, but Ripple's RLUSD testnet issuer (`rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV`) has **not** set `allowTrustLineLocking`, so an RLUSD `EscrowCreate` is rejected with `tecNO_PERMISSION` (checked with `simulate`). The token path is proven on testnet with a self-issued token instead; RLUSD escrow works unchanged once the issuer enables locking. MPT escrow is not implemented.
 
 ## API
 
-- `XrplEscrowRail` — core `EscrowRail` (`getEscrow`, `deliver`, `release`, `refund`) plus `createEscrow` for the buyer. Options: `client`, `wallet`, `network` (default `xrpl:1`), `fulfillment(escrowId)`, `iouDecimals`, `maxHistoryPages`.
+- `XrplEscrowRail` — core `EscrowRail` (`getEscrow`, `deliver`, `release`, `refund`, `accept`) plus `createEscrow` for the buyer, and `capabilities` (`XRPL_ESCROW_CAPABILITIES`: buyer and evaluator; no auto). Options: `client`, `wallet`, `network` (default `xrpl:1`), `fulfillment(escrowId)`, `maxHistoryPages`. (`iouDecimals` was removed: the scale is fixed at 10^-15 by the spec.)
 - `XrplAnchor` — core `Anchor`. `find(hash, { reference })` fetches the tx and checks the memo; without a reference it scans the anchoring account's recent history.
 - Helpers: `newEscrowSecret`, `conditionFromPreimage`, `fulfillmentFromPreimage`, `fulfillmentMatches`, `receiptMemos`, `parseReceiptMemos`, `formatEscrowId`, `parseEscrowId`, `toXrplAmount`, `fromXrplAmount`.
 
@@ -99,7 +110,7 @@ Keys stay with the integrator: wallets are injected xrpl.js `Wallet`s and the ad
 
 - Account bindings (SPEC §4.1): `xrplAccountSigner(wallet, { account? })` signs with ripple-keypairs; `xrplBindingVerifier` checks offline that the key is the account's master key; `xrplOnlineBindingVerifier(client, address)` accepts the master key (unless `lsfDisableMaster`) or the current `RegularKey`.
 
-`getEscrow` derives state from chronological ledger history. Settlement: the escrow ledger entry while it exists; afterwards the `EscrowFinish`/`EscrowCancel` that deleted it (owner's history). Delivery: the **first** successful memo transaction from the seller naming the escrow, ordered after the `EscrowCreate` (found via the entry's `PreviousTxnID`), with a close time ≤ `CancelAfter`, and before the settling transaction — scanned forward from the creation ledger. Later memos (re-deliveries, memos after refund) are ignored, as are memos sent before the escrow existed. Scans are bounded by `maxHistoryPages` (200 txs per page, default 10) and stop early on decisive evidence; a scan that would need more pages throws `XrplHistoryIncompleteError` rather than pretending the history ended, and an escrow is reported not found only when the owner's history was read back to the account's creation (otherwise the same error). `@receptum/verify` reports that error as `unavailable`. The state carries the raw protocol facts in `state.xrpl` (160-bit `currency`, `issuer`, `condition`, `cancelAfter`, `finishAfter`, `deliveryCloseTime`); `state.asset` is a round-trip-safe display form — a nonstandard 40-hex code is never shown as the standard code it spells — and comparisons use `currencyId` / `parseXrplAsset`.
+`getEscrow` derives state from chronological ledger history. Settlement: the escrow ledger entry while it exists; afterwards the `EscrowFinish`/`EscrowCancel` that deleted it (owner's history). Delivery: the **first** successful memo transaction from the seller naming the escrow, ordered after the `EscrowCreate` (found via the entry's `PreviousTxnID`), with a close time ≤ `CancelAfter`, and before the settling transaction — scanned forward from the creation ledger. Later memos (re-deliveries, memos after refund) are ignored, as are memos sent before the escrow existed. Scans are bounded by `maxHistoryPages` (200 txs per page, default 10) and stop early on decisive evidence; a scan that would need more pages throws `XrplHistoryIncompleteError` rather than pretending the history ended, and an escrow is reported not found only when the owner's history was read back to the account's creation (otherwise the same error). `@receptum/verify` reports that error as `unavailable`. The state carries the raw protocol facts in `state.xrpl` (160-bit `currency`, `issuer`, the escrowed issued `value`, `condition`, `cancelAfter`, `finishAfter`, `deliveryCloseTime`, and once settled `settledBy` / `settlementTx` — the `Account` and hash of the `EscrowFinish`/`EscrowCancel`); `state.asset` is the receipt form (`XRP`, or the currency as rippled writes it — a nonstandard 40-hex code is never shown as the standard code it spells) and comparisons use `currencyId` / `parseXrplAsset`. An escrowed value with no exact 10^-15 integer gets `amount: ""`, which no receipt can match.
 
 ## Running the testnet E2E
 
@@ -117,9 +128,16 @@ The script refuses to run unless the server reports NetworkID 1 (testnet). It ke
 
 It writes public results (addresses, tx hashes, explorer links, signed receipts) to `E2E_RESULTS.md`.
 
+`scripts/e2e-evaluator-token.mjs` runs the two newer flows with the x402 example's buyer and seller, a fresh evaluator and a self-issued token (`node examples/x402-xrpl/setup-wallets.mjs && node examples/x402-xrpl/setup-token.mjs` first):
+
+- **E** — evaluator mode: the buyer gives the fulfillment to the evaluator; the seller delivers and cannot release; the evaluator checks the deliverable and finishes from its own account.
+- **T** — `TokenEscrow` of 1.5 RCPT (40-hex code) in buyer mode, amount `1500000000000000`.
+
+Both receipts carry the seller's account binding and reach VERIFIED (`examples/xrpl-testnet-escrow-evaluator.json`, `examples/xrpl-testnet-escrow-token.json`, deliverables in `examples/deliverables/`).
+
 ## x402 `exact` on XRPL
 
-This adapter isn't needed to sell over x402 on XRPL. `@x402/xrpl` (client and server schemes) and the public facilitator `https://x402.org/facilitator` do that on `xrpl:1` (the payer pays the fee, `areFeesSponsored: false`). The adapter adds the Receptum pieces: `XrplAnchor` for the receipt hash and `xrplAccountSigner`/`xrplBindingVerifier` for the seller ↔ payee binding. `@receptum/verify` confirms the settlement by its rule in [SPEC §7.3](../../docs/SPEC.md#73-settlement-level-3): a validated tesSUCCESS `Payment` from the payer to the payee whose `delivered_amount` (not `Amount`) equals the receipt amount. The Python verifier applies the same rule. Example: [examples/x402-xrpl](../../examples/x402-xrpl). Live run (0.01 XRP): settlement [`CEBA2DF49DE1…`](https://testnet.xrpl.org/transactions/CEBA2DF49DE13B89A6A5A9D79F4CB113724EACC02DE9E4F1B0F5C8ADE1F4CC1E), anchor [`C731592F3059…`](https://testnet.xrpl.org/transactions/C731592F3059F916685F7D5413575017167F5E25D6715780BB140B204D3932E1), VERIFIED by both verifiers.
+This adapter isn't needed to sell over x402 on XRPL. `@x402/xrpl` (client and server schemes) and the public facilitator `https://x402.org/facilitator` do that on `xrpl:1` (the payer pays the fee, `areFeesSponsored: false`). The adapter adds the Receptum pieces: `XrplAnchor` for the receipt hash and `xrplAccountSigner`/`xrplBindingVerifier` for the seller ↔ payee binding. `@receptum/verify` confirms the settlement by its rule in [SPEC §7.3](../../docs/SPEC.md#73-settlement-level-3): a validated tesSUCCESS `Payment` from the payer to the payee whose `delivered_amount` (not `Amount`) equals the receipt amount — XRP drops, or an issued token's value in 10^-15 units with the same currency identity and issuer. The Python verifier applies the same rule for XRP. Example: [examples/x402-xrpl](../../examples/x402-xrpl). Live run (0.01 XRP): settlement [`CEBA2DF49DE1…`](https://testnet.xrpl.org/transactions/CEBA2DF49DE13B89A6A5A9D79F4CB113724EACC02DE9E4F1B0F5C8ADE1F4CC1E), anchor [`C731592F3059…`](https://testnet.xrpl.org/transactions/C731592F3059F916685F7D5413575017167F5E25D6715780BB140B204D3932E1), VERIFIED by both verifiers. Issued token (0.25 RCPT through the public facilitator, `examples/x402-xrpl/e2e-token.mjs`): settlement [`FC8DAC064AF8…`](https://testnet.xrpl.org/transactions/FC8DAC064AF82AEF25025DE6E17CA7FD4C90655C8BCFC635861627BE9B5D6959), anchor [`43141CB714BA…`](https://testnet.xrpl.org/transactions/43141CB714BAB2D835CF723CC1CD4C81C879E049E787B6F026F9CAA55D0887A3), VERIFIED.
 
 ## Limitations
 

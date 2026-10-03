@@ -12,6 +12,8 @@ All packages are versioned together. Testnet only; contracts are unaudited.
 - **Independent Python verifier** (`verifiers/python`, `receptum-verify-py`) written from the spec and vectors.
 - Negative test vectors (`spec/vectors/rrf-v1.json` `invalid`), account-binding vectors, XRPL currency vectors.
 - `scripts/verify-examples.mjs`: re-verifies every published testnet receipt against live chains.
+- **XRPL issued tokens in RRF v1 receipts** (SPEC §7.3), for x402 `exact` on XRPL and `escrow:xrpl` (TokenEscrow): `payment.asset` = `<currency>.<issuer>` with the on-ledger currency code, `payment.amount` = the value in integer 10^-15 units. Exact, float-free conversion in `@receptum/core` (`xrplValueToUnits`, `xrplUnitsToValue`, handles exponent forms like `1e-2`); vectors in `spec/vectors/xrpl-issued-amount-v1.json`. Live x402 run through the public facilitator and a TokenEscrow run, both VERIFIED.
+- **Evaluator mode on XRPL native Escrow**: the evaluator is an `xrpl:` account and finishes the escrow itself (`XrplEscrowRail.accept(escrowId, { evaluator })`); the verifier passes only when the `EscrowFinish` `Account` is the evaluator. `XrplEscrowState.xrpl.settledBy` / `settlementTx`, `XRPL_ESCROW_CAPABILITIES`. Live run VERIFIED.
 
 ### Changed (verifier behaviour)
 
@@ -25,7 +27,12 @@ All packages are versioned together. Testnet only; contracts are unaudited.
 
 - Review round 2 items 3 (Soroban escrow), 13 (history-derived delivery on XRPL and Stellar) and 14 (Stellar batch claims).
 - Review round 3 (Codex): XRPL currency identity comparison (case-sensitive, protocol bytes), nonstandard XRPL currencies, incomplete XRPL history, binding expiry during settlement, malformed EVM `Transfer` logs, XRPL escrow acceptance terms. See [SECURITY.md](SECURITY.md).
-- `@receptum/server` refuses issued-token x402 requirements, which RRF v1 amounts cannot record losslessly.
+- `@receptum/server` records XRPL issued-token x402 requirements as `<currency>.<issuer>` + 10^-15 units and refuses, before charging, values that are not exactly representable (and issued-token requirements on other networks).
+- `@receptum/client`: `expected.amount` / `maxAmount` must be integers in the receipt's unit (10^-15 units for XRPL issued tokens); XRPL assets compare by currency identity and issuer; non-EVM payees compare case-sensitively.
+
+### Breaking (unreleased since the 0.2.0 draft)
+
+- `@receptum/adapter-xrpl`: `iouDecimals` is removed — issued-token amounts are always 10^-15 units; `toXrplAmount(asset, amount)` and `fromXrplAmount(amount)` lose their `decimals` argument; `parseXrplAsset` and the escrow rail refuse display symbols (`RLUSD.r…`) — use the 40-hex code. `spec/vectors/xrpl-currency-v1.json` marks display symbols invalid.
 
 ## 0.1.0 — October 2026
 

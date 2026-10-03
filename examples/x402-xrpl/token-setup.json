@@ -1,0 +1,37 @@
+{
+  "network": "xrpl:1",
+  "token": {
+    "symbol": "RCPT",
+    "currency": "5243505400000000000000000000000000000000",
+    "issuer": "rHcy1VS1axUMqKcnUx7eM5k1hr5desdBGh"
+  },
+  "asset": "5243505400000000000000000000000000000000.rHcy1VS1axUMqKcnUx7eM5k1hr5desdBGh",
+  "accounts": {
+    "buyer": "rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf",
+    "seller": "r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+    "issuer": "rHcy1VS1axUMqKcnUx7eM5k1hr5desdBGh",
+    "evaluator": "rJiEkxUmhX2GZ3XGmq3mnC85MAiuSo9XwT"
+  },
+  "setup": [
+    {
+      "label": "issuer AccountSet asfDefaultRipple",
+      "hash": "D08348861D509B2A92DF84163BD6D4800467FB42A1BF2BC2CBD598354B851AC1"
+    },
+    {
+      "label": "issuer AccountSet asfAllowTrustLineLocking",
+      "hash": "9353371F859CF8CEB782FBDAF7BCC2964D7FD27AF2B2A5606AA99FB18955EF07"
+    },
+    {
+      "label": "buyer TrustSet RCPT",
+      "hash": "5D474FF26624141A716BE062712573834E9CEE1266897B0DF8EF1BF8A43BBAE1"
+    },
+    {
+      "label": "seller TrustSet RCPT",
+      "hash": "2FC4FCC8D1950F854762F3A4CDC6FA247F985AE3CDF669F7AD0470F3A41A7DBF"
+    },
+    {
+      "label": "issuer pays buyer 100 RCPT",
+      "hash": "B5F58E01F53125E611B06702068E3F5AB55AB424F01BE0280BFB311BF6BD7CEE"
+    }
+  ]
+}

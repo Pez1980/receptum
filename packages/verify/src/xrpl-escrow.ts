@@ -153,10 +153,10 @@ export function checkXrplEscrow(signed: SignedReceipt, state: XrplEscrowState): 
   const decided =
     acc.mode === "evaluator"
       ? `finished by the evaluator's own account ${evaluator}${x.settlementTx ? ` (EscrowFinish ${x.settlementTx})` : ""}`
-      : "buyer-held condition";
+      : "the buyer-held condition was fulfilled";
   return {
     status: "pass",
-    detail: `escrow finished to the payee; amount, asset, parties, delivery memo and ${decided} match (delivered ${left})`,
+    detail: `escrow finished to the payee; amount, asset, parties and delivery memo match; ${decided} (delivered ${left})`,
   };
 }
 

@@ -58,6 +58,33 @@ VERIFIED
 
 Level 3 uses `delivered_amount`, never `Amount`, so partial payments can't pass. The rule is in [SPEC §7.3](../docs/SPEC.md#73-settlement-level-3). Files: `x402-xrpl-testnet.json`, `x402-xrpl-testnet-output.svg`.
 
+## XRPL issued tokens and evaluator-mode escrows (2026-10-04)
+
+RRF v1 now records XRPL issued tokens as `payment.asset` = `<currency>.<issuer>` (currency as on the ledger) and `payment.amount` = the value in integer 10^-15 units, and proves evaluator-mode XRPL escrows by the `EscrowFinish` `Account` ([SPEC §7.3](../docs/SPEC.md#73-settlement-level-3)). Test token: **RCPT**, 40-hex code `5243505400000000000000000000000000000000`, issuer `rHcy1VS1axUMqKcnUx7eM5k1hr5desdBGh` (self-issued from a fresh faucet account by `x402-xrpl/setup-token.mjs`; `asfDefaultRipple`, `asfAllowTrustLineLocking`, trust lines for buyer and seller — see `x402-xrpl/token-setup.json`). All three receipts carry the seller binding `bindings/xrpl-testnet-x402.json`.
+
+| Flow                                                                                                                                                                                                                              | Receipt                                                            | Transactions                                                                                                                                                                                                                                                                                                                                                                                                                 | Result       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| x402 `exact` on `xrpl:1`, **0.25 RCPT** through `https://x402.org/facilitator` (it accepted the issued currency) — `x402-xrpl/e2e-token.mjs`                                                                                      | `3c4d7ba7…`, amount `250000000000000`                              | settlement [`FC8DAC064AF8…`](https://testnet.xrpl.org/transactions/FC8DAC064AF82AEF25025DE6E17CA7FD4C90655C8BCFC635861627BE9B5D6959), anchor [`43141CB714BA…`](https://testnet.xrpl.org/transactions/43141CB714BAB2D835CF723CC1CD4C81C879E049E787B6F026F9CAA55D0887A3)                                                                                                                                                       | **VERIFIED** |
+| `escrow:xrpl` evaluator mode, 1 XRP: buyer gives the fulfillment to the evaluator, seller delivers, evaluator finishes from its own account `rJiEkxUmhX2GZ3XGmq3mnC85MAiuSo9XwT` — `adapter-xrpl/scripts/e2e-evaluator-token.mjs` | `4c5903be…`, evaluator `xrpl:1:rJiEkxUmhX2GZ3XGmq3mnC85MAiuSo9XwT` | create [`BE8239468A14…`](https://testnet.xrpl.org/transactions/BE8239468A14AD5531A0C533A96905918A86E3B22D85CC06898C4619CE458393), deliver [`6DB51BAC6748…`](https://testnet.xrpl.org/transactions/6DB51BAC67488605184F8B16BFF0136130ADE99FEA67E95F59AAFB513D7BCDD6), EscrowFinish by the evaluator [`DD570910469B…`](https://testnet.xrpl.org/transactions/DD570910469B6D6365A7124CDD2F50C0FC71391CD542AE2189D5837ABAA08C5E) | **VERIFIED** |
+| `escrow:xrpl` TokenEscrow, buyer mode, **1.5 RCPT**                                                                                                                                                                               | `6cdc0f57…`, amount `1500000000000000`                             | create [`727933BF88DA…`](https://testnet.xrpl.org/transactions/727933BF88DA0662620DFF2F864BF48F6BB90334626CEC12C9D8BBCFDA935C44), deliver [`24C654BB1F33…`](https://testnet.xrpl.org/transactions/24C654BB1F332EAA3C4DADB9CF68A513895BB9897AB07D250F51B60BF1EAF287), finish [`BE08354B3430…`](https://testnet.xrpl.org/transactions/BE08354B3430E2B644B485F8B69BE88B46C4995E6719370050551220EDDDFA26)                        | **VERIFIED** |
+
+```text
+$ receptum-verify x402-xrpl-token-testnet.json x402-xrpl-token-testnet-output.svg
+[PASS] L3 Payment on xrpl:1 — 0.25 5243505400000000000000000000000000000000.rHcy1VS1axUMqKcnUx7eM5k1hr5desdBGh (250000000000000 × 10^-15) delivered to r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s in ledger 21255605 (validated)
+[PASS] L3 Anchor on xrpl:1 — memo anchored in validated ledger 21255607
+VERIFIED
+
+$ receptum-verify xrpl-testnet-escrow-evaluator.json deliverables/xrpl-testnet-escrow-evaluator.txt
+[PASS] L3 Payment on xrpl:1 — escrow finished to the payee; amount, asset, parties and delivery memo match; finished by the evaluator's own account rJiEkxUmhX2GZ3XGmq3mnC85MAiuSo9XwT (EscrowFinish DD570910469B6D6365A7124CDD2F50C0FC71391CD542AE2189D5837ABAA08C5E) (delivered 1191 s before CancelAfter)
+VERIFIED
+
+$ receptum-verify xrpl-testnet-escrow-token.json deliverables/xrpl-testnet-escrow-token.txt
+[PASS] L3 Payment on xrpl:1 — escrow finished to the payee; amount, asset, parties and delivery memo match; the buyer-held condition was fulfilled (delivered 1193 s before CancelAfter)
+VERIFIED
+```
+
+(L1, L2 and L2.5 pass for all three; L2.5 online, signed by the enabled master key of the seller.) The buyer in the token x402 run capped the price before signing (a requirements selector comparing `xrplValueToUnits(amount)`) and after delivery (`expected.maxAmount: "250000000000000"`), since x402's own per-asset caps are atomic integers and XRPL issued values are decimals. Files: `x402-xrpl-token-testnet.json` (+ `-output.svg`), `xrpl-testnet-escrow-evaluator.json`, `xrpl-testnet-escrow-token.json`, `deliverables/xrpl-testnet-escrow-{evaluator,token}.txt`.
+
 ## Bindings attached to earlier escrow receipts
 
 Bindings live outside the hashed receipt, so they can be added to receipts issued before bindings existed without changing `receiptHash`:

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Refuses to push unless the full check passes (format, lint, build, typecheck, tests).
+pnpm check >/dev/null 2>&1 || { echo "pre-push: pnpm check failed — run it to see why." >&2; exit 1; }

@@ -4,7 +4,6 @@
   "description": "Seller-side x402 middleware for Fastify and Express: price a route, answer HTTP 402, verify payment, issue receipts.",
   "license": "Apache-2.0",
   "type": "module",
-  "private": true,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,6 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@receptum/core": "workspace:*"
+    "@receptum/core": "workspace:*",
+    "@x402/core": "^2.28.0"
   }
 }

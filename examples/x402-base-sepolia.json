@@ -1,0 +1,53 @@
+{
+  "settlement": {
+    "success": true,
+    "payer": "0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5",
+    "transaction": "0x83359ec2790a984cb904b103648521b787b785312b04a2029e91cb126dfeface",
+    "network": "eip155:84532"
+  },
+  "anchor": "eip155:5042002:0x178192fa86acc85fb2b33189708703a96125feb5bef6c6817f8faedeefaa6103",
+  "signedReceipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-YZ25-24X8",
+      "jobIdHash": "295652794cd3ca9b4e5f1221e5faf75f548667e08b1023ae0879a2ddeec1575b",
+      "seller": {
+        "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "name": "render.example"
+      },
+      "inputSha256": ["08ab548fb172f98eedeb98d14f43507bc2be368d9a98381973cae463dd2eb5e9"],
+      "outputSha256": "301917f6c3d2fcbfd746bb4486fa071e047b614fa339a7041e7ce0116544234a",
+      "payment": {
+        "rail": "x402:exact",
+        "network": "eip155:84532",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "amount": "250000",
+        "reference": "0x83359ec2790a984cb904b103648521b787b785312b04a2029e91cb126dfeface",
+        "payer": "eip155:84532:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+      },
+      "acceptance": {
+        "mode": "auto",
+        "reviewWindowSeconds": 0
+      },
+      "deliveredAt": "2026-10-03T06:46:26.929Z",
+      "remedy": {
+        "kind": "rerender",
+        "withinDays": 30
+      }
+    },
+    "receiptHash": "8c73f5d882b31360a12da942d7ceaef47a59613e94fb64bf00b5af9989476149",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..RAujEvA-IqgmZII6wr5MeuQbMnxulq2Z3ZRFNGiPdZZwQ_7awiYQwzmRSJgxS8K6X87rYjlC3Y-zNTYoemjQDA"
+    }
+  },
+  "check": {
+    "ok": true,
+    "signature": true,
+    "outputMatches": true,
+    "settlementMatches": true,
+    "sellerAllowed": true,
+    "reasons": []
+  }
+}

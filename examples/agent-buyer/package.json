@@ -1,0 +1,15 @@
+{
+  "name": "@receptum/example-agent-buyer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node buyer.mjs"
+  },
+  "dependencies": {
+    "@receptum/client": "workspace:*",
+    "@receptum/core": "workspace:*",
+    "@x402/evm": "^2.28.0",
+    "@x402/fetch": "^2.28.0",
+    "viem": "^2.57.2"
+  }
+}

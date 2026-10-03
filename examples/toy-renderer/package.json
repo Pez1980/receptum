@@ -1,0 +1,16 @@
+{
+  "name": "@receptum/example-toy-renderer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@receptum/adapter-evm": "workspace:*",
+    "@receptum/core": "workspace:*",
+    "@receptum/server": "workspace:*",
+    "@x402/core": "^2.28.0",
+    "@x402/evm": "^2.28.0",
+    "viem": "^2.57.2"
+  }
+}

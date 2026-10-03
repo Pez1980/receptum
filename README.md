@@ -5,7 +5,7 @@
 > Payment receipts say you were served. Receptum says what you got.
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
-- **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec alone — check receipts without trusting the TypeScript code
+- **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec — check receipts on every rail without trusting the TypeScript code
 - **Status:** v0.2.0, working end to end on **four testnets** (October 2026): x402 payments on Base, Stellar and the XRP Ledger, escrow on Arc, Stellar (Soroban) and the XRP Ledger. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
 
 ## Install
@@ -59,7 +59,7 @@ pnpm build && node scripts/verify-examples.mjs
 | Claimable-balance escrow (USDC): auto-release, accept, refund, reject               | Stellar testnet            | see results                                    | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
 | Tampered receipt (amount edited)                                                    | —                          | NOT VERIFIED                                   | [examples/x402-base-sepolia-tampered.json](examples/x402-base-sepolia-tampered.json)                             |
 
-Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdicts for the x402 receipts on Base Sepolia and XRPL; it does not implement escrow rails or Stellar settlement and reports those `PARTIALLY VERIFIED` rather than guessing.
+Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them, escrow rails and Stellar included (`python verifiers/python/scripts/verify_examples.py`).
 
 ## Quick look
 

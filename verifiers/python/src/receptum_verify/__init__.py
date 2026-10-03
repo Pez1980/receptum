@@ -1,7 +1,9 @@
 """Independent Python verifier for the Receptum Receipt Format (RRF) v1.
 
 Implemented from docs/SPEC.md, spec/vectors/rrf-v1.json and
-spec/vectors/account-binding-v1.json only.
+spec/vectors/account-binding-v1.json; rail encodings the SPEC leaves to the reference adapters
+(escrow storage, claimable-balance predicates, delivery memos) are re-implemented by hand and
+pinned to the published artifacts by tests.
 """
 
 from .binding import check_payee_binding, verify_binding

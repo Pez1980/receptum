@@ -7,10 +7,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .binding import DEFAULT_XRPL_RPCS, check_payee_binding
-from .evm import DEFAULT_RPCS, CheckResult, check_evm_anchor, check_x402_exact
+from .evm import DEFAULT_RPCS, CheckResult, check_evm_anchor, check_x402_exact, parse_anchor
+from .evm_escrow import check_evm_escrow
 from .jws import verify_signed_receipt
 from .networks import network_class, untrusted_deployment
-from .xrpl_x402 import check_xrpl_anchor, check_xrpl_x402_exact
+from .soroban import DEFAULT_SOROBAN_RPCS, check_soroban_escrow
+from .stellar import STELLAR_TESTNET, check_stellar_anchor, check_stellar_x402_exact
+from .stellar_claimable import check_stellar_claimable
+from .xrpl_escrow import check_xrpl_escrow_payment
+from .xrpl_x402 import DEFAULT_XRPL_JSON_RPCS, check_xrpl_anchor, check_xrpl_x402_exact
 
 __all__ = [
     "COMMITTING_RAILS",
@@ -19,6 +24,9 @@ __all__ = [
     "VERIFIED",
     "InputError",
     "Report",
+    "account_on",
+    "check_anchor",
+    "check_settlement",
     "extract_signed_receipt",
     "verdict_of",
     "verify",
@@ -132,6 +140,77 @@ def verdict_of(levels: dict[str, CheckResult], rail: str | None) -> tuple[str, l
     return (PARTIALLY_VERIFIED if missing else VERIFIED), missing
 
 
+def account_on(network: str, caip10: Any) -> str | None | bool:
+    """Bare account of a CAIP-10 id on ``network``; None when absent; False when it names
+    another network (SPEC §7.3: the payer and payee are accounts on ``payment.network``)."""
+    if caip10 is None:
+        return None
+    if not isinstance(caip10, str):
+        return False
+    chain, _, addr = caip10.rpartition(":")
+    return addr if chain and chain == network else False
+
+
+def check_settlement(
+    signed: dict,
+    *,
+    rpcs: dict[str, str],
+    horizons: dict[str, str] | None = None,
+    trusted_escrows: list[str] | tuple[str, ...] = (),
+) -> CheckResult:
+    """Level 3 for the payment rail named in an authenticated receipt (SPEC §7.3)."""
+    receipt = signed["receipt"]
+    pay = receipt["payment"]
+    rail, network = pay["rail"], pay["network"]
+    payer = account_on(network, pay.get("payer"))
+    payee = account_on(network, pay.get("payee"))
+    if payer is False:
+        return CheckResult("fail", f"payment.payer is not an account on {network}")
+    if payee is False:
+        return CheckResult("fail", f"payment.payee is not an account on {network}")
+    if rail == "escrow:receptum-evm":
+        return check_evm_escrow(signed, payer, payee, trusted=trusted_escrows, rpcs=rpcs)
+    if rail == "escrow:receptum-soroban":
+        return check_soroban_escrow(signed, payer, payee, trusted=trusted_escrows, rpcs=rpcs)
+    if rail == "escrow:stellar-claimable":
+        return check_stellar_claimable(signed, payer, payee, horizons=horizons)
+    if rail.startswith("x402:") and rail != "x402:exact":
+        return CheckResult("unavailable", f'only the x402 "exact" scheme is recognised, not {rail}')
+    if rail == "x402:exact" and network.startswith("xrpl:"):
+        return check_xrpl_x402_exact(receipt, rpcs)
+    if rail == "x402:exact" and network == STELLAR_TESTNET:
+        return check_stellar_x402_exact(receipt, payer, payee, horizons=horizons)
+    if rail == "x402:exact" and network.startswith("eip155:"):
+        return check_x402_exact(receipt, rpcs)
+    if rail == "escrow:xrpl":
+        return check_xrpl_escrow_payment(signed, payer, payee, rpcs=rpcs)
+    return CheckResult(
+        "unavailable", f"rail {rail} on {network} is not supported by this verifier"
+    )
+
+
+def check_anchor(
+    ref: str,
+    receipt_hash: str,
+    *,
+    rpcs: dict[str, str],
+    horizons: dict[str, str] | None = None,
+    user_rpcs: dict[str, str] | None = None,
+) -> CheckResult:
+    """Level 3 for one anchor reference ``<caip2>:<tx>`` (SPEC §7.1)."""
+    try:
+        network, tx = parse_anchor(ref)
+    except ValueError as exc:
+        return CheckResult("fail", str(exc))
+    if network.startswith("eip155:"):
+        return check_evm_anchor(ref, receipt_hash, rpcs)
+    if network in DEFAULT_XRPL_JSON_RPCS or (network.startswith("xrpl:") and network in (user_rpcs or {})):
+        return check_xrpl_anchor(ref, receipt_hash, rpcs)
+    if network == STELLAR_TESTNET or network in (horizons or {}):
+        return check_stellar_anchor(network, tx, receipt_hash, horizons=horizons)
+    return CheckResult("unavailable", f"anchor network {network} is not supported by this verifier")
+
+
 def verify(
     signed: Any,
     file_bytes: bytes | None = None,
@@ -141,12 +220,18 @@ def verify(
     rpcs: dict[str, str] | None = None,
     allow_unbound: bool = False,
     now: float | None = None,
+    trusted_escrows: list[str] | None = None,
+    horizons: dict[str, str] | None = None,
 ) -> Report:
     """Run every applicable level. ``anchor`` is one ``<caip2>:<tx>`` reference or a list.
     ``rpcs`` maps CAIP-2 ids to JSON-RPC endpoints (EVM, and XRPL for the online account-key
     check of level 2.5). ``allow_unbound`` accepts receipts without any account binding (legacy
-    receipts); invalid bindings still fail."""
-    rpcs = {**DEFAULT_RPCS, **DEFAULT_XRPL_RPCS, **(rpcs or {})}
+    receipts); invalid bindings still fail. ``rpcs`` also takes the Soroban RPC for
+    ``stellar:testnet``; ``horizons`` maps Stellar CAIP-2 ids to Horizon URLs.
+    ``trusted_escrows`` adds escrow deployments (EVM addresses or Soroban contract ids) to the
+    built-in trusted registry."""
+    user_rpcs = dict(rpcs or {})
+    rpcs = {**DEFAULT_RPCS, **DEFAULT_XRPL_RPCS, **DEFAULT_SOROBAN_RPCS, **user_rpcs}
     anchors = [anchor] if isinstance(anchor, str) else list(dict.fromkeys(anchor or []))
     sig = verify_signed_receipt(signed)
     levels: dict[str, CheckResult] = {}
@@ -201,27 +286,9 @@ def verify(
             levels[anchor_key(i)] = _skip("offline")
     else:
         pay = receipt["payment"]
-        if pay["rail"] == "x402:exact" and pay["network"].startswith("eip155:"):
-            levels["settlement"] = check_x402_exact(receipt, rpcs)
-        elif pay["rail"].startswith("x402:") and pay["rail"] != "x402:exact":
-            levels["settlement"] = CheckResult(
-                "unavailable", f'only the x402 "exact" scheme is recognised, not {pay["rail"]}'
-            )
-        elif pay["rail"] == "x402:exact" and pay["network"].startswith("xrpl:"):
-            levels["settlement"] = check_xrpl_x402_exact(receipt, rpcs)
-        elif pay["rail"] in ("escrow:receptum-evm", "escrow:receptum-soroban") and (
-            untrusted := untrusted_deployment(pay["network"], str(pay.get("reference", "")))
-        ):
-            # This verifier doesn't read escrow state; it still reports a deployment that can't
-            # count yet (every mainnet one, until a deployment is published in TRUSTED_ESCROWS).
-            levels["settlement"] = CheckResult(
-                "unavailable", f"{untrusted}; escrow state is not checked by this verifier"
-            )
-        else:
-            levels["settlement"] = CheckResult(
-                "unavailable",
-                f"rail {pay['rail']} on {pay['network']} is not supported by this verifier",
-            )
+        levels["settlement"] = check_settlement(
+            signed, rpcs=rpcs, horizons=horizons, trusted_escrows=trusted_escrows or []
+        )
         if not anchors:
             levels["anchor"] = _skip(
                 "no anchor given; the escrow rail itself commits receiptHash"
@@ -229,10 +296,8 @@ def verify(
                 else "no anchor given; receiptHash commitment not checked"
             )
         for i, ref in enumerate(anchors):
-            levels[anchor_key(i)] = (
-                check_xrpl_anchor(ref, sig.receipt_hash, rpcs)
-                if ref.startswith("xrpl:")
-                else check_evm_anchor(ref, sig.receipt_hash, rpcs)
+            levels[anchor_key(i)] = check_anchor(
+                ref, sig.receipt_hash, rpcs=rpcs, horizons=horizons, user_rpcs=user_rpcs
             )
 
     status, missing = verdict_of(levels, rail)

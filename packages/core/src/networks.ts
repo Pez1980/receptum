@@ -14,6 +14,7 @@ export const ALLOW_MAINNET_ENV = "RECEPTUM_ALLOW_MAINNET";
 export const TESTNET_NETWORKS: readonly string[] = [
   "eip155:84532", // Base Sepolia
   "eip155:5042002", // Arc testnet
+  "eip155:421614", // Arbitrum Sepolia
   "eip155:31337", // anvil / hardhat (local)
   "eip155:1337", // ganache / geth dev (local)
   "xrpl:1", // XRPL testnet
@@ -25,6 +26,7 @@ export const TESTNET_NETWORKS: readonly string[] = [
 export const MAINNET_NETWORKS: readonly string[] = [
   "eip155:8453", // Base
   "eip155:5042", // Arc
+  "eip155:42161", // Arbitrum One
   "xrpl:0", // XRPL mainnet
   "stellar:pubnet",
   "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", // Solana mainnet-beta

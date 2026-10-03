@@ -255,10 +255,39 @@ def test_buyer_mode_needs_a_condition():
     assert res.status == "fail" and "no Condition" in res.detail
 
 
-def test_evaluator_mode_is_at_best_unavailable():
-    acc = {"mode": "evaluator", "reviewWindowSeconds": 600, "evaluator": f"xrpl:1:{OTHER}"}
-    assert run(Ledger().deliver().settle(by=OTHER), acc).status == "unavailable"
-    assert run(Ledger(fields(condition=None)).deliver().settle(), acc).status == "fail"
+def evaluator(who=OTHER, window=600):
+    return {"mode": "evaluator", "reviewWindowSeconds": window, "evaluator": who}
+
+
+def test_evaluator_mode_is_proven_by_the_escrow_finish_account():
+    # SPEC §7.3: released only by the evaluator's own EscrowFinish passes.
+    res = run(Ledger().deliver().settle(by=OTHER), evaluator(f"xrpl:1:{OTHER}"))
+    assert res.status == "pass" and f"evaluator's own account {OTHER}" in res.detail
+    for by in (SELLER, BUYER, ISSUER):
+        res = run(Ledger().deliver().settle(by=by), evaluator(f"xrpl:1:{OTHER}"))
+        assert res.status == "fail" and f"finished by {by}, not by the evaluator" in res.detail
+    # Delivered, not finished: pending (awaiting the evaluator).
+    res = run(Ledger().deliver(), evaluator(f"xrpl:1:{OTHER}"))
+    assert res.status == "pending" and "evaluator's EscrowFinish" in res.detail
+    # Not finished at all and cancelled: a refund fails.
+    assert run(Ledger().deliver().settle(kind="EscrowCancel", by=OTHER), evaluator(f"xrpl:1:{OTHER}")).status == "fail"
+    # The buyer rules apply too: a Condition and the review-window bound.
+    assert run(Ledger(fields(condition=None)).deliver().settle(by=OTHER), evaluator(f"xrpl:1:{OTHER}")).status == "fail"
+    res = run(Ledger().deliver().settle(by=OTHER), evaluator(f"xrpl:1:{OTHER}", 1901))
+    assert res.status == "fail" and "exceeds" in res.detail
+
+
+def test_evaluator_identity_rules():
+    # Not an XRPL account (a DID, another chain): the ledger cannot show it decided.
+    for who in ("did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t", "eip155:1:0x" + "11" * 20):
+        assert run(Ledger().deliver().settle(by=OTHER), evaluator(who)).status == "unavailable"
+    # An xrpl account on another network, or not a classic address: fails.
+    for who in (f"xrpl:0:{OTHER}", "xrpl:1:rNotAnAddress"):
+        res = run(Ledger().deliver().settle(by=OTHER), evaluator(who))
+        assert res.status == "fail" and "not a valid XRPL account" in res.detail
+    # The seller as its own evaluator is not an evaluator's decision.
+    res = run(Ledger().deliver().settle(by=SELLER), evaluator(f"xrpl:1:{SELLER}"))
+    assert res.status == "fail" and "seller's own account" in res.detail
 
 
 def test_auto_mode():
@@ -275,21 +304,39 @@ def test_missing_parties_are_unavailable():
 def test_issued_currency_identity():
     amount = {"currency": "USD", "issuer": ISSUER, "value": "2"}
     led = lambda: Ledger(fields(amount=amount)).deliver().settle()  # noqa: E731
-    assert run(led(), asset=f"USD.{ISSUER}").status == "pass"
+    two = "2000000000000000"  # 2 tokens in 10^-15 units (SPEC §7.3)
+    assert run(led(), asset=f"USD.{ISSUER}", amount=two).status == "pass"
     std_hex = "0" * 24 + "555344" + "0" * 10
-    assert run(led(), asset=f"{std_hex}.{ISSUER}").status == "pass"  # same 160-bit identity
-    assert run(led(), asset=f"usd.{ISSUER}").status == "fail"  # case-sensitive
-    assert run(led(), asset=f"{'555344'.ljust(40, '0')}.{ISSUER}").status == "fail"  # nonstandard
-    assert run(led(), asset=f"USD.{OTHER}").status == "fail"
-    assert run(led(), asset="XRP").status == "fail"
+    assert run(led(), asset=f"{std_hex}.{ISSUER}", amount=two).status == "pass"  # same identity
+    assert run(led(), asset=f"usd.{ISSUER}", amount=two).status == "fail"  # case-sensitive
+    assert run(led(), asset=f"{'555344'.ljust(40, '0')}.{ISSUER}", amount=two).status == "fail"
+    assert run(led(), asset=f"USD.{OTHER}", amount=two).status == "fail"
+    assert run(led(), asset="XRP", amount=two).status == "fail"
+
+
+def test_token_escrow_amounts():
+    rlusd = "524C555344000000000000000000000000000000"
+    amount = {"currency": rlusd, "issuer": ISSUER, "value": "1.5"}
+    led = lambda a=amount: Ledger(fields(amount=a)).deliver().settle()  # noqa: E731
+    assert run(led(), asset=f"{rlusd}.{ISSUER}", amount="1500000000000000").status == "pass"
+    # The display symbol is not the ledger code.
+    res = run(led(), asset=f"RLUSD.{ISSUER}", amount="1500000000000000")
+    assert res.status == "fail" and "asset differs" in res.detail
+    # The pre-0.2 six-decimal reading (escrow C of the first XRPL run) fails.
+    res = run(led(), asset=f"{rlusd}.{ISSUER}", amount="1500000")
+    assert res.status == "fail" and "amount differs" in res.detail
+    # An escrowed value with no 10^-15 integer can't be named by any receipt.
+    res = run(led({**amount, "value": "1e-16"}), asset=f"{rlusd}.{ISSUER}", amount="0")
+    assert res.status == "fail" and "not a whole number of 10^-15 units" in res.detail
 
 
 def test_escrow_amount_units():
     assert escrow_amount_units("2000000") == "2000000"
-    assert escrow_amount_units({"currency": "USD", "issuer": ISSUER, "value": "1.5"}) == "1500000"
-    assert escrow_amount_units({"currency": "USD", "issuer": ISSUER, "value": "1e-6"}) == "1"
+    assert escrow_amount_units({"currency": "USD", "issuer": ISSUER, "value": "1.5"}) == "1500000000000000"
+    assert escrow_amount_units({"currency": "USD", "issuer": ISSUER, "value": "1e-15"}) == "1"
+    assert escrow_amount_units({"currency": "USD", "issuer": ISSUER, "value": "1e-16"}) == ""
     with pytest.raises(ValueError):
-        escrow_amount_units({"currency": "USD", "issuer": ISSUER, "value": "1e-7"})
+        escrow_amount_units({"currency": "USD", "issuer": ISSUER, "value": "-1"})
 
 
 # --- references and memos ----------------------------------------------------------------------
@@ -301,7 +348,16 @@ def test_bad_references_fail_without_rpc():
 
     for ref in (f"{BUYER}:0", f"{BUYER}:4294967296", "rNotAnAddress:1", f"{BUYER}:1\n"):
         assert run(no_rpc, reference=ref).status == "fail"
-    assert run(no_rpc, network="xrpl:0", payer=f"xrpl:0:{BUYER}", payee=f"xrpl:0:{SELLER}").status == "unavailable"
+    # Networks without an endpoint are unavailable; mainnet xrpl:0 is read like testnet.
+    assert run(no_rpc, network="xrpl:2", payer=f"xrpl:2:{BUYER}", payee=f"xrpl:2:{SELLER}").status == "unavailable"
+
+
+def test_server_network_id_must_match_the_receipt():
+    # xrpl:0 receipt, testnet server (NetworkID 1): unavailable; the right server passes.
+    over = {"network": "xrpl:0", "payer": f"xrpl:0:{BUYER}", "payee": f"xrpl:0:{SELLER}"}
+    res = run(Ledger(network_id=1).deliver().settle(), **over)
+    assert res.status == "unavailable" and "NetworkID 1, not 0" in res.detail
+    assert run(Ledger(network_id=0).deliver().settle(), **over).status == "pass"
 
 
 def test_escrow_id_and_memo_parsing():

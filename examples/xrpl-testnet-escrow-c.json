@@ -1,20 +1,20 @@
 {
   "receipt": {
     "version": "receptum/1",
-    "receiptId": "RCPT-Q0P3-14TQ",
-    "jobIdHash": "dd1d3f3f2e84543a935b45cfe852e04e9505dbfa97bd39dc8600ba91a1c52c30",
+    "receiptId": "RCPT-KE5Z-QTBN",
+    "jobIdHash": "fa5adc11ef58fa79058519dc4147dd5b402ec732b443c9c6781ceb4a0591fd2b",
     "seller": {
       "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
       "name": "receptum e2e seller"
     },
-    "inputSha256": ["dbb0fc1fa1b342e8ee00e9ba366303d08cd0776a151d904b644aec0ab60d8f18"],
-    "outputSha256": "20ba055d22ca2395a3651abd93ac59d42e91bcbfd86e698874597eb5793797df",
+    "inputSha256": ["36f334cb3ca46a07fa1b78fc56348d6dce2886f14bd1e58afc4f82e36a753d8d"],
+    "outputSha256": "b0b7c4bea19995c689171c8648869a4d6fad1793491526970b77399e954b1b50",
     "payment": {
       "rail": "escrow:xrpl",
       "network": "xrpl:1",
-      "asset": "XRP",
-      "amount": "2000000",
-      "reference": "rfy1FurqCy5P7ads54PCxGUbqJyeK1LX7r:21239414",
+      "asset": "RCT.rNNmAVJU7LddMPMs4ruzLZi5HsthaF4svq",
+      "amount": "5000000000000000",
+      "reference": "rfy1FurqCy5P7ads54PCxGUbqJyeK1LX7r:21239416",
       "payer": "xrpl:1:rfy1FurqCy5P7ads54PCxGUbqJyeK1LX7r",
       "payee": "xrpl:1:rUuUZJXy7qQhZkpr8ovFBgBT5JrPv3nnFf"
     },
@@ -22,16 +22,16 @@
       "mode": "buyer",
       "reviewWindowSeconds": 600
     },
-    "deliveredAt": "2026-10-03T21:38:54.976Z",
+    "deliveredAt": "2026-10-03T21:40:00.388Z",
     "buyer": {
       "id": "xrpl:1:rfy1FurqCy5P7ads54PCxGUbqJyeK1LX7r"
     }
   },
-  "receiptHash": "43f0c1143361d64011cb0187c4f1fff20fecb04a750f7c241819dc20a9e002b1",
+  "receiptHash": "4e297c7b2a95a137de2f2b73497166bcbf6ab3c779bce5f2f6215c6831783a63",
   "proof": {
     "type": "jws",
     "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
-    "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..a-6YGpxJCNcWmjmECD5Uwdh78y3U5kPti00yoxQHTNGxdP654iGslbH0BFMwHvm5DhRTjHyUIGaTVtAcEwMyDA"
+    "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..eAKdn-wYiHLZNSrxtML5YCwx_mgBIPLx2z1JZJvzGb6CK4B071CdWkoJ_BNfAOJiSp2dE9rc1y_vdch0ZcZEAw"
   },
   "bindings": [
     {

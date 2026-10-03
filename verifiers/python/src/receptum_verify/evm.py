@@ -23,9 +23,11 @@ __all__ = [
 DEFAULT_RPCS: dict[str, str] = {
     "eip155:84532": "https://sepolia.base.org",
     "eip155:5042002": "https://rpc.testnet.arc.io",
+    "eip155:421614": "https://sepolia-rollup.arbitrum.io/rpc",
     # Mainnets (read-only verification; the RPC's chain id is still checked against the receipt).
     "eip155:8453": "https://mainnet.base.org",
     "eip155:5042": "https://rpc.mainnet.arc.io",
+    "eip155:42161": "https://arb1.arbitrum.io/rpc",
 }
 ANCHOR_PREFIX = b"receptum/1"
 # keccak256("Transfer(address,address,uint256)")

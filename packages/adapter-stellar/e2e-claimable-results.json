@@ -1,0 +1,301 @@
+{
+  "network": "stellar:testnet",
+  "flows": {
+    "A": {
+      "label": "auto-release",
+      "escrowId": "00000000e972cea7a39ee73ef38ca9e6d0ef54e441bf45ae032ee3737ab526def781469d",
+      "status": "released",
+      "releasedBy": "seller",
+      "txs": [
+        {
+          "step": "buyer opens escrow",
+          "hash": "0e59e9e126f358635a76d0ffa68f28e9865e1bac55ad66cf04b8196844d98eab"
+        },
+        {
+          "step": "seller delivers (MEMO_HASH = receiptHash + data entry)",
+          "hash": "82ca50417d7c0b042ece4115ca5b03258efea81ada64015abdd810cdbabf2288"
+        },
+        {
+          "step": "seller claims after review window (auto-release)",
+          "hash": "cbde7b0f5a916685b761cdb360d6a730bda409dc358f5a5b522955370993009c"
+        },
+        {
+          "step": "StellarAnchor.anchor (standalone MEMO_HASH anchor)",
+          "hash": "cc2e6d1be8d4703e72d71a8789bce2ded296efa53b88ffbb510072e4006c0a68"
+        }
+      ],
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-FCJR-07KT",
+          "jobIdHash": "5e050c9963333dfa19267427bc93859f71050c270cabfb22dd4d2940ba4dbb19",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "receptum e2e seller"
+          },
+          "inputSha256": ["014a4670484dc8323c02e6cf6ca6ba9bf240c031230b596f4b42363818bf42f9"],
+          "outputSha256": "9162ab3049f34353bd449ce233a84656a2cf5d9a6ef8344021e7227ce395f7a2",
+          "payment": {
+            "rail": "escrow:stellar-claimable",
+            "network": "stellar:testnet",
+            "asset": "USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            "amount": "10000000",
+            "reference": "00000000e972cea7a39ee73ef38ca9e6d0ef54e441bf45ae032ee3737ab526def781469d",
+            "payer": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI",
+            "payee": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 60
+          },
+          "deliveredAt": "2026-10-03T21:37:37.452Z",
+          "buyer": {
+            "id": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 7
+          }
+        },
+        "receiptHash": "3a22b001ed3bf2a91b7edb64d8ca18e29b3d66557ca639a0291179729ccb76dd",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..vVE2tD_wioYE7g-iZQtPde6JPds50ADsdg0beYeNpUO4VKww2vfMLnrif-__LUuSaH-jjU5aBJFlJUJ2zzUJDg"
+        },
+        "bindings": [
+          {
+            "statement": {
+              "type": "receptum/account-binding/1",
+              "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "account": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT",
+              "issuedAt": "2026-10-03T17:01:50.252Z",
+              "expiresAt": "2027-10-03T17:01:50.252Z"
+            },
+            "didProof": {
+              "type": "jws",
+              "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..zIHE8IIT5NetXNoQWQgpWqXc4cTtI5Uq7Ok76SdbanBph6WIXFQXGWOQGYyS6ZbxUFCnISKFBTtOzj20ASVAAQ"
+            },
+            "accountProof": {
+              "type": "sep53",
+              "signature": "aQYR2ZT9pvnSk4gqflMv20w3iJ6xyQQXWpEvUITcuu7F2yxahRIdiRP/cPf2M3aNlNGt7Q3RQOgNUhgUUPcUCw=="
+            }
+          }
+        ]
+      },
+      "deliverable": "rendered output for auto-release cf6e40d141213cc0",
+      "verdict": "VERIFIED"
+    },
+    "B": {
+      "label": "buyer-acceptance",
+      "escrowId": "0000000019a43b2ac3acc5e21b5bf0cea6d94ca39e39a3e51d32df8b179f6d3d1db05409",
+      "status": "released",
+      "releasedBy": "buyer-acceptance",
+      "txs": [
+        {
+          "step": "buyer opens escrow",
+          "hash": "f4c8d11eb1a59ab641fdf93a5edb2619770e199f23590c230d2f8f8f9f1a4ea5"
+        },
+        {
+          "step": "seller delivers (MEMO_HASH = receiptHash + data entry)",
+          "hash": "c26cf1ee7e9c4f43e7782b6fed42b3579322c48e1de10d38584087a33ad4bd5a"
+        },
+        {
+          "step": "buyer accepts: claim + pay seller atomically",
+          "hash": "a1e3107090826467fe85eafccc034a8f3bfc10b1723584165f60729f534bf5c4"
+        },
+        {
+          "step": "seller clears the delivery data entry (frees reserve)",
+          "hash": "415ede5a70676d26fb33e10ce905264246bbf8aeb81d91bca1b5d498c91db918"
+        }
+      ],
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-9862-QS72",
+          "jobIdHash": "9676c0542453f4a109512025e35d76744c30a925dad1250f63804cea60f7224b",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "receptum e2e seller"
+          },
+          "inputSha256": ["4e83914acb6cec5a291b639368160e76b4595f6b2b2e40a1ae632abdc63001b8"],
+          "outputSha256": "093c275fba3eaee2ec72375e35182aea119ce66555f518c1a841a7c78fb3710e",
+          "payment": {
+            "rail": "escrow:stellar-claimable",
+            "network": "stellar:testnet",
+            "asset": "USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            "amount": "10000000",
+            "reference": "0000000019a43b2ac3acc5e21b5bf0cea6d94ca39e39a3e51d32df8b179f6d3d1db05409",
+            "payer": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI",
+            "payee": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT"
+          },
+          "acceptance": {
+            "mode": "buyer",
+            "reviewWindowSeconds": 120
+          },
+          "deliveredAt": "2026-10-03T21:37:42.443Z",
+          "buyer": {
+            "id": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 7
+          }
+        },
+        "receiptHash": "5e1785d5922004914c43007cc163a708e44242d635ff64a8a229c660ee89e1dc",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..UQ9P2HcW1RxYiiPgj1poocuNqmedEWijUChUk7_-KsaplIsobsoT9i4uKvaCXWAaXZzlPTdlRgKiRum6BiAGAQ"
+        },
+        "bindings": [
+          {
+            "statement": {
+              "type": "receptum/account-binding/1",
+              "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "account": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT",
+              "issuedAt": "2026-10-03T17:01:50.252Z",
+              "expiresAt": "2027-10-03T17:01:50.252Z"
+            },
+            "didProof": {
+              "type": "jws",
+              "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..zIHE8IIT5NetXNoQWQgpWqXc4cTtI5Uq7Ok76SdbanBph6WIXFQXGWOQGYyS6ZbxUFCnISKFBTtOzj20ASVAAQ"
+            },
+            "accountProof": {
+              "type": "sep53",
+              "signature": "aQYR2ZT9pvnSk4gqflMv20w3iJ6xyQQXWpEvUITcuu7F2yxahRIdiRP/cPf2M3aNlNGt7Q3RQOgNUhgUUPcUCw=="
+            }
+          }
+        ]
+      },
+      "deliverable": "rendered output for buyer-acceptance 5130e692a0e0075f",
+      "verdict": "VERIFIED"
+    },
+    "C": {
+      "label": "refund",
+      "escrowId": "00000000abb0d4656eaf54a42ff8d8533cf2f7e8aeaedf476edf6ce02dc3639a2703eaba",
+      "status": "refunded",
+      "txs": [
+        {
+          "step": "buyer opens escrow",
+          "hash": "485d90107a30933e90c212f56bf906c86f6a1fe30c43b5464133fb08a1426f76"
+        },
+        {
+          "step": "buyer refunds undelivered escrow after deadline",
+          "hash": "5344f0c967d0b7b1760dd9630ef21b4b7c9815bbe52277df1f418db51e9d49a2"
+        }
+      ]
+    },
+    "D": {
+      "label": "reject",
+      "escrowId": "00000000f1d5381a0c08b88cf804975424d6789154a6c6617c40b0b133e526025e28bb50",
+      "status": "refunded",
+      "txs": [
+        {
+          "step": "buyer opens escrow",
+          "hash": "635abb304dfac4b04f4bdae13dfcf31d1d91a352f0ee66e034c42e84eb956564"
+        },
+        {
+          "step": "seller delivers (MEMO_HASH = receiptHash + data entry)",
+          "hash": "488bc15af571261356c950bb91f4f2de800ce80ce0fada30fe93a02e8b28ece3"
+        },
+        {
+          "step": "buyer rejects the delivery within the review window",
+          "hash": "f956aa09bd6b94751ee688fd6da09282f35483ef60fded1bd4181473ca161da6"
+        },
+        {
+          "step": "seller clears the delivery data entry (frees reserve)",
+          "hash": "82a338f401e56f9110385b48ce9a097dde0b5f609471c0e8ad3096aa5a140c7d"
+        }
+      ],
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-9NP3-2V0W",
+          "jobIdHash": "92c40eaa5a8a4c5261d08d3143cf9ff4ae500c808dd929abecb0b73435a46474",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "receptum e2e seller"
+          },
+          "inputSha256": ["2568a8ef2aa69c3934467103b145529ea4099d52b9e499c5ed739bf0affe8042"],
+          "outputSha256": "75a0ac0273d06968eb21b7f6d659401e4e79173c5ce7866a00f1c50769e31ef9",
+          "payment": {
+            "rail": "escrow:stellar-claimable",
+            "network": "stellar:testnet",
+            "asset": "USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            "amount": "10000000",
+            "reference": "00000000f1d5381a0c08b88cf804975424d6789154a6c6617c40b0b133e526025e28bb50",
+            "payer": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI",
+            "payee": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT"
+          },
+          "acceptance": {
+            "mode": "buyer",
+            "reviewWindowSeconds": 120
+          },
+          "deliveredAt": "2026-10-03T21:37:47.445Z",
+          "buyer": {
+            "id": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 7
+          }
+        },
+        "receiptHash": "1ee85a65916d84c0641e1fe18095310cbdd2641d7b9af0f91338a833a022e802",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..wgiVB5H6bEB1k12LVnONh6PV5KoXRjpobk_zFzrZNlFwNIiIOYq-2cpbMCdMl3NEMV3F_1qLfXO_yjrpdiL6CA"
+        },
+        "bindings": [
+          {
+            "statement": {
+              "type": "receptum/account-binding/1",
+              "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "account": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT",
+              "issuedAt": "2026-10-03T17:01:50.252Z",
+              "expiresAt": "2027-10-03T17:01:50.252Z"
+            },
+            "didProof": {
+              "type": "jws",
+              "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..zIHE8IIT5NetXNoQWQgpWqXc4cTtI5Uq7Ok76SdbanBph6WIXFQXGWOQGYyS6ZbxUFCnISKFBTtOzj20ASVAAQ"
+            },
+            "accountProof": {
+              "type": "sep53",
+              "signature": "aQYR2ZT9pvnSk4gqflMv20w3iJ6xyQQXWpEvUITcuu7F2yxahRIdiRP/cPf2M3aNlNGt7Q3RQOgNUhgUUPcUCw=="
+            }
+          }
+        ]
+      },
+      "deliverable": "rendered output for reject b9e8d7113b99bdc7",
+      "verdict": "NOT VERIFIED"
+    }
+  },
+  "negatives": [
+    {
+      "check": "seller release before the review window (client guard)",
+      "message": "cannot release yet: the seller may claim from 2026-10-03T21:39:38.000Z"
+    },
+    {
+      "check": "buyer refund before the deadline (client guard)",
+      "message": "cannot refund yet: the buyer may claim from 2026-10-03T21:38:38.000Z"
+    },
+    {
+      "check": "raw ClaimClaimableBalance by the buyer before the deadline (on-chain predicate)",
+      "message": "Stellar transaction failed: tx_failed [op_cannot_claim]",
+      "hash": "b1dbdbe94d0c44f5a6f6c8a4da6f68c3be923559588e3093383881759495d9f6"
+    },
+    {
+      "check": "raw ClaimClaimableBalance by the seller before the review window ends (on-chain predicate)",
+      "message": "Stellar transaction failed: tx_failed [op_cannot_claim]",
+      "hash": "3b21639ac404d56d5d3dd4515287cea322d3a5b0af180373d4c46ac1390f4089"
+    },
+    {
+      "check": "buyer refund of a delivered escrow (client guard; reject() is the explicit path)",
+      "message": "cannot refund: a receipt was delivered — use reject() during the window"
+    }
+  ]
+}

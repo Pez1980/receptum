@@ -54,6 +54,8 @@ def signed_with(**payment):
         ("escrow:stellar-claimable", "stellar:testnet", "check_stellar_claimable"),
         ("escrow:xrpl", "xrpl:1", "check_xrpl_escrow_payment"),
         ("x402:exact", "stellar:testnet", "check_stellar_x402_exact"),
+        ("x402:exact", "stellar:pubnet", "check_stellar_x402_exact"),
+        ("escrow:xrpl", "xrpl:0", "check_xrpl_escrow_payment"),
         ("x402:exact", "xrpl:1", "check_xrpl_x402_exact"),
         ("x402:exact", "eip155:84532", "check_x402_exact"),
     ],
@@ -67,7 +69,7 @@ def test_each_rail_has_its_check(rail, network, want):
 
 
 def test_unsupported_rails_and_networks_are_unavailable():
-    for rail, network in (("x402:exact", "stellar:pubnet"), ("escrow:other", "eip155:1"), ("x402:upto", "eip155:1")):
+    for rail, network in (("x402:exact", "stellar:futurenet"), ("escrow:other", "eip155:1"), ("x402:upto", "eip155:1")):
         res = check_settlement(signed_with(rail=rail, network=network, payer=None, payee=None), rpcs={})
         assert res.status == "unavailable"
     assert calls == []
@@ -109,9 +111,13 @@ def test_anchor_networks(ref, want):
 def test_other_anchor_networks():
     rh = "00" * 32
     assert check_anchor("not-an-anchor", rh, rpcs={}).status == "fail"
-    assert check_anchor("xrpl:0:XYZ", rh, rpcs={}).status == "unavailable"
-    assert check_anchor("xrpl:0:" + "AB" * 32, rh, rpcs={}, user_rpcs={"xrpl:0": "http://x"}).detail == "check_xrpl_anchor"
-    assert check_anchor("stellar:pubnet:" + "ab" * 32, rh, rpcs={}).status == "unavailable"
+    # Mainnets are read like testnets (as in the TypeScript verifier); the rail check then
+    # rejects a malformed hash itself.
+    assert check_anchor("xrpl:0:" + "AB" * 32, rh, rpcs={}).detail == "check_xrpl_anchor"
+    assert check_anchor("xrpl:5:" + "AB" * 32, rh, rpcs={}).status == "unavailable"
+    assert check_anchor("xrpl:5:" + "AB" * 32, rh, rpcs={}, user_rpcs={"xrpl:5": "http://x"}).detail == "check_xrpl_anchor"
+    assert check_anchor("stellar:pubnet:" + "ab" * 32, rh, rpcs={}).detail == "check_stellar_anchor"
+    assert check_anchor("stellar:futurenet:" + "ab" * 32, rh, rpcs={}).status == "unavailable"
     assert check_anchor("cosmos:hub-4:" + "ab" * 32, rh, rpcs={}).status == "unavailable"
 
 

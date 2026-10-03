@@ -121,3 +121,43 @@ def test_anchor_for_a_different_receipt_fails(live_doc, live_output):
     if res.status == "unavailable":
         pytest.skip("RPC unavailable")
     assert res.status == "fail"
+
+
+def _verify_examples_module():
+    import importlib.util
+
+    path = EXAMPLES.parent / "verifiers" / "python" / "scripts" / "verify_examples.py"
+    spec = importlib.util.spec_from_file_location("verify_examples", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_verify_examples_lists_the_same_cases_as_the_typescript_script():
+    """Both verify-examples scripts check the same published receipts, in the same order, with
+    the same labels and expected verdicts (so their outputs can be diffed line for line)."""
+    import re
+
+    ts = (EXAMPLES.parent / "scripts" / "verify-examples.mjs").read_text("utf-8")
+    body = ts[ts.index("const cases = [") :]
+    want = re.findall(
+        r'\[\n\s+"([^"]+)",\n.*?\n\s+"(VERIFIED|NOT VERIFIED|PARTIALLY VERIFIED)",\n\s+\],', body, re.S
+    )
+    got = [(label, verdict) for label, _, _, verdict in _verify_examples_module().cases()]
+    assert got == want
+    # Every published example receipt is covered.
+    covered = ts + (EXAMPLES.parent / "verifiers" / "python" / "scripts" / "verify_examples.py").read_text("utf-8")
+    for path in sorted(EXAMPLES.glob("*.json")):
+        assert f"examples/{path.name}" in covered, path.name
+
+
+def test_every_published_verified_case_passes_levels_1_to_2_5_offline():
+    """Offline, each case expected VERIFIED online has its delivered bytes, a valid signature and
+    a seller binding covering its payee: only level 3 is left to the chain."""
+    for label, (signed, anchors), file_bytes, want in _verify_examples_module().cases():
+        if want != VERIFIED:
+            continue
+        report = verify(signed, file_bytes, anchor=anchors, offline=True)
+        for level in ("file", "signature", "binding"):
+            assert report.levels[level].status == "pass", (label, level, report.levels[level].detail)
+        assert report.status == PARTIALLY_VERIFIED, label

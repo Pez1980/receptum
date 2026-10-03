@@ -106,11 +106,11 @@ node packages/adapter-stellar/scripts/e2e-soroban-testnet.mjs      # flows A–E
 | `keypairSigner`                                                      | —            | Signers are injected; the adapter never stores keys                                     |
 | `findDelivery`, `allocateClaimPayments`, `deriveEscrowState`, …      | —            | Pure, network-free helpers (unit tested)                                                |
 
-| Rail                           | `payment.rail`             | `payment.reference`               | `payment.asset`                                   |
-| ------------------------------ | -------------------------- | --------------------------------- | ------------------------------------------------- |
-| Soroban escrow                 | `escrow:receptum-soroban`  | `stellar:testnet:<contract>:<id>` | token contract `C…` (or `CODE:ISSUER` of its SAC) |
-| Claimable-balance escrow       | `escrow:stellar-claimable` | hex balance id `00000000…`        | `native` or `CODE:ISSUER`                         |
-| x402 `exact` (`@x402/stellar`) | `x402:exact`               | settlement transaction hash       | token contract `C…`                               |
+| Rail                           | `payment.rail`             | `payment.reference`                                                      | `payment.asset`                                   |
+| ------------------------------ | -------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------- |
+| Soroban escrow                 | `escrow:receptum-soroban`  | `stellar:<testnet\|pubnet>:<contract>:<id>`                              | token contract `C…` (or `CODE:ISSUER` of its SAC) |
+| Claimable-balance escrow       | `escrow:stellar-claimable` | balance id `00000000` + 64 hex, or its `B…` strkey — exactly (SPEC §7.5) | `native` or `CODE:ISSUER`                         |
+| x402 `exact` (`@x402/stellar`) | `x402:exact`               | settlement transaction hash                                              | token contract `C…`                               |
 
 Amounts are integer strings in the smallest unit (Stellar assets have 7 decimals). Testnet USDC:
 `TESTNET_USDC` (`CODE:ISSUER`) / `TESTNET_USDC_SAC` (its contract).
@@ -135,6 +135,10 @@ which Horizon derives from the asset contract's own events; Horizon keeps full h
 only about a week).
 
 ## Claimable-balance escrow
+
+The normative rules — reference format, claimant predicates, delivery data entry and derivation,
+batch-claim allocation and the history bound — are [SPEC §7.5](../../docs/SPEC.md); this section
+explains the design.
 
 One claimable balance per job, created by the buyer, with exactly two claimants whose time windows
 never overlap:

@@ -2,7 +2,9 @@
 // its EVM, XRPL and Stellar payout accounts. Reads keys from RECEPTUM_WALLETS_DIR; writes only
 // public data (statements + signatures) next to this file. Testnet only.
 //
-//   RECEPTUM_WALLETS_DIR=~/.config/receptum/wallets node create.mjs
+//   RECEPTUM_WALLETS_DIR=~/.config/receptum/wallets node create.mjs [name …]
+//
+// With names (e.g. `evm-arbitrum-sepolia`), only those bindings are (re)created.
 import { readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -29,11 +31,19 @@ const expiresAt = new Date(issuedAt.getTime() + 365 * 86_400_000);
 const signers = {
   "evm-base-sepolia": evmAccountSigner(privateKeyToAccount(evm.seller.privateKey), "eip155:84532"),
   "evm-arc-testnet": evmAccountSigner(privateKeyToAccount(evm.seller.privateKey), "eip155:5042002"),
+  "evm-arbitrum-sepolia": evmAccountSigner(
+    privateKeyToAccount(evm.seller.privateKey),
+    "eip155:421614",
+  ),
   "xrpl-testnet": xrplAccountSigner(Wallet.fromSeed(xrpl.seller), { network: "xrpl:1" }),
   "stellar-testnet": stellarAccountSigner(stellar.seller.secret, "stellar:testnet"),
 };
 
+const only = process.argv.slice(2);
+for (const name of only)
+  if (!Object.hasOwn(signers, name)) throw new Error(`unknown binding ${name}`);
 for (const [name, signer] of Object.entries(signers)) {
+  if (only.length && !only.includes(name)) continue;
   const binding = await createAccountBinding({ key, signer, issuedAt, expiresAt });
   const check = verifyAccountBinding(binding, {
     verifiers: [evmBindingVerifier, xrplBindingVerifier],

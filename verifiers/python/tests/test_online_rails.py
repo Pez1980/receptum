@@ -56,11 +56,11 @@ def _claimable_receipts():
 
 
 # Settlement results the TypeScript verifier recorded for these runs (E2E_RESULTS.md): released by
-# the seller, released by buyer acceptance, refunded; the original run names no payee.
+# the seller, released by buyer acceptance, refunded (rejected); the original run names no payee.
 CLAIMABLE_WANT = {
-    "cb5f8b843dc5c3cdd53acca2415d3cf3ad7d5c61ccf71c22d3210840a8751a38": "pass",
-    "2006e959868e9768bcd2d9054fcdd5d9dc5e347d4911f9b1de3afb9d28d501fc": "pass",
-    "208307bb981236cb59f76d628ea0a4aebacc80e7e0b00cb765f86cef8d04222a": "fail",
+    "3a22b001ed3bf2a91b7edb64d8ca18e29b3d66557ca639a0291179729ccb76dd": "pass",
+    "5e1785d5922004914c43007cc163a708e44242d635ff64a8a229c660ee89e1dc": "pass",
+    "1ee85a65916d84c0641e1fe18095310cbdd2641d7b9af0f91338a833a022e802": "fail",
     "2f559ce45cc0465c180ac563dba65e0ca5b457f131e054a93932c6d05e40eb43": "unavailable",
     "725f2dfd5f250ecf489ca442758ce9fd2e6be4593ccb6419024301b51cb4daac": "unavailable",
     "e75c4f27524d4ffbe3418f053356bb96e960ea1d212b8fbbacf9eab2f0cf1bfc": "unavailable",
@@ -78,8 +78,9 @@ def test_published_claimable_escrows():
 
 
 def test_stellar_memo_hash_anchor():
-    tx = "9c840fbd9e5c50b9b4c7ea5d37346a40b219d5848f557340fd3f85675ef98a46"
-    res = check_stellar_anchor("stellar:testnet", tx, "cb5f8b843dc5c3cdd53acca2415d3cf3ad7d5c61ccf71c22d3210840a8751a38")
+    # The standalone MEMO_HASH anchor of the claimable run's auto-release receipt (E2E_RESULTS.md).
+    tx = "cc2e6d1be8d4703e72d71a8789bce2ded296efa53b88ffbb510072e4006c0a68"
+    res = check_stellar_anchor("stellar:testnet", tx, "3a22b001ed3bf2a91b7edb64d8ca18e29b3d66557ca639a0291179729ccb76dd")
     if res.status == "unavailable":
         pytest.skip(res.detail)
     assert res.status == "pass"

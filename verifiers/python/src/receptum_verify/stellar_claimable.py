@@ -24,7 +24,7 @@ from typing import Any
 
 from .evm import CheckResult
 from .stellar import (
-    STELLAR_TESTNET,
+    STELLAR_NETWORKS,
     VERSION_CLAIMABLE_BALANCE,
     Fetch,
     Horizon,
@@ -52,10 +52,13 @@ STELLAR_CLAIMABLE_RAIL = "escrow:stellar-claimable"
 DEFAULT_MAX_HISTORY = 1000
 
 _BALANCE_HEX = re.compile(r"^00000000[0-9a-f]{64}\Z")
+# SPEC §7.5: payment.reference is the balance id, exactly — Horizon's hex form (any case) or its
+# SEP-23 strkey. Anything else (whitespace included) fails.
+_REFERENCE = re.compile(r"^(?:00000000[0-9A-Fa-f]{64}|B[A-Z2-7]{57})\Z")
 
 
 class NotAnEscrow(ValueError):
-    pass
+    """The balance does not have exactly the Receptum claimant shape (``fail``)."""
 
 
 class Contradiction(Exception):
@@ -152,12 +155,14 @@ def parse_escrow_terms(claimants: Any) -> Terms:
         raise NotAnEscrow("not a Receptum escrow: buyer and seller windows are not contiguous")
     terms = Terms(buyer=buyer[0], seller=seller[0], deadline=buyer[1], release_at=seller[1])
     if terms.buyer == terms.seller:
-        raise NotAnEscrow("buyer and seller must differ")
+        raise NotAnEscrow("not a Receptum escrow: buyer and seller must differ")
     for name, v in (("deadline", terms.deadline), ("releaseAt", terms.release_at)):
         if v <= 0:
-            raise NotAnEscrow(f"{name} must be unix seconds")
+            raise NotAnEscrow(f"not a Receptum escrow: {name} must be unix seconds")
     if terms.release_at <= terms.deadline:
-        raise NotAnEscrow("review window must be > 0: the buyer's refund window would be empty")
+        raise NotAnEscrow(
+            "not a Receptum escrow: review window must be > 0: the buyer's refund window would be empty"
+        )
     return terms
 
 
@@ -450,6 +455,7 @@ def derive_state(h: History) -> ClaimableState:
 
 def check_claimable_state(signed: dict, state: ClaimableState, payer: str | None, payee: str | None) -> CheckResult:
     pay = signed["receipt"]["payment"]
+    network = pay["network"]
     acc = signed["receipt"]["acceptance"]
     window = state.release_at - state.deadline
     problems = [
@@ -458,7 +464,7 @@ def check_claimable_state(signed: dict, state: ClaimableState, payer: str | None
             state.receipt_hash != signed["receiptHash"]
             and "no delivery anchor for this receipt before the deadline",
             state.amount != pay["amount"] and "amount differs",
-            not same_stellar_asset(state.asset, pay["asset"]) and "asset differs",
+            not same_stellar_asset(state.asset, pay["asset"], network) and "asset differs",
             payer and state.buyer != payer and "buyer differs from payment.payer",
             payee and state.seller != payee and "seller differs from payment.payee",
             window != acc["reviewWindowSeconds"]
@@ -497,16 +503,25 @@ def check_stellar_claimable(
 ) -> CheckResult:
     pay = signed["receipt"]["payment"]
     network = pay["network"]
-    if network != STELLAR_TESTNET:
+    if network not in STELLAR_NETWORKS:
         return CheckResult("unavailable", f"unsupported network {network}")
+    reference = pay["reference"]
+    try:
+        if not isinstance(reference, str) or not _REFERENCE.match(reference):
+            raise ValueError
+        balance_id = parse_balance_id(reference)
+    except ValueError:
+        return CheckResult(
+            "fail",
+            f"invalid Stellar escrow id: {reference} (expected the claimable balance id: "
+            "00000000 + 64 hex, or its B… strkey)",
+        )
     horizon = horizon_for(network, horizons, fetch)
     if horizon is None:
         return CheckResult("unavailable", f"no Horizon endpoint configured for {network}")
     try:
-        # As in the TypeScript verifier, a malformed reference is not a contradiction here.
-        balance_id = parse_balance_id(pay["reference"])
         state = derive_state(read_history(horizon, balance_id, max_history))
-    except Contradiction as exc:
+    except (Contradiction, NotAnEscrow) as exc:
         return CheckResult("fail", str(exc))
     except (HorizonError, ValueError, KeyError, TypeError) as exc:
         return CheckResult("unavailable", f"could not be checked: {exc}")

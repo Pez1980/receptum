@@ -4,7 +4,9 @@
 The contract at the escrow reference MUST run the published ReceptumEscrow wasm (its instance's
 executable wasm hash), the escrow's persistent ``DataKey::Escrow(id)`` entry MUST have exactly the
 contract's ``Escrow`` shape, and its terms, status and committed ``receipt_hash`` MUST match the
-receipt. A genuine contract at a deployment outside the trusted registry is ``pending``.
+receipt. Storage is the commitment (SPEC §7): events are never read. A contract that does not
+exist fails, as missing EVM code does. A genuine contract at a deployment outside the trusted
+registry (``networks.TRUSTED_ESCROWS``) is ``pending``.
 """
 
 from __future__ import annotations
@@ -16,9 +18,11 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .evm import CheckResult, JsonRpc, RpcError
+from .networks import TRUSTED_ESCROWS, is_trusted_deployment, untrusted_deployment
 from .stellar import (
+    STELLAR_NETWORKS,
+    STELLAR_PUBNET,
     STELLAR_TESTNET,
-    STELLAR_TESTNET_PASSPHRASE,
     VERSION_ACCOUNT,
     VERSION_CONTRACT,
     decode_strkey,
@@ -41,14 +45,16 @@ __all__ = [
 ]
 
 SOROBAN_ESCROW_RAIL = "escrow:receptum-soroban"
-DEFAULT_SOROBAN_RPCS: dict[str, str] = {STELLAR_TESTNET: "https://soroban-testnet.stellar.org"}
+DEFAULT_SOROBAN_RPCS: dict[str, str] = {
+    STELLAR_TESTNET: "https://soroban-testnet.stellar.org",
+    # SDF runs no public mainnet Soroban RPC; the community endpoint the TS adapter defaults to.
+    STELLAR_PUBNET: "https://mainnet.sorobanrpc.com",
+}
 # SHA-256 of the published receptum_escrow.wasm (packages/adapter-stellar/contracts/receptum-escrow;
 # tests pin it to the wasm file and to the TypeScript constant).
 RECEPTUM_SOROBAN_WASM_HASH = "0dc6b174951cad16630ab1d6600e54d4b6378d9d076fd0d0c5936e2bcaa3deaf"
-# Published deployments (contracts/receptum-escrow/deployment.testnet.json).
-TRUSTED_SOROBAN_ESCROWS: dict[str, tuple[str, ...]] = {
-    STELLAR_TESTNET: ("CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG",),
-}
+# Deprecated alias: the registry lives in networks.TRUSTED_ESCROWS (one registry for every rail).
+TRUSTED_SOROBAN_ESCROWS = TRUSTED_ESCROWS
 
 
 class XdrError(ValueError):
@@ -369,26 +375,37 @@ def decode_escrow_record(val: ScVal) -> SorobanEscrow:
 
 Call = Callable[[str, Any], Any]
 
-_ESCROW_ID = re.compile(r"^stellar:testnet:(C[A-Z2-7]{55}):([1-9][0-9]{0,19})\Z")
+_ESCROW_ID = re.compile(r"^(stellar:(?:testnet|pubnet)):(C[A-Z2-7]{55}):([1-9][0-9]{0,19})\Z")
+
+
+def parse_soroban_escrow_ref(reference: Any) -> tuple[str, str, int]:
+    """``stellar:<testnet|pubnet>:<C…>:<id>`` → (network, contract id, escrow id); ValueError
+    when malformed."""
+    m = _ESCROW_ID.match(reference) if isinstance(reference, str) else None
+    if not m or not is_valid_contract(m.group(2)) or int(m.group(3)) >= 2**64:
+        raise ValueError(f"invalid Soroban escrowId: {reference}")
+    return m.group(1), m.group(2), int(m.group(3))
 
 
 def parse_soroban_escrow_id(reference: Any) -> tuple[str, int]:
-    """``stellar:testnet:<C…>:<id>`` → (contract id, escrow id); ValueError when malformed."""
-    m = _ESCROW_ID.match(reference) if isinstance(reference, str) else None
-    if not m or not is_valid_contract(m.group(1)) or int(m.group(2)) >= 2**64:
-        raise ValueError(f"invalid Soroban escrowId: {reference}")
-    return m.group(1), int(m.group(2))
+    """``stellar:<network>:<C…>:<id>`` → (contract id, escrow id); ValueError when malformed."""
+    _, contract, escrow_id = parse_soroban_escrow_ref(reference)
+    return contract, escrow_id
 
 
 class SorobanRpc:
     def __init__(self, call: Call) -> None:
         self.call = call
 
-    def assert_testnet(self) -> None:
+    def assert_network(self, network: str = STELLAR_TESTNET) -> None:
+        """The RPC must serve ``network`` (its passphrase), or nothing can be checked."""
         net = self.call("getNetwork", {})
         passphrase = net.get("passphrase") if isinstance(net, dict) else None
-        if passphrase != STELLAR_TESTNET_PASSPHRASE:
-            raise RpcError(f'refusing RPC on "{passphrase}": the escrow rail is testnet-only')
+        if passphrase != STELLAR_NETWORKS[network]:
+            raise RpcError(f'Soroban RPC serves "{passphrase}", not {network}')
+
+    def assert_testnet(self) -> None:
+        self.assert_network(STELLAR_TESTNET)
 
     def entry(self, ledger_key: str) -> str | None:
         res = self.call("getLedgerEntries", {"keys": [ledger_key]})
@@ -406,11 +423,11 @@ class SorobanRpc:
         return None
 
     def contract_wasm_hash(self, contract_id: str) -> str | None:
-        """Hex wasm hash the contract runs; None for non-wasm (asset) contracts. Raises RpcError
-        when the instance can't be read (as the TS verifier, a missing instance is unavailable)."""
+        """Hex wasm hash the contract runs; None for non-wasm (asset) contracts. A contract with no
+        instance entry does not exist: Contradiction (fail), as missing EVM code is."""
         xdr = self.entry(contract_data_ledger_key(contract_id, INSTANCE_KEY))
         if xdr is None:
-            raise RpcError(f"contract instance of {contract_id} not found")
+            raise Contradiction(f"contract {contract_id} not found")
         _, _, _, val = decode_contract_data_entry(xdr)
         if val.type != SCV_CONTRACT_INSTANCE:
             raise RpcError("unexpected contract instance entry")
@@ -444,12 +461,14 @@ def check_soroban_escrow(
     receipt = signed["receipt"]
     pay = receipt["payment"]
     network = pay["network"]
-    if network != STELLAR_TESTNET:
+    if network not in STELLAR_NETWORKS:
         return CheckResult("unavailable", f"unsupported network {network}")
     try:
-        contract_id, escrow_id = parse_soroban_escrow_id(pay["reference"])
+        ref_network, contract_id, escrow_id = parse_soroban_escrow_ref(pay["reference"])
     except ValueError as exc:
         return CheckResult("fail", str(exc))
+    if ref_network != network:
+        return CheckResult("fail", f"escrow reference is on {ref_network}, receipt says {network}")
     if call is None:
         url = {**DEFAULT_SOROBAN_RPCS, **(rpcs or {})}.get(network)
         if not url:
@@ -457,7 +476,7 @@ def check_soroban_escrow(
         call = _json_rpc_call(url)
     rpc = SorobanRpc(call)
     try:
-        rpc.assert_testnet()
+        rpc.assert_network(network)
         if rpc.contract_wasm_hash(contract_id) != RECEPTUM_SOROBAN_WASM_HASH:
             return CheckResult(
                 "fail", "referenced contract does not run the published ReceptumEscrow wasm"
@@ -470,7 +489,7 @@ def check_soroban_escrow(
 
     acc = receipt["acceptance"]
     try:
-        token = token_contract_id(pay["asset"])
+        token = token_contract_id(pay["asset"], network)
     except ValueError:
         token = None
     want_evaluator = None
@@ -500,12 +519,8 @@ def check_soroban_escrow(
         return CheckResult("fail", f"escrow {e.status}: {'; '.join(problems)}")
     if e.status not in ("released", "delivered"):
         return CheckResult("fail", f"escrow is {e.status}, not released")
-    if contract_id not in (*TRUSTED_SOROBAN_ESCROWS.get(network, ()), *trusted):
-        return CheckResult(
-            "pending",
-            "ReceptumEscrow wasm, but this deployment isn't in the trusted registry "
-            "(pass --trust-escrow to accept it)",
-        )
+    if not is_trusted_deployment(network, contract_id, tuple(trusted)):
+        return CheckResult("pending", untrusted_deployment(network, "ReceptumEscrow wasm"))
     if not payee:
         return CheckResult(
             "unavailable", "receipt does not name a payee, so the recipient can't be confirmed"

@@ -13,7 +13,7 @@ authors = [{ name = "Swiftleads AI, Inc. and contributors" }]
 dependencies = ["cryptography==50.0.2"]
 
 [project.optional-dependencies]
-test = ["pytest==8.4.2"]
+test = ["pytest==9.0.3"]
 
 [project.scripts]
 receptum-verify-py = "receptum_verify.cli:main"

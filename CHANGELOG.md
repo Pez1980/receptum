@@ -28,6 +28,12 @@ Nothing has been deployed to a mainnet.
 
 ### Added
 
+- **Solana as a rail** (`@receptum/adapter-solana` 0.2.0, devnet `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`; mainnet `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` behind the core opt-in):
+  - `receptum_escrow`, a native Rust program with the hybrid state machine of the EVM/Soroban escrows (open with an SPL Token deposit into a PDA vault, `deliver(receiptHash)` once by the seller, accept/reject by buyer or evaluator, permissionless release after the review window and refund after a missed deadline, `seller_refund`; checked math; no admin; deployed immutable). Program tests run the published `.so` in LiteSVM. `SolanaEscrowRail` implements `EscrowRail`.
+  - x402 `exact` on Solana devnet through the public facilitator (`@x402/svm` 2.28, devnet USDC) — `examples/x402-solana`.
+  - SPL Memo anchors (`anchor:solana`, memo `receptum/1:<receiptHash>`), `solana` account bindings (Ed25519 over SHA-256("Solana Signed Message:\n" ‖ m)) with a vector in `spec/vectors/account-binding-v1.json`.
+  - Level 3 in `@receptum/verify` and the Python verifier: `x402:exact` (`transferChecked` + owner/mint balance deltas), `escrow:receptum-solana` (program hash and immutability, PDA, terms, released) and `anchor:solana`; SPEC §4.1, §7.1, §7.3, §7.4.
+
 - **Account bindings** (SPEC §4.1): a statement signed by the seller's `did:key` and by the payout account's own key (EIP-191 on EVM, ripple-keypairs on XRPL, SEP-53 on Stellar) proves the seller controls `payment.payee`. Carried in `SignedReceipt.bindings`, outside the hashed receipt. Verifier level 2.5; `requireBinding` in `@receptum/client` and `@receptum/mcp`; `@receptum/server` can refuse to charge when its bindings don't cover `payTo`.
 - **Soroban `ReceptumEscrow`** on Stellar testnet (`@receptum/adapter-stellar`, `SorobanEscrowRail`), same state machine as the EVM contract.
 - **x402 `exact` on Stellar testnet and XRPL testnet** (XRP), with settlement checks in `@receptum/verify`.

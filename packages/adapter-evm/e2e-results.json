@@ -1,0 +1,179 @@
+{
+  "network": "eip155:5042002",
+  "explorer": "https://explorer.testnet.arc.io",
+  "accounts": {
+    "buyer": "0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5",
+    "seller": "0x6344D17a80775A71b51A61124767AbCD22B0328B",
+    "deployer": "0xc94D23f247571E591b4405eF97Fb5565979B5C87",
+    "sellerDid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t"
+  },
+  "flows": [
+    {
+      "name": "A · buyer accepts",
+      "escrowId": "eip155:5042002:0x468d4e3fdbd8186a9c9b226ef830ef103e98859a:1",
+      "status": "released",
+      "txs": {
+        "approve": "0x4a674d90cc28a41d24ee3ac6b7325141f0641aba799d6faf3fb4825c34478461",
+        "open": "0xb0b27b9a4102b601a3c257d5760a837eb712a992d0ac2472297b04857a529a3e",
+        "deliver": "0x78aa58bde02a86ab2e9125004dec82691e6d0ba6b26867cd2dfe69cb06500707",
+        "accept": "0xb7e4e796191ca405477cd1305f3721c8ce7727ce2ac99fb1938da407181cbb5e"
+      },
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-EJM0-247Z",
+          "jobIdHash": "ca301dbec149df8e8998cf4525f460b6c7e3105359d2ec4ad784fb12f57e5961",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "render.example"
+          },
+          "inputSha256": ["52a2b0d6fc0254196da0ae5e5914f4723da0a4cce978e69bc6b57dc807660e6f"],
+          "outputSha256": "29c0ed75b8e0f4eba27f9bd9465b97502eb032ca082a6d016e8cffb7d048c7cc",
+          "payment": {
+            "rail": "escrow:receptum-evm",
+            "network": "eip155:5042002",
+            "asset": "0x3600000000000000000000000000000000000000",
+            "amount": "2500000",
+            "reference": "eip155:5042002:0x468d4e3fdbd8186a9c9b226ef830ef103e98859a:1",
+            "payer": "eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+          },
+          "acceptance": {
+            "mode": "buyer",
+            "reviewWindowSeconds": 3600
+          },
+          "deliveredAt": "2026-10-03T06:16:06.263Z",
+          "buyer": {
+            "id": "eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "f4b5418407ab96ee04415a880b67b6adc20cb8fed7eca37c33e3b21537d08442",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..YU6I-cuklE2QWEmGaFTLDfrqkZQ43Ucz-qwoftDTpFkA65GY5uhPLupXPmMNwpFscqXFpOF_nxyV4oqpT0M0Aw"
+        }
+      }
+    },
+    {
+      "name": "B · auto-release after review window",
+      "escrowId": "eip155:5042002:0x468d4e3fdbd8186a9c9b226ef830ef103e98859a:2",
+      "status": "released",
+      "earlyRelease": "refused before the review window ended (expected)",
+      "txs": {
+        "approve": "0xcc90eafcb3c1cbf606c8cabc507e25ac4f7490d99e054fb2d472e0244eee6b71",
+        "open": "0x06974d20df612f0b5889464923773fa08b7f3871e2ee45f937feb21dfae4198a",
+        "deliver": "0x07850ba36909b4f875be0f85f4243f62ebc771e6be580c8fd55b2b792130be59",
+        "release": "0x1f50af79291dcd3252c1e54c6a7445ddec137ef3de84f91b7b4d773850c4c589"
+      },
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-VB6R-AZEA",
+          "jobIdHash": "641072a42ffbee104da0a067c3484ce3b2e645d4c91897c8f8a40edd7c10c3c4",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "render.example"
+          },
+          "inputSha256": ["487d7d445e2097048682b20559212131de672d8c9ee59299796d71baa5b14de6"],
+          "outputSha256": "bec5e9100743074bd3fcd04e7b5b88bb7900c3be08dae413639e16baaf4c94cb",
+          "payment": {
+            "rail": "escrow:receptum-evm",
+            "network": "eip155:5042002",
+            "asset": "0x3600000000000000000000000000000000000000",
+            "amount": "1000000",
+            "reference": "eip155:5042002:0x468d4e3fdbd8186a9c9b226ef830ef103e98859a:2",
+            "payer": "eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 45
+          },
+          "deliveredAt": "2026-10-03T06:16:18.392Z",
+          "buyer": {
+            "id": "eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "2bb6c90c47adf4af2ef5f92230300b4581076926b8c1681590356db6a65bb5ee",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..jDo-7LHfMJC8uodSOJLkbI5CNSRNqlppWLJkwp5OV4t1dEYj-Zg2uLP3WjJ_DvxJbPMrd_fsLZJQ9DI9bv2wCw"
+        }
+      }
+    },
+    {
+      "name": "C · refund after missed deadline",
+      "escrowId": "eip155:5042002:0x468d4e3fdbd8186a9c9b226ef830ef103e98859a:3",
+      "status": "refunded",
+      "earlyRefund": "refused before the deadline (expected)",
+      "txs": {
+        "approve": "0x682b4dbb77e2ed12e81ce400c1c279bf9d34c90e38486690392fcc91cc07113d",
+        "open": "0x89fc24845604835845a08966087f8374d9d5c76279e2cd363af4756878dfa5bc",
+        "refund": "0xe4cb9f3d60d5e65f734e6407af163dc50c594b5655771fd1a3b3bc70bda822a6"
+      }
+    },
+    {
+      "name": "D · standalone anchor",
+      "status": "anchored",
+      "txs": {
+        "anchor": "0x6150a8525b1bda38fe84119dfd4e9767a51c001821f4b0625d73dcdf839b2d9a"
+      },
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-ND8F-PEB3",
+          "jobIdHash": "3b6c0986774f6b91160ebf801a2ca6dd5b708597ffc066edf44eb7ccc24a712b",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "render.example"
+          },
+          "inputSha256": ["a8c18bb8b29a13bf84276f295165b572f5a504deb09d6a056d2f3ce7b084a303"],
+          "outputSha256": "1fffd0e4c647ccc675e65922c068e0d4e2522cbf2627b5bff5a10adb6f2ce7c0",
+          "payment": {
+            "rail": "escrow:receptum-evm",
+            "network": "eip155:5042002",
+            "asset": "0x3600000000000000000000000000000000000000",
+            "amount": "100000",
+            "reference": "eip155:5042002:demo-x402",
+            "payer": "eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 0
+          },
+          "deliveredAt": "2026-10-03T06:18:08.961Z",
+          "buyer": {
+            "id": "eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "148d43ce05973b32022cd4b3580b2a31dea6bcb7b7292c08006c337131479ada",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..86Akrq3QJYLDU5TiLjJJXp6C2Tt9sXgBM3Pe-iDNPxQIvZ0U2gHT02FqQHfXoOQ7ep4Y8fusDgBzznMJi21uBg"
+        }
+      }
+    }
+  ],
+  "funding": {
+    "deployer": "0xf134d62b95d415af5207391347372a69647494a2cb505523ed5727cd378f42db",
+    "seller": "0x09128b060f9ee22cb993c35d9a6076408a8fe6032b9caedf1a0a8fcb20b94042"
+  },
+  "contract": "0x468d4e3fdbd8186a9c9b226ef830ef103e98859a",
+  "balances": {
+    "buyer": "11.475487",
+    "seller": "5.495029"
+  }
+}

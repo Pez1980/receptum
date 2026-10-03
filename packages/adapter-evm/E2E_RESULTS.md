@@ -15,3 +15,5 @@ Buyer `0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5` · seller `0x6344D17a80775A71
 - C · refund after missed deadline: refused before the deadline (expected)
 
 Full signed receipts: `e2e-results.json`. No private keys are stored in this repository.
+
+**Current verdicts** (`node scripts/verify-examples.mjs` and `python verifiers/python/scripts/verify_examples.py`, identical): A and B **VERIFIED** with their published deliverables and the seller binding; D is an anchor demo whose receipt names `eip155:5042002:demo-x402` as the escrow reference — the anchor itself passes, but the reference is no escrow id, so the receipt is **NOT VERIFIED** (correct). Both verifiers decide from the escrow's storage record (`escrows(id)`), never from the `Delivered` event (SPEC §7).

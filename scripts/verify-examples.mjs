@@ -1,5 +1,7 @@
 // Re-verifies every published testnet receipt against live chains (needs network; not in CI).
 //   pnpm build && node scripts/verify-examples.mjs
+// verifiers/python/scripts/verify_examples.py lists exactly the same cases, labels and expected
+// verdicts, and prints the same lines.
 import { readFileSync } from "node:fs";
 import { verify } from "../packages/verify/dist/index.js";
 
@@ -11,6 +13,7 @@ const wrapper = (doc) => ({
   anchors: [doc.anchor ?? []].flat(),
 });
 const soroban = json("packages/adapter-stellar/e2e-soroban-results.json").flows;
+const claimable = json("packages/adapter-stellar/e2e-claimable-results.json").flows;
 const arc = json("packages/adapter-evm/e2e-results.json").flows;
 const mcp = json("packages/mcp/e2e-results.json");
 
@@ -58,9 +61,21 @@ const cases = [
     "VERIFIED",
   ],
   [
+    "ReceptumEscrow · Arc · standalone anchor demo (no escrow behind it)",
+    { signed: arc[3].signedReceipt, anchors: [`eip155:5042002:${arc[3].txs.anchor}`] },
+    null,
+    "NOT VERIFIED",
+  ],
+  [
     "XRPL Escrow · crypto-condition release",
     wrapper(json("examples/xrpl-testnet-escrow-a.json")),
     "examples/deliverables/xrpl-testnet-escrow-a.txt",
+    "VERIFIED",
+  ],
+  [
+    "XRPL TokenEscrow · issued token (RCT, 3-character code), crypto-condition release",
+    wrapper(json("examples/xrpl-testnet-escrow-c.json")),
+    "examples/deliverables/xrpl-testnet-escrow-c.txt",
     "VERIFIED",
   ],
   [
@@ -94,6 +109,30 @@ const cases = [
     "NOT VERIFIED",
   ],
   [
+    "Soroban escrow · seller refunded voluntarily",
+    { signed: soroban.E.signedReceipt, anchors: [] },
+    Buffer.from(soroban.E.deliverable),
+    "NOT VERIFIED",
+  ],
+  [
+    "Stellar claimable balance · auto-release",
+    { signed: claimable.A.signedReceipt, anchors: [] },
+    "examples/deliverables/stellar-claimable-a.txt",
+    "VERIFIED",
+  ],
+  [
+    "Stellar claimable balance · buyer accepts",
+    { signed: claimable.B.signedReceipt, anchors: [] },
+    "examples/deliverables/stellar-claimable-b.txt",
+    "VERIFIED",
+  ],
+  [
+    "Stellar claimable balance · buyer rejected (refunded)",
+    { signed: claimable.D.signedReceipt, anchors: [] },
+    "examples/deliverables/stellar-claimable-d.txt",
+    "NOT VERIFIED",
+  ],
+  [
     "Tampered x402 receipt (amount edited)",
     wrapper(json("examples/x402-base-sepolia-tampered.json")),
     "examples/x402-base-sepolia-output.svg",
@@ -103,8 +142,13 @@ const cases = [
 
 let bad = 0;
 for (const [label, { signed, anchors }, file, want] of cases) {
-  const bytes = typeof file === "string" ? new Uint8Array(read(file)) : new Uint8Array(file);
-  const r = await verify(signed, { file: bytes, anchors });
+  const bytes =
+    file === null
+      ? undefined
+      : typeof file === "string"
+        ? new Uint8Array(read(file))
+        : new Uint8Array(file);
+  const r = await verify(signed, { ...(bytes ? { file: bytes } : {}), anchors });
   const ok = r.verdict === want;
   if (!ok) bad++;
   console.log(

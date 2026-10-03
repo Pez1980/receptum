@@ -1,6 +1,6 @@
-"""Stellar testnet: StrKey, assets and their Stellar Asset Contract ids, a minimal Horizon client
-(urllib), level 3 for ``x402:exact`` on ``stellar:testnet`` and ``anchor:stellar`` (SPEC §7.1,
-§7.3).
+"""Stellar (testnet, and pubnet read-only): StrKey, assets and their Stellar Asset Contract ids, a
+minimal Horizon client (urllib), level 3 for ``x402:exact`` on ``stellar:*`` and ``anchor:stellar``
+(SPEC §7.1, §7.3).
 
 Horizon keeps full history, so settlements and anchors are read from it. A transaction Horizon
 does not know fails; transport errors are ``unavailable``.
@@ -23,6 +23,9 @@ from .evm import CheckResult
 
 __all__ = [
     "DEFAULT_HORIZON",
+    "STELLAR_NETWORKS",
+    "STELLAR_PUBNET",
+    "STELLAR_PUBNET_PASSPHRASE",
     "STELLAR_TESTNET",
     "STELLAR_TESTNET_PASSPHRASE",
     "HorizonError",
@@ -43,7 +46,18 @@ __all__ = [
 
 STELLAR_TESTNET = "stellar:testnet"
 STELLAR_TESTNET_PASSPHRASE = "Test SDF Network ; September 2015"
-DEFAULT_HORIZON: dict[str, str] = {STELLAR_TESTNET: "https://horizon-testnet.stellar.org"}
+# Read-only verification of mainnet receipts needs no opt-in (it moves nothing).
+STELLAR_PUBNET = "stellar:pubnet"
+STELLAR_PUBNET_PASSPHRASE = "Public Global Stellar Network ; September 2015"
+# CAIP-2 id → network passphrase (SAC ids and Soroban RPCs depend on it).
+STELLAR_NETWORKS: dict[str, str] = {
+    STELLAR_TESTNET: STELLAR_TESTNET_PASSPHRASE,
+    STELLAR_PUBNET: STELLAR_PUBNET_PASSPHRASE,
+}
+DEFAULT_HORIZON: dict[str, str] = {
+    STELLAR_TESTNET: "https://horizon-testnet.stellar.org",
+    STELLAR_PUBNET: "https://horizon.stellar.org",
+}
 
 # --- StrKey (SEP-23) ---------------------------------------------------------------------------
 
@@ -153,16 +167,19 @@ def sac_contract_id(asset: str, passphrase: str = STELLAR_TESTNET_PASSPHRASE) ->
     return contract_strkey(hashlib.sha256(preimage).digest())
 
 
-def token_contract_id(asset: str) -> str:
-    """The token contract of ``native`` / ``CODE:ISSUER`` (its SAC on testnet) or a ``C…`` id."""
+def token_contract_id(asset: str, network: str = STELLAR_TESTNET) -> str:
+    """The token contract of ``native`` / ``CODE:ISSUER`` (its SAC on ``network``) or a ``C…`` id."""
     if is_valid_contract(asset):
         return asset
-    return sac_contract_id(asset)
+    passphrase = STELLAR_NETWORKS.get(network)
+    if passphrase is None:
+        raise ValueError(f"unknown Stellar network {network}")
+    return sac_contract_id(asset, passphrase)
 
 
-def same_stellar_asset(a: str, b: str) -> bool:
+def same_stellar_asset(a: str, b: str, network: str = STELLAR_TESTNET) -> bool:
     try:
-        return token_contract_id(a) == token_contract_id(b)
+        return token_contract_id(a, network) == token_contract_id(b, network)
     except ValueError:
         return False
 
@@ -279,18 +296,20 @@ def horizon_for(network: str, horizons: dict[str, str] | None, fetch: Fetch | No
     return Horizon(url, fetch) if url else None
 
 
-# --- x402:exact on stellar:testnet (SPEC §7.3) ------------------------------------------------
+# --- x402:exact on stellar:* (SPEC §7.3) ------------------------------------------------
 
 _TX = re.compile(r"^[0-9a-f]{64}\Z")
 
 
-def _change_matches(change: dict, token: str, amount: str, to: str, frm: str | None) -> bool:
+def _change_matches(
+    change: dict, token: str, amount: str, to: str, frm: str | None, network: str
+) -> bool:
     if change.get("asset_type") == "native":
         asset = "native"
     else:
         asset = f"{change.get('asset_code') or ''}:{change.get('asset_issuer') or ''}"
     try:
-        change_token = token_contract_id(asset)
+        change_token = token_contract_id(asset, network)
     except ValueError:
         return False
     if change.get("type") != "transfer" or change_token != token or change.get("to") != to:
@@ -320,7 +339,7 @@ def check_stellar_x402_exact(
             "fail", "payment.reference is not a Stellar transaction hash (64 lower-case hex)"
         )
     try:
-        token = token_contract_id(asset)
+        token = token_contract_id(asset, pay["network"])
     except ValueError:
         return CheckResult(
             "fail", "payment.asset is not a Stellar asset (CODE:ISSUER, native or a C… contract)"
@@ -344,7 +363,9 @@ def check_stellar_x402_exact(
             if op.get("type") != "invoke_host_function":
                 continue
             for change in op.get("asset_balance_changes") or []:
-                if isinstance(change, dict) and _change_matches(change, token, amount, payee, payer):
+                if isinstance(change, dict) and _change_matches(
+                    change, token, amount, payee, payer, pay["network"]
+                ):
                     return CheckResult(
                         "pass", f"{amount} base units paid to {payee} in ledger {tx.get('ledger')}"
                     )

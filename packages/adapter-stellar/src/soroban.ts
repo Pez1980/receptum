@@ -346,10 +346,21 @@ export class SorobanRpcClient {
     };
   }
 
-  /** SHA-256 (hex) of the wasm a contract runs, or null for non-wasm (e.g. asset) contracts. */
+  /**
+   * SHA-256 (hex) of the wasm a contract runs, or null for non-wasm (e.g. asset) contracts.
+   * Throws `contract <id> not found` when the contract has no instance entry.
+   */
   async contractWasmHash(contractId: string): Promise<string | null> {
     await this.assertNetwork();
-    const instance = await this.server.getContractInstance(contractId);
+    let instance;
+    try {
+      instance = await this.server.getContractInstance(contractId);
+    } catch (err) {
+      // No instance entry: the contract does not exist (verifiers fail it, like missing EVM code).
+      if ((err as { code?: number })?.code === 404)
+        throw new Error(`contract ${contractId} not found`, { cause: err });
+      throw err;
+    }
     const exe = instance.executable as unknown as {
       type: string;
       wasmHash?: { value: Uint8Array } | Uint8Array;

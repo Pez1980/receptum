@@ -122,27 +122,68 @@ def test_x402_mainnet_settlement_out_of_the_box(vectors, monkeypatch):
     )
 
 
+def _evm_mainnet(vectors, monkeypatch, network, chain_hex, contract):
+    import test_evm_escrow as t
+    from receptum_verify import evm_escrow
+
+    payment = {"rail": "escrow:receptum-evm", "network": network, "asset": t.TOKEN,
+               "amount": "2500000", "reference": f"{network}:{contract}:1",
+               "payer": f"{network}:{t.BUYER}", "payee": f"{network}:{t.SELLER}"}
+    signed = resign(vectors, payment, {"mode": "buyer", "reviewWindowSeconds": 600})
+    fake = t.FakeRpc(chain=chain_hex, data=t.record(receiptHash="0x" + signed["receiptHash"]))
+    monkeypatch.setattr(evm_escrow, "JsonRpc", lambda url: fake)
+    return signed
+
+
 @pytest.mark.parametrize(
-    "rail,network,reference",
+    "network,chain_hex,contract",
     [
-        ("escrow:receptum-evm", "eip155:8453", "eip155:8453:0x3333333333333333333333333333333333333333:1"),
-        ("escrow:receptum-evm", "eip155:5042", "eip155:5042:0x20d69c6c647559f48a7e6b0a3f922e99a4068f16:1"),
-        (
-            "escrow:receptum-soroban",
-            "stellar:pubnet",
-            "stellar:pubnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:1",
-        ),
+        ("eip155:8453", "0x2105", "0x3333333333333333333333333333333333333333"),
+        # The testnet deployment's address: trust must not carry over to another chain.
+        ("eip155:5042", "0x13b2", "0x20d69c6c647559f48a7e6b0a3f922e99a4068f16"),
     ],
 )
-def test_mainnet_escrow_reports_untrusted_deployment(vectors, rail, network, reference):
-    payment = {"rail": rail, "network": network, "asset": USDC, "amount": "1", "reference": reference}
-    report = verify(resign(vectors, payment, {"mode": "buyer", "reviewWindowSeconds": 600}), rpcs={})
+def test_mainnet_evm_escrow_reports_untrusted_deployment(vectors, monkeypatch, network, chain_hex, contract):
+    # As in the TypeScript verifier: genuine ReceptumEscrow code and matching terms on a mainnet
+    # whose registry entry is empty is pending (untrusted deployment), never VERIFIED.
+    signed = _evm_mainnet(vectors, monkeypatch, network, chain_hex, contract)
+    report = verify(signed, allow_unbound=True)
     s = report.levels["settlement"]
-    assert s.status == "unavailable"
+    assert s.status == "pending", s.detail
     assert s.detail.startswith(
-        f"untrusted deployment: no ReceptumEscrow deployment has been published for mainnet {network}"
+        f"untrusted deployment: no ReceptumEscrow code deployment has been published for mainnet {network}"
     )
     assert report.status == "PARTIALLY VERIFIED"
+    # Trusting it explicitly is the caller's decision.
+    trusted = verify(signed, allow_unbound=True, trusted_escrows=[contract])
+    assert trusted.levels["settlement"].status == "pass"
+
+
+def test_mainnet_soroban_escrow_reports_untrusted_deployment(vectors, monkeypatch):
+    import test_soroban as t
+    from receptum_verify import soroban
+    from receptum_verify.stellar import STELLAR_PUBNET_PASSPHRASE
+
+    contract = TRUSTED_ESCROWS["stellar:testnet"][0]  # testnet trust must not carry over
+    net = "stellar:pubnet"
+    payment = {"rail": "escrow:receptum-soroban", "network": net, "asset": t.USDC_SAC,
+               "amount": "1000000", "reference": f"{net}:{contract}:17",
+               "payer": f"{net}:{t.BUYER}", "payee": f"{net}:{t.SELLER}"}
+    signed = resign(vectors, payment, {"mode": "buyer", "reviewWindowSeconds": 600})
+    rec = t.record(receipt_hash=t.bytes_(bytes.fromhex(signed["receiptHash"])))
+    fake = t.FakeSoroban(record_xdr=rec, passphrase=STELLAR_PUBNET_PASSPHRASE)
+    urls = []
+    monkeypatch.setattr(soroban, "_json_rpc_call", lambda url: urls.append(url) or fake)
+    report = verify(signed, allow_unbound=True)
+    s = report.levels["settlement"]
+    assert s.status == "pending", s.detail
+    assert s.detail.startswith("untrusted deployment: no ReceptumEscrow wasm deployment")
+    assert urls == ["https://mainnet.sorobanrpc.com"]
+    # A testnet reference behind a pubnet receipt fails before any RPC.
+    payment["reference"] = f"stellar:testnet:{contract}:17"
+    res = verify(resign(vectors, payment, {"mode": "buyer", "reviewWindowSeconds": 600}), allow_unbound=True)
+    assert res.levels["settlement"].status == "fail"
+    assert "is on stellar:testnet" in res.levels["settlement"].detail
 
 
 def test_cli_header_labels_mainnet(vectors, tmp_path, capsys):

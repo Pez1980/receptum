@@ -81,7 +81,7 @@ def test_ledger_keys_are_canonical_xdr():
         f"stellar:testnet:{CONTRACT}:0",
         f"stellar:testnet:{CONTRACT}:01",
         f"stellar:testnet:{CONTRACT}:18446744073709551616",
-        f"stellar:pubnet:{CONTRACT}:1",
+        f"stellar:futurenet:{CONTRACT}:1",
         f"stellar:testnet:{CONTRACT[:-1]}A:1",
         f"stellar:testnet:{CONTRACT}:1\n",
     ],
@@ -296,10 +296,12 @@ def test_records_without_the_contract_shape_fail(rec):
     assert res.status == "fail" and "not a ReceptumEscrow record" in res.detail, res.detail
 
 
-def test_unknown_escrow_fails_but_a_missing_instance_is_unavailable():
+def test_unknown_escrow_and_a_missing_contract_fail():
     res = run(FakeSoroban(missing=["escrow"]))
     assert res.status == "fail" and "unknown escrow" in res.detail
-    assert run(FakeSoroban(missing=["instance"])).status == "unavailable"
+    # No contract instance: the contract does not exist — a contradiction, as missing EVM code.
+    res = run(FakeSoroban(missing=["instance"]))
+    assert res.status == "fail" and f"contract {CONTRACT} not found" in res.detail
 
 
 def test_rpc_problems_are_unavailable():
@@ -314,7 +316,15 @@ def test_malformed_reference_fails_and_other_networks_are_unavailable():
     rpc = FakeSoroban()
     assert run(rpc, reference=f"{NET}:{CONTRACT}:x").status == "fail"
     assert rpc.calls == []
+    # A testnet reference behind a pubnet receipt fails before any RPC (as in TypeScript).
     p = payment(network="stellar:pubnet", payer=f"stellar:pubnet:{BUYER}", payee=f"stellar:pubnet:{SELLER}")
+    res = check_soroban_escrow(escrow_signed(p), BUYER, SELLER, call=rpc)
+    assert res.status == "fail" and "is on stellar:testnet" in res.detail
+    assert rpc.calls == []
+    # A pubnet receipt read through a testnet RPC: the passphrase differs, so unavailable.
+    p["reference"] = f"stellar:pubnet:{CONTRACT}:1"
+    assert check_soroban_escrow(escrow_signed(p), BUYER, SELLER, call=rpc).status == "unavailable"
+    p["network"] = "stellar:futurenet"
     assert check_soroban_escrow(escrow_signed(p), BUYER, SELLER, call=rpc).status == "unavailable"
 
 

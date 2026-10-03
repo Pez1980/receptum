@@ -5,7 +5,17 @@
 > Payment receipts say you were served. Receptum says what you got.
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
-- **Status:** working end to end on **testnets** (October 2026). Escrow contracts are **unaudited** — do not use with real funds.
+- **Status:** v0.1.0 on npm, working end to end on **testnets** (October 2026). Escrow contracts are **unaudited** — do not use with real funds.
+
+## Install
+
+```sh
+npm install @receptum/core          # receipts, signing, verification
+npm install @receptum/server @receptum/client   # x402 paid jobs
+npx @receptum/verify receipt.json delivered-file # verify any receipt
+```
+
+All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0.1.0 · testnet-only, unaudited.
 
 ## How it works
 

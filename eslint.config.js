@@ -5,4 +5,17 @@ export default tseslint.config(
   { ignores: ["**/dist/**", "**/node_modules/**", "**/coverage/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ["scripts/**/*.mjs", "examples/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        Buffer: "readonly",
+        URL: "readonly",
+        console: "readonly",
+        process: "readonly",
+        fetch: "readonly",
+        setTimeout: "readonly",
+      },
+    },
+  },
 );

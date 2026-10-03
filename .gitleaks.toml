@@ -1,0 +1,9 @@
+title = "receptum gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "did:key identifiers are public keys (multibase Ed25519), not secrets"
+regexTarget = "match"
+regexes = ['''key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}''']

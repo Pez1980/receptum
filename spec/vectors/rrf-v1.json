@@ -1,0 +1,87 @@
+{
+  "description": "Receptum Receipt Format v1 test vectors. testSeedHex is the RFC 8032 §7.1 TEST 1 seed — public, for testing only.",
+  "testSeedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+  "sellerDid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+  "vectors": [
+    {
+      "name": "auto-release, x402 exact on Base Sepolia",
+      "receipt": {
+        "version": "receptum/1",
+        "receiptId": "RCPT-7F3A-21C9",
+        "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+        "seller": {
+          "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "name": "render.example"
+        },
+        "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+        "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+        "payment": {
+          "rail": "x402:exact",
+          "network": "eip155:84532",
+          "asset": "USDC",
+          "amount": "2500000",
+          "reference": "0xabababababababababababababababababababababababababababababababab"
+        },
+        "acceptance": {
+          "mode": "auto",
+          "reviewWindowSeconds": 259200
+        },
+        "deliveredAt": "2026-10-04T12:00:00.000Z",
+        "remedy": {
+          "kind": "rerender",
+          "withinDays": 30
+        }
+      },
+      "jcs": "{\"acceptance\":{\"mode\":\"auto\",\"reviewWindowSeconds\":259200},\"deliveredAt\":\"2026-10-04T12:00:00.000Z\",\"inputSha256\":[\"4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30\"],\"jobIdHash\":\"462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef\",\"outputSha256\":\"dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61\",\"payment\":{\"amount\":\"2500000\",\"asset\":\"USDC\",\"network\":\"eip155:84532\",\"rail\":\"x402:exact\",\"reference\":\"0xabababababababababababababababababababababababababababababababab\"},\"receiptId\":\"RCPT-7F3A-21C9\",\"remedy\":{\"kind\":\"rerender\",\"withinDays\":30},\"seller\":{\"id\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"name\":\"render.example\"},\"version\":\"receptum/1\"}",
+      "receiptHash": "46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b",
+      "proof": {
+        "type": "jws",
+        "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..atx2o12Vi7Jmv3ABc6CG0A5iFfW-NNSlkCC52B6UBI5ujwsC3hcqtrKLQuHC0byBBvQtSC7eBVjgE5MQwgO4Dw"
+      }
+    },
+    {
+      "name": "evaluator acceptance, XRPL escrow, with evidence and supersedes",
+      "receipt": {
+        "version": "receptum/1",
+        "receiptId": "RCPT-9B04-E117",
+        "jobIdHash": "49bacd1ce18fa82b09f3b43c9b49afe9e3b423a8d5a4290c108c99ffe9a957e0",
+        "seller": {
+          "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw"
+        },
+        "inputSha256": [
+          "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+          "3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d"
+        ],
+        "outputSha256": "8d9edcef9877112bb16675d920235e168d2b661ca17183b588f4af319384571f",
+        "payment": {
+          "rail": "escrow:xrpl",
+          "network": "xrpl:1",
+          "asset": "XRP",
+          "amount": "4000000",
+          "reference": "rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY:42"
+        },
+        "acceptance": {
+          "mode": "evaluator",
+          "reviewWindowSeconds": 86400,
+          "evaluator": "did:web:qa.example"
+        },
+        "deliveredAt": "2026-10-05T08:30:00.000Z",
+        "buyer": {
+          "id": "xrpl:1:rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY"
+        },
+        "evidence": {
+          "qaReport": "2ff3ebdbd625698cd1dbed16cf69591b9a2e8e8b8f8819cca461e83a541751f2"
+        },
+        "supersedes": "1ba20dc68e610afc3fd426e824f23b5313ba576c492dd60cabda8df295b9fcfe"
+      },
+      "jcs": "{\"acceptance\":{\"evaluator\":\"did:web:qa.example\",\"mode\":\"evaluator\",\"reviewWindowSeconds\":86400},\"buyer\":{\"id\":\"xrpl:1:rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY\"},\"deliveredAt\":\"2026-10-05T08:30:00.000Z\",\"evidence\":{\"qaReport\":\"2ff3ebdbd625698cd1dbed16cf69591b9a2e8e8b8f8819cca461e83a541751f2\"},\"inputSha256\":[\"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb\",\"3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d\"],\"jobIdHash\":\"49bacd1ce18fa82b09f3b43c9b49afe9e3b423a8d5a4290c108c99ffe9a957e0\",\"outputSha256\":\"8d9edcef9877112bb16675d920235e168d2b661ca17183b588f4af319384571f\",\"payment\":{\"amount\":\"4000000\",\"asset\":\"XRP\",\"network\":\"xrpl:1\",\"rail\":\"escrow:xrpl\",\"reference\":\"rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY:42\"},\"receiptId\":\"RCPT-9B04-E117\",\"seller\":{\"id\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\"},\"supersedes\":\"1ba20dc68e610afc3fd426e824f23b5313ba576c492dd60cabda8df295b9fcfe\",\"version\":\"receptum/1\"}",
+      "receiptHash": "f478dac67ef608efb07c2c35cdfbab09c621261a8cd8e7f2f62416d49c0b3d23",
+      "proof": {
+        "type": "jws",
+        "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..IVW09yHXDJfG1tYVwkZVxHVXxi_aov1l8mVcE2vzvg1vhctmeS5y0dXPdr3OlDJ0J5xUDMs7cHo_GWVmftQHBw"
+      }
+    }
+  ]
+}

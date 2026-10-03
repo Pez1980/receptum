@@ -93,9 +93,9 @@ describe("x402:exact on xrpl:*", () => {
     expect((await run(payment({ asset: "USD", amount: "1" }), txReply())).status).toBe("fail");
   });
 
-  it("is pending, never pass, when the ledger is not validated", async () => {
+  it("is unavailable, never pass, when the ledger is not validated", async () => {
     const r = await run(payment(), txReply({ top: { validated: false } }));
-    expect(r.status).toBe("pending");
+    expect(r.status).toBe("unavailable");
   });
 
   it("fails when tesSUCCESS is missing or the result is a tec code", async () => {
@@ -120,17 +120,17 @@ describe("x402:exact on xrpl:*", () => {
     // transaction bound to another NetworkID
     expect((await run(payment(), txReply({ tx: { NetworkID: 21338 } }))).status).toBe("fail");
     // the RPC serves a different network: can't be checked here
-    expect((await run(payment(), txReply(), 0)).status).toBe("pending");
+    expect((await run(payment(), txReply(), 0)).status).toBe("unavailable");
     // not an XRPL CAIP-2 id at all
     expect((await run(payment({ network: "xrpl:testnet" }), txReply())).status).toBe("fail");
   });
 
-  it("is pending when the lookup is unavailable or the tx is unknown to the server", async () => {
+  it("is unavailable when the lookup is unavailable or the tx is unknown to the server", async () => {
     const down: XrplRpc = async () => {
       throw new Error("ECONNREFUSED");
     };
-    expect((await verifyXrplX402Payment(payment(), { rpc: down })).status).toBe("pending");
-    expect((await run(payment(), { error: "txnNotFound" })).status).toBe("pending");
+    expect((await verifyXrplX402Payment(payment(), { rpc: down })).status).toBe("unavailable");
+    expect((await run(payment(), { error: "txnNotFound" })).status).toBe("unavailable");
     expect(
       (
         await verifyXrplX402Payment(
@@ -138,7 +138,7 @@ describe("x402:exact on xrpl:*", () => {
           {},
         )
       ).status,
-    ).toBe("pending");
+    ).toBe("unavailable");
   });
 
   it("fails a reply for a different transaction hash", async () => {

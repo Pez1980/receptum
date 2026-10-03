@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parseStrictJson } from "./json.js";
 import { receiptBytes, receiptHash } from "./receipt.js";
 import { sellerKeyFromSeed, signReceipt, verifySignedReceipt } from "./signing.js";
 
@@ -18,6 +19,17 @@ describe("published RRF v1 test vectors", () => {
       expect(
         verifySignedReceipt({ receipt: v.receipt, receiptHash: v.receiptHash, proof: v.proof }).ok,
       ).toBe(true);
+    });
+  }
+
+  for (const v of file.invalid) {
+    it(`reject invalid "${v.name}"`, () => {
+      if (v.text !== undefined) {
+        expect(() => JSON.parse(v.text)).not.toThrow(); // JSON.parse alone would accept it
+        expect(() => parseStrictJson(v.text)).toThrow();
+      } else {
+        expect(verifySignedReceipt(v.signedReceipt).ok).toBe(false);
+      }
     });
   }
 });

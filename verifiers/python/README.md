@@ -24,13 +24,14 @@ pip install -e ".[test]"
 ## CLI
 
 ```sh
-python -m receptum_verify <receipt.json> [file] [--anchor <caip2>:<tx>] [--offline] [--allow-unbound] [--json] [--rpc <caip2>=<url>]
+python -m receptum_verify <receipt.json> [file] [--anchor <caip2>:<tx>]... [--offline] [--allow-unbound] [--json] [--rpc <caip2>=<url>]...
 ```
 
-`receipt.json` is either a bare signed receipt (`{ receipt, receiptHash, proof, bindings? }`) or an object
-with a `signedReceipt` member. If such a wrapper also has a string `anchor` member and `--anchor`
-is not given, that anchor is checked (an anchor is bound to the recomputed `receiptHash`, so the
-wrapper does not need to be trusted).
+`receipt.json` is either a bare signed receipt (`{ receipt, receiptHash, proof, bindings? }`) or a
+wrapper object with a `signedReceipt` member (SPEC §6.1). The wrapper's `anchor` — one
+`<caip2>:<tx>` string or an array of them — is checked together with every `--anchor` (an anchor
+is bound to the recomputed `receiptHash`, so the wrapper does not need to be trusted); any other
+`anchor` value is an input error. The wrapper's other members are informational.
 
 ```sh
 $ python -m receptum_verify ../../examples/x402-base-sepolia.json ../../examples/x402-base-sepolia-output.svg
@@ -41,7 +42,16 @@ VERIFIED
   L2 signature   PASS        receiptHash recomputed and JWS verifies against did:key:z6Mkqc7R…
   L2.5 binding   PASS        did:key:z6Mkqc7R… ↔ eip155:84532:0x6344…328B: EIP-191 signature recovers 0x6344…328B (offline)
   L3 settlement  PASS        tx 0x778f0a7d…bcf0b86b succeeded; Transfer 250000 of 0x036CbD53… 0x62e5… -> 0x6344…
-  L3 anchor      PASS        eip155:5042002 tx 0xa546047c…28e04b70 commits receiptHash
+  L3 anchor      PASS        eip155:5042002 tx 0xa546047c…28e04b70 commits receiptHash (block 65317884, …)
+```
+
+A PARTIALLY VERIFIED report ends with one `missing:` line per piece that prevented VERIFIED, e.g.
+for `examples/x402-stellar-testnet.json` (this verifier has no Stellar settlement check, and the
+receipt was never anchored):
+
+```text
+  missing: L3: the payment was not confirmed on its rail (unavailable — rail x402:exact on stellar:testnet is not supported by this verifier)
+  missing: L3: receiptHash is not committed on-chain — x402:exact does not commit it, so a mined anchor is required (--anchor <caip2>:<tx>, or the input wrapper's "anchor")
 ```
 
 Exit codes: `0` VERIFIED, `1` NOT VERIFIED, `2` usage or unreadable/invalid JSON input,
@@ -49,16 +59,16 @@ Exit codes: `0` VERIFIED, `1` NOT VERIFIED, `2` usage or unreadable/invalid JSON
 
 ## What is checked
 
-| Level                     | Check                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| input                     | Strict I-JSON: UTF-8, no duplicate member names, no lone surrogates, no NaN/Infinity                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| L1 file                   | `SHA-256(file) == outputSha256`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| L2 signature              | SPEC §2 schema (exact members, types, timestamp profile, identity syntax); `receiptHash` recomputed from JCS; detached JWS with exactly 3 segments and an empty payload, header members exactly `alg`/`kid`/`typ` (`EdDSA`, `receptum+jws`), `kid` = `<seller did:key>#<multibase key>`, canonical unpadded 64-byte signature with `S < L`                                                                                                                                                                                                                                                                                                       |
-| L2.5 binding              | SPEC §4.1, only when `payment.payee` is present. Some binding in `bindings` (the first 16 are examined) must have exactly `statement`/`didProof`/`accountProof`; a statement with exactly the allowed string members; a `didProof` JWS as for L2 but with `typ` `receptum-binding+jws` over `JCS(statement)`, by `statement.did`; and an `accountProof` for the account's namespace (below). It covers the receipt when `statement.did == seller.id`, `statement.account == payment.payee` (EVM address case-insensitive, everything else exact), `expiresAt` (if any) is after `deliveredAt`, and `issuedAt` is at most 5 minutes in the future |
-| L3 settlement             | `x402:exact` on `eip155:*` (default RPC for `eip155:84532`): the RPC serves the right chain id, the transaction at `payment.reference` is mined with status success, and it emitted an ERC-20 `Transfer` of exactly `payment.amount` of token `payment.asset` to `payment.payee` (and from `payment.payer` when stated)                                                                                                                                                                                                                                                                                                                          |
-| L3 settlement (XRPL)      | `x402:exact` on `xrpl:*` (default RPC for `xrpl:1`, `xrpl_x402.py`): `tx` at `payment.reference` is `validated`, `tesSUCCESS`, a `Payment` with `Account` = payer and `Destination` = payee, and `meta.delivered_amount` (not `Amount`) equals `payment.amount` in `payment.asset` (`XRP` drops, or `<currency>.<issuer>` decimal value); see `docs/rails/x402-xrpl.md`                                                                                                                                                                                                                                                                          |
-| L3 anchor (`anchor:evm`)  | default RPC for `eip155:5042002`: the anchor transaction is mined, successful, zero-value, and its calldata is exactly `utf8("receptum/1") ‖ receiptHash` (32 raw bytes)                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| L3 anchor (`anchor:xrpl`) | `xrpl:<id>:<tx>`: a validated `tesSUCCESS` transaction whose first `receptum/1` memo carries exactly the receiptHash                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Level                     | Check                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| input                     | Strict I-JSON (SPEC §6.1): UTF-8 without BOM, no duplicate member names, no lone surrogates, no NaN/Infinity or out-of-range numbers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| L1 file                   | `SHA-256(file) == outputSha256`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| L2 signature              | SPEC §2 schema (exact members, types, §2.1 identity expressions, §2.2 timestamp profile with 1–9 fractional digits, `remedy.kind` required, `acceptance.evaluator` only in evaluator mode); the signed-receipt envelope (exactly `receipt`/`receiptHash`/`proof`, optional `bindings` array — `null` and `[]` count as absent); `receiptHash` recomputed from JCS; detached JWS with exactly 3 segments and an empty payload, header I-JSON with members exactly `alg`/`kid`/`typ` (`EdDSA`, `receptum+jws`), `kid` = `<seller did:key>#<multibase key>`, canonical unpadded 64-byte signature with `S < L`. A CAIP-10 `seller.id` cannot carry a JWS proof and fails |
+| L2.5 binding              | SPEC §4.1, only when `payment.payee` is present. Some binding in `bindings` (the first 16 are examined) must have exactly `statement`/`didProof`/`accountProof`; a statement with exactly the allowed string members; a `didProof` JWS as for L2 but with `typ` `receptum-binding+jws` over `JCS(statement)`, by `statement.did`; and an `accountProof` for the account's namespace (below). It covers the receipt when `statement.did == seller.id`, `statement.account == payment.payee` (EVM address case-insensitive, everything else exact), `expiresAt` (if any) is after `deliveredAt`, and `issuedAt` is at most 5 minutes in the future                      |
+| L3 settlement             | `x402:exact` on `eip155:*` (SPEC §7.3; default RPC for `eip155:84532`): `payment.asset` must be the token contract address and `payment.reference` a transaction hash (otherwise fail); the RPC serves the right chain id (otherwise unavailable), the transaction at `payment.reference` is mined with status success, and it emitted an ERC-20 `Transfer` of exactly `payment.amount` of token `payment.asset` to `payment.payee` (and from `payment.payer` when stated). Other `x402:*` schemes, Stellar x402 and every escrow rail are `unavailable` here                                                                                                         |
+| L3 settlement (XRPL)      | `x402:exact` on `xrpl:*` (default RPC for `xrpl:1`, `xrpl_x402.py`): `tx` at `payment.reference` is `validated`, `tesSUCCESS`, a `Payment` with `Account` = payer and `Destination` = payee, and `meta.delivered_amount` (not `Amount`) equals `payment.amount` in `payment.asset` (`XRP` drops, or `<currency>.<issuer>` decimal value); see `docs/rails/x402-xrpl.md`                                                                                                                                                                                                                                                                                               |
+| L3 anchor (`anchor:evm`)  | SPEC §7.1, every anchor from the wrapper and `--anchor` (default RPC for `eip155:5042002`): `<caip2>:<tx>` with a CAIP-2 network; the anchor transaction is mined, successful, zero-value, and its calldata is exactly `utf8("receptum/1") ‖ receiptHash` (32 raw bytes). Stellar anchor references are format-checked, then `unavailable`                                                                                                                                                                                                                                                                                                                            |
+| L3 anchor (`anchor:xrpl`) | `xrpl:<id>:<tx>`: a validated `tesSUCCESS` transaction whose first `receptum/1` memo carries exactly the receiptHash                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 Account proofs by namespace (an unsupported namespace fails closed):
 
@@ -72,37 +82,41 @@ The online XRPL check runs for `xrpl:1` (testnet, `https://s.altnet.rippletest.n
 `--offline`; other XRPL networks use the offline rule unless an endpoint is given with
 `--rpc xrpl:0=<url>`.
 
-Each check is `pass`, `fail` (the evidence contradicts the receipt), `skipped` (not requested or
-not possible offline), `pending` (L2.5 only: the receipt carries no binding at all, so nothing
-proves the seller controls the payee) or `unavailable` (could not be checked: unsupported rail, a
-symbolic `payment.asset`, no `payment.payee`, or an RPC error — for L2.5, the XRPL `account_info`
-lookup failed).
+Each check is `pass`, `fail` (the evidence contradicts the receipt, or the receipt breaks a MUST),
+`skipped` (not requested or not applicable: no file, offline, no payee, `--allow-unbound`),
+`pending` (genuine but not final; here only L2.5 when the receipt carries no binding at all, so
+nothing proves the seller controls the payee) or `unavailable` (could not be performed:
+unsupported rail or anchor network, no `payment.payee`, an RPC error or an RPC serving another
+chain — for L2.5, the XRPL `account_info` lookup failed or was not from a validated ledger). An
+`unavailable` check is never a pass and never a failure (SPEC §6).
 
 ## Verdicts
 
+The SPEC §6 rules, identical in the TypeScript `@receptum/verify`:
+
 - **NOT VERIFIED** — any check failed.
-- **VERIFIED** — every check passed: the file matches, the seller signed the receipt, the seller
-  proved it controls the payee (L2.5; `skipped` only when the receipt names no payee or with
-  `--allow-unbound`), the payment
-  settled on its rail to the payee, and the `receiptHash` is committed on-chain (SPEC §6 level 3:
-  "the rail shows `receiptHash` committed and the payment settled"). For `x402:exact` the
-  settlement transaction predates the receipt, so the commitment is the anchor.
-- **PARTIALLY VERIFIED** — nothing failed, but at least one level was not confirmed (offline mode,
-  no file, no anchor, no account binding, unsupported rail, RPC unavailable). Anchors alone never
+- **VERIFIED** — no check failed and none is pending or unavailable, and: the file matches (L1;
+  a file must be given), the seller signed the receipt (L2), the seller proved it controls the
+  payee (L2.5; `skipped` only when the receipt names no payee or with `--allow-unbound`), the
+  payment settled on its rail to the payee, and `receiptHash` is committed on-chain — by the
+  escrow rail itself, or, for `x402:exact`, whose settlement predates the receipt, by a passing
+  anchor.
+- **PARTIALLY VERIFIED** — otherwise (offline mode, no file, no anchor, no account binding,
+  unsupported rail, RPC unavailable), with a `missing:` line for each piece. Anchors alone never
   yield VERIFIED.
 
 `--allow-unbound` is the SPEC §6 opt-out for legacy receipts issued before account bindings: a
 receipt with no binding at all reports L2.5 `skipped` ("allowed: --allow-unbound") instead of
 `pending`. Bindings that are present but invalid still fail.
 
-Note: this is stricter than the TypeScript `@receptum/verify`, which reports VERIFIED when the
-payment check passes even without a file or an anchor. SPEC §6 does not yet define the verdicts
-precisely; this difference is pending a spec clarification.
+Because this verifier only checks `x402:exact` on EVM chains at level 3, a receipt on any other
+rail is PARTIALLY VERIFIED here even when the TypeScript verifier reports VERIFIED; it is never
+the other way round.
 
 ## Tests
 
 ```sh
-pytest -m "not online"        # offline: RFC 8785 examples, every spec vector byte for byte, bindings, live receipt offline, tampered receipt
+pytest -m "not online"        # offline: RFC 8785 examples, every spec vector byte for byte (and every invalid one rejected), bindings, SPEC alignment, live receipt offline, tampered receipt
 pytest                        # also hits Base Sepolia, Arc testnet and XRPL testnet (skipped if they are unreachable)
 RECEPTUM_OFFLINE=1 pytest     # force-skip online tests
 ```
@@ -115,6 +129,10 @@ derivation) and the Stellar key, and re-sign each statement with Ed25519 and RFC
 reproduce `didProof` and `accountProof` byte for byte. Negative tests cover a wrong account, a
 wrong seller DID, expiry at `deliveredAt`, future `issuedAt`, high-s signatures (EVM and XRPL),
 non-canonical DER and base64, a disabled XRPL master key and tampered statements.
+`tests/test_spec_alignment.py` pins each decision of the SPEC alignment with the TypeScript
+verifier (verdicts, wrapper anchors, anchor references, x402 schemes, validated XRPL ledgers,
+envelope, identity expressions — including that no pattern accepts a trailing newline —, remedy
+and evaluator rules, timestamps and integers).
 
 ## Library
 
@@ -122,7 +140,7 @@ non-canonical DER and base64, a disabled XRPL master key and tampered statements
 from receptum_verify import extract_signed_receipt, loads_strict, verify
 
 doc = loads_strict(open("receipt.json", "rb").read())
-signed, anchor = extract_signed_receipt(doc)
-report = verify(signed, open("output.svg", "rb").read(), anchor=anchor)
-print(report.status, report.to_dict())
+signed, anchors = extract_signed_receipt(doc)
+report = verify(signed, open("output.svg", "rb").read(), anchor=anchors)
+print(report.status, report.missing, report.to_dict())
 ```

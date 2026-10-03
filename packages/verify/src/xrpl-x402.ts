@@ -5,11 +5,11 @@
  * `payment.reference` is that transaction's hash. It is confirmed only from a validated ledger:
  * tesSUCCESS, TransactionType Payment, Account = payer, Destination = payee, and the
  * `delivered_amount` (never `Amount`: partial payments can deliver less) equal to
- * `payment.amount` in `payment.asset`. Lookups that can't be completed are `pending`, never `pass`.
+ * `payment.amount` in `payment.asset`. Lookups that can't be completed are `unavailable`, never `pass`.
  */
 import { currencyCode } from "@receptum/adapter-xrpl";
 
-export type XrplX402Status = "pass" | "fail" | "pending";
+export type XrplX402Status = "pass" | "fail" | "unavailable";
 
 export interface XrplX402Result {
   status: XrplX402Status;
@@ -105,7 +105,7 @@ export async function verifyXrplX402Payment(
   options: XrplX402Options = {},
 ): Promise<XrplX402Result> {
   const fail = (detail: string): XrplX402Result => ({ status: "fail", detail });
-  const pending = (detail: string): XrplX402Result => ({ status: "pending", detail });
+  const unavailable = (detail: string): XrplX402Result => ({ status: "unavailable", detail });
   const { network, reference, amount } = payment;
 
   const net = NETWORK.exec(network);
@@ -116,8 +116,9 @@ export async function verifyXrplX402Payment(
   const payee = account(network, payment.payee);
   if (payer === null) return fail(`payment.payer is not an account on ${network}`);
   if (payee === null) return fail(`payment.payee is not an account on ${network}`);
-  if (!payee) return pending("receipt does not name a payee, so the recipient can't be confirmed");
-  if (!payer) return pending("receipt does not name a payer, so the sender can't be confirmed");
+  if (!payee)
+    return unavailable("receipt does not name a payee, so the recipient can't be confirmed");
+  if (!payer) return unavailable("receipt does not name a payer, so the sender can't be confirmed");
   const asset = parseAsset(payment.asset);
   if (typeof asset === "string") return fail(asset);
   if ("xrp" in asset && !/^(0|[1-9][0-9]*)$/.test(amount))
@@ -128,7 +129,7 @@ export async function verifyXrplX402Payment(
   let rpc = options.rpc;
   if (!rpc) {
     const url = { ...XRPL_JSON_RPCS, ...options.rpcs }[network];
-    if (!url) return pending(`no XRPL JSON-RPC endpoint configured for ${network}`);
+    if (!url) return unavailable(`no XRPL JSON-RPC endpoint configured for ${network}`);
     rpc = xrplJsonRpc(url);
   }
 
@@ -138,16 +139,16 @@ export async function verifyXrplX402Payment(
     info = await rpc("server_info", {});
     result = await rpc("tx", { transaction: reference, binary: false, api_version: 2 });
   } catch (err) {
-    return pending(`XRPL lookup unavailable: ${errorText(err)}`);
+    return unavailable(`XRPL lookup unavailable: ${errorText(err)}`);
   }
   const served = isRecord(info) && isRecord(info.info) ? info.info.network_id : undefined;
   if (served !== undefined && served !== networkId)
-    return pending(`the XRPL server serves NetworkID ${String(served)}, not ${networkId}`);
-  if (!isRecord(result)) return pending("malformed tx reply");
+    return unavailable(`the XRPL server serves NetworkID ${String(served)}, not ${networkId}`);
+  if (!isRecord(result)) return unavailable("malformed tx reply");
   if (result.error === "txnNotFound")
-    return pending(`transaction ${reference} not found on this server (it may lack history)`);
-  if (result.error) return pending(`tx lookup failed: ${String(result.error)}`);
-  if (result.validated !== true) return pending("transaction is not in a validated ledger yet");
+    return unavailable(`transaction ${reference} not found on this server (it may lack history)`);
+  if (result.error) return unavailable(`tx lookup failed: ${String(result.error)}`);
+  if (result.validated !== true) return unavailable("transaction is not in a validated ledger yet");
 
   const tx = isRecord(result.tx_json) ? result.tx_json : result;
   const hash = typeof result.hash === "string" ? result.hash : tx.hash;
@@ -171,7 +172,7 @@ export async function verifyXrplX402Payment(
 
   const delivered = meta.delivered_amount ?? meta.DeliveredAmount;
   if (delivered === undefined || delivered === "unavailable")
-    return pending("the server does not report delivered_amount for this transaction");
+    return unavailable("the server does not report delivered_amount for this transaction");
   const ledger = typeof result.ledger_index === "number" ? ` in ledger ${result.ledger_index}` : "";
   if ("xrp" in asset) {
     if (typeof delivered !== "string") return fail("delivered an issued currency, not XRP");

@@ -29,4 +29,9 @@ export {
   type XrplEscrowRailOptions,
 } from "./escrow.js";
 export { assertTestnet, XRPL_TESTNET, XRPL_TESTNET_NETWORK_ID, XrplTxError } from "./ledger.js";
-export { xrplAccountSigner, xrplBindingVerifier, xrplOnlineBindingVerifier } from "./binding.js";
+export {
+  xrplAccountSigner,
+  xrplBindingVerifier,
+  xrplOnlineBindingVerifier,
+  xrplSecp256k1SignatureError,
+} from "./binding.js";

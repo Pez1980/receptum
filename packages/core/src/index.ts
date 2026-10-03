@@ -7,6 +7,7 @@ export {
   checkPayeeBinding,
   createAccountBinding,
   decodeStrKey,
+  MAX_BINDINGS,
   encodeStellarAccount,
   registerBindingVerifier,
   sameAccount,
@@ -25,10 +26,20 @@ export {
 } from "./binding.js";
 export { canonicalJson } from "./canonical.js";
 export { isSha256Hex, sha256File, sha256Hex, type Sha256Hex } from "./hash.js";
+export { JsonInputError, parseStrictJson, parseStrictJsonBytes } from "./json.js";
 export { assertTransition, canTransition, isTerminal, type JobState } from "./lifecycle.js";
 export {
   assertValidReceipt,
+  CAIP10,
+  CAIP2,
+  compareTimestamps,
   createReceipt,
+  DID,
+  isCaip10,
+  isCaip2,
+  isDid,
+  isUtcTimestamp,
+  RECEIPT_ID,
   DEFAULT_REVIEW_WINDOW_SECONDS,
   newReceiptId,
   receiptBytes,
@@ -44,11 +55,13 @@ export {
   didKeyFromPublicKey,
   ed25519PublicKeyFromRaw,
   generateSellerKey,
+  isCanonicalEd25519Signature,
   publicKeyFromDidKey,
   sellerKeyFromPem,
   sellerKeyFromSeed,
   RECEIPT_JWS_TYP,
   signDetachedJws,
+  signedReceiptEnvelopeError,
   signReceipt,
   verifyDetachedJws,
   verifySignedReceipt,

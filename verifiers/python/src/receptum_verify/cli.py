@@ -10,7 +10,7 @@ import json
 import sys
 
 from .jcs import JCSError, loads_strict
-from .verify import NOT_VERIFIED, VERIFIED, extract_signed_receipt, verify
+from .verify import NOT_VERIFIED, VERIFIED, InputError, extract_signed_receipt, verify
 
 _EXIT = {VERIFIED: 0, NOT_VERIFIED: 1}
 
@@ -27,8 +27,11 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("file", nargs="?", help="delivered file to compare with outputSha256")
     p.add_argument(
         "--anchor",
+        action="append",
+        default=[],
         metavar="CAIP2:TX",
-        help="EVM anchor transaction, e.g. eip155:5042002:0x… (defaults to the wrapper's `anchor`)",
+        help="anchor transaction, e.g. eip155:5042002:0x… (repeatable; checked in addition to "
+        "the wrapper's `anchor`)",
     )
     p.add_argument("--offline", action="store_true", help="skip level 3 and the online XRPL key check (no network)")
     p.add_argument(
@@ -56,7 +59,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.file:
             with open(args.file, "rb") as fh:
                 file_bytes = fh.read()
-    except (OSError, JCSError) as exc:
+        signed, wrapper_anchors = extract_signed_receipt(doc)
+    except (OSError, JCSError, InputError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     rpcs = {}
@@ -67,12 +71,10 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         rpcs[caip2] = url
 
-    signed, wrapper_anchor = extract_signed_receipt(doc)
-    anchor = args.anchor or wrapper_anchor
     report = verify(
         signed,
         file_bytes,
-        anchor=anchor,
+        anchor=wrapper_anchors + args.anchor,
         offline=args.offline,
         rpcs=rpcs,
         allow_unbound=args.allow_unbound,
@@ -94,5 +96,8 @@ def main(argv: list[str] | None = None) -> int:
             "anchor": "L3 anchor",
         }
         for key, check in report.levels.items():
-            print(f"  {labels[key]:<14} {check.status.upper():<11} {check.detail}")
+            label = labels.get(key, f"L3 {key}")
+            print(f"  {label:<14} {check.status.upper():<11} {check.detail}")
+        for item in report.missing:
+            print(f"  missing: {item}")
     return _EXIT.get(report.status, 3)

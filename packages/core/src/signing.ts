@@ -7,7 +7,8 @@ import {
   type KeyObject,
 } from "node:crypto";
 import { receiptBytes, receiptHash, type DeliveryReceipt } from "./receipt.js";
-import type { Sha256Hex } from "./hash.js";
+import { isSha256Hex, type Sha256Hex } from "./hash.js";
+import { parseStrictJsonBytes } from "./json.js";
 import type { AccountBinding } from "./binding.js";
 
 // ─── base58btc / base64url ─────────────────────────────────────────────────
@@ -152,9 +153,22 @@ export function signDetachedJws(payload: string, key: SellerKey, typ: string): J
   return { type: "jws", kid, jws: `${header}..${b64u(signature)}` };
 }
 
+// Order of the Ed25519 base point (RFC 8032 §5.1); a canonical signature has S < L.
+const ED25519_L = 2n ** 252n + 27742317777372353535851770400913936493n;
+
+/** True when the 64-byte Ed25519 signature's S (little-endian, second half) is below L. */
+export function isCanonicalEd25519Signature(sig: Uint8Array): boolean {
+  if (sig.length !== 64) return false;
+  let s = 0n;
+  for (let i = 63; i >= 32; i--) s = (s << 8n) | BigInt(sig[i]!);
+  return s < ED25519_L;
+}
+
 /**
- * Verifies a detached JWS made by `signDetachedJws`: exact segments and header members, the
- * expected `typ`, `kid` = `<did>#<multibase>` for `expectedDid`, canonical 64-byte signature.
+ * Verifies a detached JWS made by `signDetachedJws` (SPEC §4): `proof` has exactly `type`,
+ * `kid`, `jws`; unpadded canonical base64url segments; an I-JSON header with exactly `alg`,
+ * `kid`, `typ` and no duplicate members; the expected `typ`; header `kid` = `proof.kid` =
+ * `<did>#<multibase>` for the Ed25519 `expectedDid`; a 64-byte signature with S < L.
  */
 export function verifyDetachedJws(
   proof: JwsProof,
@@ -162,7 +176,11 @@ export function verifyDetachedJws(
   expectedDid: string,
   typ: string,
 ): { ok: true } | { ok: false; reason: string } {
-  if (proof?.type !== "jws") return { ok: false, reason: "unsupported proof type" };
+  if (typeof proof !== "object" || proof === null || Array.isArray(proof))
+    return { ok: false, reason: "proof must be an object" };
+  if (Object.keys(proof).sort().join(",") !== "jws,kid,type")
+    return { ok: false, reason: "proof members must be exactly type, kid, jws" };
+  if (proof.type !== "jws") return { ok: false, reason: "unsupported proof type" };
   if (typeof proof.jws !== "string" || typeof proof.kid !== "string")
     return { ok: false, reason: "malformed detached JWS" };
   const parts = proof.jws.split(".");
@@ -170,9 +188,20 @@ export function verifyDetachedJws(
   const [header, , sig] = parts as [string, string, string];
   if (!B64U.test(header) || !B64U.test(sig))
     return { ok: false, reason: "JWS segments must be base64url" };
-  const h = JSON.parse(Buffer.from(header, "base64url").toString()) as Record<string, unknown>;
   if (b64u(Buffer.from(header, "base64url")) !== header)
     return { ok: false, reason: "non-canonical base64url header" };
+  let h: Record<string, unknown>;
+  try {
+    const parsed = parseStrictJsonBytes(Buffer.from(header, "base64url"));
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return { ok: false, reason: "JWS header must be a JSON object" };
+    h = parsed as Record<string, unknown>;
+  } catch (err) {
+    return {
+      ok: false,
+      reason: `JWS header is not I-JSON: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
   const keys = Object.keys(h).sort().join(",");
   if (keys !== "alg,kid,typ") return { ok: false, reason: "unexpected JWS header parameters" };
   if (h.alg !== "EdDSA") return { ok: false, reason: "unsupported alg" };
@@ -185,6 +214,8 @@ export function verifyDetachedJws(
   const sigBytes = Buffer.from(sig, "base64url");
   if (sigBytes.length !== 64 || b64u(sigBytes) !== sig)
     return { ok: false, reason: "non-canonical signature encoding" };
+  if (!isCanonicalEd25519Signature(sigBytes))
+    return { ok: false, reason: "non-canonical Ed25519 signature (S >= L)" };
   if (did !== expectedDid) return { ok: false, reason: "signer is not the expected did" };
   const valid = verify(
     null,
@@ -215,13 +246,41 @@ export const RECEIPT_JWS_TYP = "receptum+jws";
 export type VerifyResult =
   { ok: true; seller: string; receiptHash: Sha256Hex } | { ok: false; reason: string };
 
-/** Verifies a signed receipt offline: structure, hash, and the seller's signature. */
+const ENVELOPE_MEMBERS = ["bindings", "proof", "receipt", "receiptHash"];
+
+/**
+ * Checks the signed-receipt envelope (SPEC §4): exactly `receipt`, `receiptHash` (hex64),
+ * `proof` and an optional `bindings` array (`null` and `[]` count as absent).
+ */
+export function signedReceiptEnvelopeError(signed: unknown): string | null {
+  if (typeof signed !== "object" || signed === null || Array.isArray(signed))
+    return "signed receipt must be an object";
+  const s = signed as Record<string, unknown>;
+  const extra = Object.keys(s).filter((k) => !ENVELOPE_MEMBERS.includes(k));
+  if (extra.length) return `signed receipt has unknown members: ${extra.join(", ")}`;
+  for (const k of ["receipt", "receiptHash", "proof"])
+    if (!Object.hasOwn(s, k)) return `signed receipt is missing ${k}`;
+  if (!isSha256Hex(s.receiptHash)) return "receiptHash must be 64 lower-case hex characters";
+  if (s.bindings !== undefined && s.bindings !== null && !Array.isArray(s.bindings))
+    return "bindings must be an array";
+  return null;
+}
+
+/** Verifies a signed receipt offline: envelope, structure, hash, and the seller's signature. */
 export function verifySignedReceipt(signed: SignedReceipt): VerifyResult {
   try {
+    const envelope = signedReceiptEnvelopeError(signed);
+    if (envelope) return { ok: false, reason: envelope };
     const hash = receiptHash(signed.receipt);
     if (hash !== signed.receiptHash)
       return { ok: false, reason: "receiptHash does not match the receipt" };
     const did = signed.receipt.seller.id;
+    if (!did.startsWith("did:key:"))
+      return {
+        ok: false,
+        reason:
+          "seller.id is not an Ed25519 did:key; RRF v1 defines no proof a CAIP-10 seller can sign",
+      };
     const res = verifyDetachedJws(signed.proof, receiptBytes(signed.receipt), did, RECEIPT_JWS_TYP);
     if (!res.ok)
       return {

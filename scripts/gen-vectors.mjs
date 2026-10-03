@@ -67,28 +67,132 @@ const cases = [
   },
 ];
 
+const vectors = cases.map(({ name, input }) => {
+  const receipt = createReceipt(input);
+  const signed = signReceipt(receipt, key);
+  return {
+    name,
+    receipt,
+    jcs: receiptBytes(receipt),
+    receiptHash: receiptHash(receipt),
+    proof: signed.proof,
+  };
+});
+
+// ─── Negative vectors: every one MUST be rejected (SPEC §2, §4, §6.1) ────────
+// `signedReceipt` cases MUST fail level 2; `text` cases MUST be rejected when parsed (not I-JSON).
+const { canonicalJson, signDetachedJws, RECEIPT_JWS_TYP } =
+  await import("../packages/core/dist/index.js");
+const { sign } = await import("node:crypto");
+const b64u = (d) => Buffer.from(d).toString("base64url");
+const good = () => JSON.parse(JSON.stringify(vectors[0].receipt));
+const goodSigned = () => ({
+  receipt: good(),
+  receiptHash: vectors[0].receiptHash,
+  proof: { ...vectors[0].proof },
+});
+// Signs any receipt object, even one RRF v1 forbids, so only the targeted rule is broken.
+const forceSign = (receipt) => {
+  const jcs = canonicalJson(receipt);
+  return {
+    receipt,
+    receiptHash: sha256Hex(jcs),
+    proof: signDetachedJws(jcs, key, RECEIPT_JWS_TYP),
+  };
+};
+const withHeader = (headerJson) => {
+  const s = goodSigned();
+  const h = b64u(headerJson);
+  const sig = sign(null, Buffer.from(`${h}.${b64u(vectors[0].jcs)}`), key.privateKey);
+  return { ...s, proof: { ...s.proof, jws: `${h}..${b64u(sig)}` } };
+};
+const malleated = () => {
+  const s = goodSigned();
+  const [h, , sig] = s.proof.jws.split(".");
+  const bytes = Buffer.from(sig, "base64url");
+  const L = 2n ** 252n + 27742317777372353535851770400913936493n;
+  let S = 0n;
+  for (let i = 63; i >= 32; i--) S = (S << 8n) | BigInt(bytes[i]);
+  let T = S + L;
+  for (let i = 32; i < 64; i++) {
+    bytes[i] = Number(T & 0xffn);
+    T >>= 8n;
+  }
+  return { ...s, proof: { ...s.proof, jws: `${h}..${b64u(bytes)}` } };
+};
+const mutated = (fn) => {
+  const r = good();
+  fn(r);
+  return forceSign(r);
+};
+const kid = vectors[0].proof.kid;
+const invalid = [
+  {
+    name: "JWS header with a duplicate member (alg none, then EdDSA), validly signed",
+    signedReceipt: withHeader(
+      `{"alg":"none","alg":"EdDSA","kid":${JSON.stringify(kid)},"typ":"receptum+jws"}`,
+    ),
+  },
+  { name: "Ed25519 signature with S + L (malleated, S >= L)", signedReceipt: malleated() },
+  {
+    name: "signed-receipt envelope with an extra member",
+    signedReceipt: { ...goodSigned(), note: "x" },
+  },
+  { name: "bindings is not an array", signedReceipt: { ...goodSigned(), bindings: {} } },
+  {
+    name: "proof with an extra member",
+    signedReceipt: { ...goodSigned(), proof: { ...vectors[0].proof, alg: "EdDSA" } },
+  },
+  {
+    name: "acceptance.evaluator while mode is auto",
+    signedReceipt: mutated((r) => (r.acceptance.evaluator = "did:web:qa.example")),
+  },
+  {
+    name: "payment.payee is a DID, not a CAIP-10 account",
+    signedReceipt: mutated((r) => (r.payment.payee = key.did)),
+  },
+  {
+    name: "deliveredAt with 10 fractional digits",
+    signedReceipt: mutated((r) => (r.deliveredAt = "2026-10-04T12:00:00.0000000000Z")),
+  },
+  { name: "remedy without kind", signedReceipt: mutated((r) => delete r.remedy.kind) },
+  {
+    name: "receipt file with a duplicate member name (JSON.parse would keep the last amount)",
+    text: JSON.stringify(goodSigned()).replace(
+      '"amount":"2500000"',
+      '"amount":"1","amount":"2500000"',
+    ),
+  },
+  {
+    name: "receipt file with a lone surrogate",
+    text: JSON.stringify(goodSigned()).replace('"render.example"', '"render.example\\ud800"'),
+  },
+  {
+    name: "receipt file with a number outside the IEEE 754 double range",
+    text: JSON.stringify(goodSigned()).replace(
+      '"reviewWindowSeconds":259200',
+      '"reviewWindowSeconds":1e400',
+    ),
+  },
+];
+for (const v of invalid)
+  if (v.text && v.text === JSON.stringify(goodSigned())) throw new Error(v.name);
+
 const out = {
   description:
     "Receptum Receipt Format v1 test vectors. testSeedHex is the RFC 8032 §7.1 TEST 1 seed — public, for testing only.",
   testSeedHex,
   sellerDid: key.did,
-  vectors: cases.map(({ name, input }) => {
-    const receipt = createReceipt(input);
-    const signed = signReceipt(receipt, key);
-    return {
-      name,
-      receipt,
-      jcs: receiptBytes(receipt),
-      receiptHash: receiptHash(receipt),
-      proof: signed.proof,
-    };
-  }),
+  vectors,
+  invalidNote:
+    "Every `invalid` entry MUST be rejected: a `signedReceipt` fails level 2 (SPEC §2, §4); a `text` is not I-JSON and MUST be refused when parsed as a receipt file (SPEC §6.1).",
+  invalid,
 };
 writeFileSync(
   new URL("../spec/vectors/rrf-v1.json", import.meta.url),
   JSON.stringify(out, null, 2) + "\n",
 );
-console.log(`wrote ${out.vectors.length} vectors for ${key.did}`);
+console.log(`wrote ${out.vectors.length} vectors (+${invalid.length} invalid) for ${key.did}`);
 
 // ─── Account binding vectors (SPEC §4.1) ────────────────────────────────────
 const evm = await import("../packages/adapter-evm/dist/index.js");
@@ -165,7 +269,7 @@ for (const { name, chainKey, signer } of bindingCases) {
 // did signature redone). The account signature no longer recovers to the account: MUST fail.
 const neg = JSON.parse(JSON.stringify(bindingVectors[0].binding));
 neg.statement.account = "eip155:84532:0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-const { signDetachedJws, BINDING_JWS_TYP } = await import("../packages/core/dist/index.js");
+const { BINDING_JWS_TYP } = await import("../packages/core/dist/index.js");
 neg.didProof = signDetachedJws(bindingBytes(neg.statement), key, BINDING_JWS_TYP);
 
 const bindingOut = {

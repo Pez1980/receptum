@@ -63,3 +63,18 @@ def test_vector_verifies(vector):
     )
     assert res.ok, res.errors
     assert res.receipt_hash == vector["receiptHash"]
+
+
+INVALID = load_json(VECTORS)["invalid"]
+
+
+@pytest.mark.parametrize("vector", INVALID, ids=[v["name"] for v in INVALID])
+def test_invalid_vectors_are_rejected(vector):
+    from receptum_verify import JCSError, loads_strict
+
+    if "text" in vector:
+        json.loads(vector["text"])  # a lenient parser would accept it
+        with pytest.raises(JCSError):
+            loads_strict(vector["text"].encode())
+    else:
+        assert not verify_signed_receipt(vector["signedReceipt"]).ok

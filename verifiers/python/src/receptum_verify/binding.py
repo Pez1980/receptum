@@ -58,9 +58,9 @@ DEFAULT_XRPL_RPCS: dict[str, str] = {"xrpl:1": "https://s.altnet.rippletest.net:
 
 _BINDING_MEMBERS = {"statement", "didProof", "accountProof"}
 _STATEMENT = {"type": True, "did": True, "account": True, "issuedAt": True, "expiresAt": False}
-_EVM_SIG = re.compile(r"^0x[0-9a-f]{130}$")
-_EVM_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
-_UPPER_HEX = re.compile(r"^(?:[0-9A-F]{2})+$")
+_EVM_SIG = re.compile(r"^0x[0-9a-f]{130}\Z")
+_EVM_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}\Z")
+_UPPER_HEX = re.compile(r"^(?:[0-9A-F]{2})+\Z")
 _HALF_N = secp256k1.N // 2
 # Order of the Ed25519 base point (RFC 8032 §5.1): S MUST be < L.
 _ED25519_L = 2**252 + 27742317777372353535851770400913936493
@@ -92,7 +92,7 @@ class BindingResult:
 
 
 def parse_timestamp(s: str) -> Fraction:
-    """Exact seconds since the Unix epoch of a SPEC §2 timestamp (any fraction length)."""
+    """Exact seconds since the Unix epoch of a SPEC §2.2 timestamp (1–9 fractional digits)."""
     if not (isinstance(s, str) and _timestamp_ok(s)):
         raise ValueError(f"not a UTC timestamp YYYY-MM-DDTHH:MM:SS[.f…]Z: {s!r}")
     m = _TIMESTAMP.match(s)

@@ -17,7 +17,7 @@ __all__ = [
 
 _B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 _B58_INDEX = {c: i for i, c in enumerate(_B58_ALPHABET)}
-_B64URL = re.compile(r"^[A-Za-z0-9_-]*$")
+_B64URL = re.compile(r"^[A-Za-z0-9_-]*\Z")
 _ED25519_PUB_MULTICODEC = b"\xed\x01"
 
 

@@ -372,8 +372,11 @@ async function main() {
       throw new Error(`${label}: expected ${status}, got ${results[label].final.status}`);
     }
     const report = results[label].report;
-    if (report && report.complete !== (status === "released")) {
-      throw new Error(`${label}: verifier says complete=${report.complete}`);
+    // No delivered file is checked here (verdict at best PARTIALLY VERIFIED, SPEC §6); the
+    // level-3 escrow settlement must pass exactly when the escrow was released.
+    const paid = report?.checks.find((c) => c.name.startsWith("Payment"))?.status === "pass";
+    if (report && paid !== (status === "released")) {
+      throw new Error(`${label}: verifier settlement=${paid}`);
     }
   }
 
@@ -420,7 +423,7 @@ function writeResults({
       `- escrowId: \`${e.escrowId}\` (strkey \`${escrowIdToStrKey(e.escrowId)}\`)`,
       `- amount: ${e.amount} (smallest units) of \`${e.asset}\`; review window ${r.scenario.reviewWindowSeconds}s`,
       `- buyer window (refund / reject / accept): from ${e.refundableAfter} until ${e.releasableAfter}; seller window: from ${e.releasableAfter}`,
-      `- final status: **${r.final.status}**${r.final.releasedBy ? ` (${r.final.releasedBy})` : ""}${r.report ? ` · \`receptum-verify\`: **${!r.report.ok ? "NOT VERIFIED" : r.report.complete ? "VERIFIED" : "PARTIALLY VERIFIED"}** — ${r.report.checks.find((c) => c.level === 3).detail}` : ""}`,
+      `- final status: **${r.final.status}**${r.final.releasedBy ? ` (${r.final.releasedBy})` : ""}${r.report ? ` · \`receptum-verify\`: **${r.report.verdict}** — ${r.report.checks.find((c) => c.level === 3).detail}` : ""}`,
       "",
       txTable(r.txs),
       "",

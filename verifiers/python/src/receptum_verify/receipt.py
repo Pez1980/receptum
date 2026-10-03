@@ -1,4 +1,7 @@
-"""Strict RRF v1 receipt validation (docs/SPEC.md §2) and receiptHash (§3)."""
+r"""Strict RRF v1 receipt validation (docs/SPEC.md §2) and receiptHash (§3).
+
+Regular expressions end in ``\Z``, never ``$``: in Python ``$`` also matches before a trailing
+newline, which would accept values the specification (and the TypeScript verifier) reject."""
 
 from __future__ import annotations
 
@@ -22,16 +25,19 @@ __all__ = [
 VERSION = "receptum/1"
 _MAX_SAFE_INTEGER = 2**53 - 1
 
-HEX64 = re.compile(r"^[0-9a-f]{64}$")
+HEX64 = re.compile(r"^[0-9a-f]{64}\Z")
 _CROCKFORD = "[0-9A-HJKMNP-TV-Z]"
-RECEIPT_ID = re.compile(rf"^RCPT-{_CROCKFORD}{{4}}-{_CROCKFORD}{{4}}$")
-_CAIP2 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$")
-_CAIP10 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}:[-.%a-zA-Z0-9]{1,128}$")
+RECEIPT_ID = re.compile(rf"^RCPT-{_CROCKFORD}{{4}}-{_CROCKFORD}{{4}}\Z")
+_CAIP2 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}\Z")
+_CAIP10 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}:[-.%a-zA-Z0-9]{1,128}\Z")
 # W3C DID Core §3.1 ABNF (no path/query/fragment).
 _IDCHAR = r"(?:[A-Za-z0-9._-]|%[0-9A-Fa-f]{2})"
-_DID = re.compile(rf"^did:[a-z0-9]+:(?:{_IDCHAR}*:)*{_IDCHAR}+$")
-_TIMESTAMP = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$")
-_AMOUNT = re.compile(r"^(?:0|[1-9][0-9]*)$")
+_DID = re.compile(rf"^did:[a-z0-9]+:(?:{_IDCHAR}*:)*{_IDCHAR}+\Z")
+# 1-9 fractional digits (SPEC §2.2). [0-9], not \d: \d also matches non-ASCII digits.
+_TIMESTAMP = re.compile(
+    r"^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]{1,9})?Z\Z"
+)
+_AMOUNT = re.compile(r"^(?:0|[1-9][0-9]*)\Z")
 
 _TOP = {
     "version": True,
@@ -60,7 +66,7 @@ _PAYMENT = {
     "payee": False,
 }
 _ACCEPTANCE = {"mode": True, "reviewWindowSeconds": True, "evaluator": False}
-_REMEDY = {"kind": False, "withinDays": False, "termsSha256": False}
+_REMEDY = {"kind": True, "withinDays": False, "termsSha256": False}
 
 
 def is_caip2(s: Any) -> bool:
@@ -217,6 +223,8 @@ def validate_receipt(receipt: Any) -> list[str]:
         ev = _string(acc, "evaluator", "receipt.acceptance", errors)
         if mode == "evaluator" and "evaluator" not in acc:
             errors.append("receipt.acceptance.evaluator is required when mode is evaluator")
+        if mode != "evaluator" and "evaluator" in acc:
+            errors.append('receipt.acceptance.evaluator is only allowed when mode is "evaluator"')
         if ev is not None and not (is_did(ev) or is_caip10(ev)):
             errors.append("receipt.acceptance.evaluator must be a DID or a CAIP-10 account")
 

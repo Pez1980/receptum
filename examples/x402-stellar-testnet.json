@@ -75,8 +75,12 @@
     "reasons": []
   },
   "verify": {
+    "verdict": "VERIFIED",
     "ok": true,
     "complete": true,
+    "missing": [],
+    "receiptHash": "641299064106f882973126a86113c3059224a22462592c17099be9c0b42b0ada",
+    "seller": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
     "checks": [
       {
         "level": 1,
@@ -91,11 +95,25 @@
         "detail": "signed by did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t"
       },
       {
+        "level": 2.5,
+        "name": "Seller controls payee",
+        "status": "pass",
+        "detail": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t ↔ stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT: SEP-53 signature by GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT (offline)"
+      },
+      {
         "level": 3,
         "name": "Payment on stellar:testnet",
         "status": "pass",
         "detail": "100000 base units paid to GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT in ledger 5005091"
+      },
+      {
+        "level": 3,
+        "name": "Anchor on eip155:5042002",
+        "status": "pass",
+        "detail": "receiptHash anchored in 0xcdbf3c015e6db0607fb9c1bf55bfecba5d2154e3034762e2ce2f929cb472ae7b (block 65330478, from 0x6344d17a80775a71b51a61124767abcd22b0328b)"
       }
-    ]
-  }
+    ],
+    "verifiedAt": "2026-10-03T18:50:51.779Z"
+  },
+  "anchor": "eip155:5042002:0xcdbf3c015e6db0607fb9c1bf55bfecba5d2154e3034762e2ce2f929cb472ae7b"
 }

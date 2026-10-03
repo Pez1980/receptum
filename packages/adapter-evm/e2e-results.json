@@ -56,7 +56,27 @@
           "type": "jws",
           "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
           "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..E_ClQ3SE3TpzwYcQexcRYTZxf7l4pWPQqTw3ky0TLDOdJVNCQW5dACCf4ZIPaxQTAvhOMQ2jxBLGsgiD4-ZRBA"
-        }
+        },
+        "bindings": [
+          {
+            "statement": {
+              "type": "receptum/account-binding/1",
+              "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "account": "eip155:5042002:0x6344D17a80775A71b51A61124767AbCD22B0328B",
+              "issuedAt": "2026-10-03T17:01:50.252Z",
+              "expiresAt": "2027-10-03T17:01:50.252Z"
+            },
+            "didProof": {
+              "type": "jws",
+              "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..OQ94bbDVEsQozkwLqXOk3EVtslE1_4llbo09BDWuCYZoShz6C4SpWChaAcv5gFlDPHaczy8mwCkXz3Z2uM4EDg"
+            },
+            "accountProof": {
+              "type": "eip191",
+              "signature": "0xb9877161c870045072a7404e4ed6fa57e01436aa178c4be050e27e0c0db5c2224086ca6a25830f85320cd61b8cea6b254f88260b35d5e361d68d8454289a2f071b"
+            }
+          }
+        ]
       }
     },
     {
@@ -108,7 +128,27 @@
           "type": "jws",
           "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
           "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..OCqaBfzejfm88oZGIKGaVh6clY3a7Y2liydOcgyPbbX60Y1WTzyvv5kJzDb7-5bszlzBtGWFpgHQLmcufHXRBg"
-        }
+        },
+        "bindings": [
+          {
+            "statement": {
+              "type": "receptum/account-binding/1",
+              "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "account": "eip155:5042002:0x6344D17a80775A71b51A61124767AbCD22B0328B",
+              "issuedAt": "2026-10-03T17:01:50.252Z",
+              "expiresAt": "2027-10-03T17:01:50.252Z"
+            },
+            "didProof": {
+              "type": "jws",
+              "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..OQ94bbDVEsQozkwLqXOk3EVtslE1_4llbo09BDWuCYZoShz6C4SpWChaAcv5gFlDPHaczy8mwCkXz3Z2uM4EDg"
+            },
+            "accountProof": {
+              "type": "eip191",
+              "signature": "0xb9877161c870045072a7404e4ed6fa57e01436aa178c4be050e27e0c0db5c2224086ca6a25830f85320cd61b8cea6b254f88260b35d5e361d68d8454289a2f071b"
+            }
+          }
+        ]
       }
     },
     {
@@ -166,7 +206,27 @@
           "type": "jws",
           "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
           "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..GojcP8Zl0taqEie9Gdj7zEdGbR9t6a7ppE3pO_zBVICncwmJWQjEogwH7qs9LynATYByMu3okoZQ5AyXAsNBCg"
-        }
+        },
+        "bindings": [
+          {
+            "statement": {
+              "type": "receptum/account-binding/1",
+              "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "account": "eip155:5042002:0x6344D17a80775A71b51A61124767AbCD22B0328B",
+              "issuedAt": "2026-10-03T17:01:50.252Z",
+              "expiresAt": "2027-10-03T17:01:50.252Z"
+            },
+            "didProof": {
+              "type": "jws",
+              "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+              "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..OQ94bbDVEsQozkwLqXOk3EVtslE1_4llbo09BDWuCYZoShz6C4SpWChaAcv5gFlDPHaczy8mwCkXz3Z2uM4EDg"
+            },
+            "accountProof": {
+              "type": "eip191",
+              "signature": "0xb9877161c870045072a7404e4ed6fa57e01436aa178c4be050e27e0c0db5c2224086ca6a25830f85320cd61b8cea6b254f88260b35d5e361d68d8454289a2f071b"
+            }
+          }
+        ]
       }
     }
   ],

@@ -154,8 +154,8 @@ def test_anchor_memo():
 
 def test_example_offline():
     doc = load_json(EXAMPLES / "x402-xrpl-testnet.json")
-    signed, anchor = extract_signed_receipt(doc)
-    assert anchor and anchor.startswith("xrpl:1:")
+    signed, anchors = extract_signed_receipt(doc)
+    assert len(anchors) == 1 and anchors[0].startswith("xrpl:1:")
     report = verify(signed, (EXAMPLES / "x402-xrpl-testnet-output.svg").read_bytes(), offline=True)
     assert report.levels["file"].status == "pass"
     assert report.levels["signature"].status == "pass"

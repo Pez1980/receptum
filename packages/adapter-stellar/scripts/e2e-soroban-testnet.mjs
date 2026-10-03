@@ -66,6 +66,11 @@ async function expectRejected(label, fn) {
   }
 }
 
+const DELIVERABLES = join(here, "..", "..", "..", "examples", "deliverables");
+const BINDINGS = ["stellar-testnet.json"].map((n) =>
+  JSON.parse(readFileSync(join(here, "..", "..", "..", "examples", "bindings", n), "utf8")),
+);
+
 function receiptFor(sellerKey, escrow, mode, label, evaluator) {
   const output = `rendered output for ${label} ${randomBytes(8).toString("hex")}`;
   const receipt = createReceipt({
@@ -162,8 +167,17 @@ async function main() {
 
   // Seller delivers A, B, D, E with signed receipts; C is never delivered.
   for (const f of [A, B, D, E]) {
-    const { signed } = receiptFor(sellerKey, f.escrow, f.mode, f.label.split(" ")[0], f.evaluator);
-    f.signed = signed;
+    const { signed, output } = receiptFor(
+      sellerKey,
+      f.escrow,
+      f.mode,
+      f.label.split(" ")[0],
+      f.evaluator,
+    );
+    // Public seller binding (examples/bindings), outside the hashed receipt.
+    const binding = BINDINGS.find((b) => b.statement.account === signed.receipt.payment.payee);
+    f.signed = binding ? { ...signed, bindings: [binding] } : signed;
+    f.output = output;
     const { reference } = await asSeller.deliver(f.escrow.escrowId, signed.receiptHash);
     f.txs.push({ step: "seller delivers (commits receiptHash)", hash: reference });
     f.delivered = await asSeller.getEscrow(f.escrow.escrowId);
@@ -257,13 +271,14 @@ async function main() {
     if (f.final.status !== expected[k])
       throw new Error(`${k}: expected ${expected[k]}, got ${f.final.status}`);
     if (f.signed) {
-      f.report = await verify(f.signed);
-      // No delivered file is checked here, so the verdict is at best PARTIALLY VERIFIED (SPEC §6);
-      // what this run proves is the level-3 escrow settlement.
+      f.report = await verify(f.signed, { file: new TextEncoder().encode(f.output) });
+      // With the delivered file and the seller binding, released escrows must be VERIFIED (SPEC §6).
       const want = expected[k] === "released";
       const paid = f.report.checks.find((c) => c.name.startsWith("Payment"))?.status === "pass";
       if (paid !== want)
         throw new Error(`${k}: verifier settlement=${paid}: ${JSON.stringify(f.report.checks)}`);
+      if (want && f.report.verdict !== "VERIFIED")
+        throw new Error(`${k}: expected VERIFIED, got ${f.report.verdict}: ${f.report.missing}`);
     }
   }
 
@@ -387,7 +402,7 @@ function write({
             escrowId: f.final.escrowId,
             status: f.final.status,
             txs: f.txs,
-            ...(f.signed ? { signedReceipt: f.signed } : {}),
+            ...(f.signed ? { signedReceipt: f.signed, deliverable: f.output } : {}),
           },
         ]),
       ),
@@ -398,6 +413,10 @@ function write({
   );
   assertNoSecrets(json);
   writeFileSync(join(here, "..", "e2e-soroban-results.json"), json + "\n");
+  // The delivered bytes are synthetic test text; publish them so receipts verify at level 1.
+  for (const [k, f] of Object.entries(flows))
+    if (f.output)
+      writeFileSync(join(DELIVERABLES, `soroban-testnet-${k.toLowerCase()}.txt`), f.output);
 }
 
 main().catch((err) => {

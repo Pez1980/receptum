@@ -12,6 +12,7 @@ const wrapper = (doc) => ({
 });
 const soroban = json("packages/adapter-stellar/e2e-soroban-results.json").flows;
 const arc = json("packages/adapter-evm/e2e-results.json").flows;
+const mcp = json("packages/mcp/e2e-results.json");
 
 const cases = [
   [
@@ -30,6 +31,12 @@ const cases = [
     "x402 · XRPL testnet, memo anchor",
     wrapper(json("examples/x402-xrpl-testnet.json")),
     "examples/x402-xrpl-testnet-output.svg",
+    "VERIFIED",
+  ],
+  [
+    "x402-paid MCP tool · Base Sepolia, anchored on Arc",
+    { signed: mcp.receipt, anchors: [mcp.anchor] },
+    "examples/deliverables/mcp-base-sepolia-tool-result.json",
     "VERIFIED",
   ],
   [

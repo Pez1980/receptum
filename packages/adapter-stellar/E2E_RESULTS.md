@@ -2,7 +2,7 @@
 
 Public data only — addresses, transaction hashes, explorer links and signed receipts; no keys. Everything here ran on **Stellar testnet** (`stellar:testnet`); the Soroban contract and both escrow designs are **unaudited**.
 
-**Verdicts are as recorded at each run.** Since the SPEC §6 alignment (2026-10-03), VERIFIED also requires the delivered file (L1) and, for x402, a mined anchor of `receiptHash`. The escrow runs below check settlement without a delivered file, so today they are PARTIALLY VERIFIED (`missing: L1`) with every other level passing; the x402 receipt was never anchored, so today it is PARTIALLY VERIFIED even with its delivered file. See [packages/verify/E2E_RESULTS.md](../verify/E2E_RESULTS.md).
+**Verdicts are as recorded at each run.** Since the SPEC §6 alignment (2026-10-03), VERIFIED also requires the delivered file (L1) and, for x402, a mined anchor of `receiptHash`. The Soroban run below was repeated with its delivered bytes (`examples/deliverables/soroban-testnet-*.txt`) and seller bindings, and its released escrows are asserted VERIFIED by the script; the x402 receipt has since been anchored on Arc testnet and is VERIFIED. Older claimable-balance runs check settlement without published deliverables. See [packages/verify/E2E_RESULTS.md](../verify/E2E_RESULTS.md).
 
 | Section                                                                                                     | Rail                       | Script                                         |
 | ----------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------- |

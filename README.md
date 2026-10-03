@@ -6,7 +6,7 @@
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
 - **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec alone — check receipts without trusting the TypeScript code
-- **Status:** v0.1.0 on npm, working end to end on **testnets** (October 2026). Escrow contracts are **unaudited** — do not use with real funds.
+- **Status:** v0.2.0, working end to end on **four testnets** (October 2026): x402 payments on Base, Stellar and the XRP Ledger, escrow on Arc, Stellar (Soroban) and the XRP Ledger. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
 
 ## Install
 
@@ -16,13 +16,13 @@ npm install @receptum/server @receptum/client   # x402 paid jobs
 npx @receptum/verify receipt.json delivered-file # verify any receipt
 ```
 
-All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0.1.0 · testnet-only, unaudited.
+All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0.2.0 · testnet-only, unaudited.
 
 ## How it works
 
 1. **Quote** — a service prices a job; the agent pays through x402 or opens an escrow.
 2. **Held** — escrowed funds wait on-chain until delivery is accepted, rejected, or the deadline passes.
-3. **Delivered** — the seller signs a receipt binding the payment to hashes of the inputs and output and commits its `receiptHash` on-chain. Only hashes are published.
+3. **Delivered** — the seller signs a receipt binding the payment to hashes of the inputs and output and commits its `receiptHash` on-chain. Only hashes are published. A pseudonymous [account binding](docs/SPEC.md) proves the seller's signing key controls the wallet that was paid.
 4. **Released** — the buyer or evaluator accepts, or the review window closes. The receipt records which.
 
 ## Packages
@@ -40,16 +40,26 @@ All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0
 
 ## Live on testnets
 
-| What                                                                                 | Network                    | Evidence                                                                                                         |
-| ------------------------------------------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| x402 render sold for 0.25 USDC, receipt anchored cross-chain                         | Base Sepolia → Arc testnet | [examples/E2E_RESULTS.md](examples/E2E_RESULTS.md)                                                               |
-| Paid MCP tool call with receipt                                                      | Base Sepolia               | [packages/mcp/E2E_RESULTS.md](packages/mcp/E2E_RESULTS.md)                                                       |
-| Escrow: accept, auto-release, refund, anchor                                         | Arc testnet                | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)                                       |
-| Escrow: release, refund, issued-token escrow                                         | XRPL testnet               | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md)                                     |
-| Soroban escrow (USDC): accept, auto-release, refund, evaluator reject, seller refund | Stellar testnet            | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
-| x402 render sold for 0.01 USDC with receipt                                          | Stellar testnet            | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md#x402-exact-on-stellar-testnet) |
-| Claimable-balance escrow (USDC): auto-release, accept, refund, reject                | Stellar testnet            | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
-| Independent verification of all of the above                                         | all four                   | [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md)                                                 |
+Every receipt below is published in this repository with its delivered bytes and verifies against the live testnets — file hash, seller signature, seller ↔ payout-wallet binding, settlement on the rail, and `receiptHash` committed on-chain (SPEC §6):
+
+```sh
+pnpm build && node scripts/verify-examples.mjs
+```
+
+| Receipt                                                                             | Network                    | Verdict                                        | Evidence                                                                                                         |
+| ----------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| x402 render, 0.25 USDC, receipt anchored cross-chain                                | Base Sepolia → Arc testnet | VERIFIED                                       | [examples/E2E_RESULTS.md](examples/E2E_RESULTS.md)                                                               |
+| x402 render, 0.01 USDC, anchored on Arc                                             | Stellar testnet → Arc      | VERIFIED                                       | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md#x402-exact-on-stellar-testnet) |
+| x402 render, 0.01 XRP, memo anchor                                                  | XRPL testnet               | VERIFIED                                       | [examples/x402-xrpl](examples/x402-xrpl)                                                                         |
+| Paid MCP tool call with receipt, anchored on Arc                                    | Base Sepolia → Arc testnet | VERIFIED                                       | [packages/mcp/E2E_RESULTS.md](packages/mcp/E2E_RESULTS.md)                                                       |
+| `ReceptumEscrow`: buyer accepts · auto-release (also refund, standalone anchor)     | Arc testnet                | VERIFIED                                       | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)                                       |
+| Native Escrow with crypto-condition: release (also refund, issued-token escrow)     | XRPL testnet               | VERIFIED                                       | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md)                                     |
+| Soroban escrow (USDC): buyer accepts · auto-release                                 | Stellar testnet            | VERIFIED                                       | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
+| Soroban escrow: evaluator rejected → refunded (also missed deadline, seller refund) | Stellar testnet            | NOT VERIFIED (correct: the seller wasn't paid) | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
+| Claimable-balance escrow (USDC): auto-release, accept, refund, reject               | Stellar testnet            | see results                                    | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
+| Tampered receipt (amount edited)                                                    | —                          | NOT VERIFIED                                   | [examples/x402-base-sepolia-tampered.json](examples/x402-base-sepolia-tampered.json)                             |
+
+Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdicts for the x402 receipts on Base Sepolia and XRPL; it does not implement escrow rails or Stellar settlement and reports those `PARTIALLY VERIFIED` rather than guessing.
 
 ## Quick look
 
@@ -72,7 +82,7 @@ const signed = signReceipt(
     payment: {
       rail: "x402:exact",
       network: "eip155:84532",
-      asset: "USDC",
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
       amount: "250000",
       reference: "0x…",
     },
@@ -88,8 +98,8 @@ verifySignedReceipt(signed); // { ok: true, seller: "did:key:…", receiptHash: 
 Verify any receipt:
 
 ```sh
-node packages/verify/dist/cli.js examples/x402-base-sepolia.json examples/x402-base-sepolia-output.svg \
-  --anchor eip155:5042002:0xe708fdb7858930c15e013e06133c1beddac5b3353723b3d5b1485f720e67e9f8
+node packages/verify/dist/cli.js examples/x402-base-sepolia.json examples/x402-base-sepolia-output.svg
+# the anchor carried in the file is checked automatically; add more with --anchor <caip2>:<tx>
 ```
 
 or, independently of the TypeScript code, with the [Python verifier](verifiers/python):

@@ -42,10 +42,31 @@
       "type": "jws",
       "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
       "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..WJ60DtoyPcZyXuGGYSMZzYhBiEiY24qOwv8afTrLtfi1klaO9EdoPlzGl-hi2T0dGsRz2hJzwu6MfGnl4sqeDg"
-    }
+    },
+    "bindings": [
+      {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "account": "eip155:84532:0x6344D17a80775A71b51A61124767AbCD22B0328B",
+          "issuedAt": "2026-10-03T17:01:50.252Z",
+          "expiresAt": "2027-10-03T17:01:50.252Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..C9P48d9Fv3HvnuHbQTtHz64EAvQ66KaltNR9mXh6jYbSLPG9bjvAHValmIXP_jU4dBJdaWBpAujl5hlPwvhaAg"
+        },
+        "accountProof": {
+          "type": "eip191",
+          "signature": "0x109a5104a027dbd6112b492587bb0bb4832a87f34a4f4d1f2e87601173fe4aec6e943c4362967fd413490a06e0d8687f57c74b2e0e536dcbfa962b4ee438b2931b"
+        }
+      }
+    ]
   },
   "check": {
     "ok": true,
     "reasons": []
-  }
+  },
+  "anchor": "eip155:5042002:0x73718b333b274d3c120c393c272d1b3308234c58e79bf3e8eb0d45578bf5008a"
 }

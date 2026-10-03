@@ -23,7 +23,7 @@ VERIFIED
 ```
 
 - `x402-base-sepolia-tampered.json` is the same file with `payment.amount` edited to `"1"`: `NOT VERIFIED` (receiptHash mismatch; the binding and chain checks are skipped once the signature fails).
-- `x402-stellar-testnet.json` (+ `x402-stellar-testnet-output.svg`): file, signature, SEP-53 binding and the Stellar settlement pass, but the receipt was never anchored and x402 cannot commit `receiptHash` itself, so it is **PARTIALLY VERIFIED** (`missing: L3: receiptHash is not committed on-chain`). Its embedded `verify` member is the output of the verifier at the time of the run, which predates this rule.
+- `x402-stellar-testnet.json` (+ `x402-stellar-testnet-output.svg`): file, signature, SEP-53 binding and the Stellar settlement pass, and the receipt is anchored on Arc testnet ([`0xcdbf3c01…`](https://explorer.testnet.arc.io/tx/0xcdbf3c015e6db0607fb9c1bf55bfecba5d2154e3034762e2ce2f929cb472ae7b)) because x402 cannot commit `receiptHash` itself — **VERIFIED**.
 - Earlier runs: [`0x90a09ae1…4ff454f`](https://sepolia.basescan.org/tx/0x90a09ae1de82b87162cb03be1d7828df5af491ba695e930c1f984a0654ff454f) (after the review fixes, no binding — today `PARTIALLY VERIFIED`, or `VERIFIED` with `--allow-unbound`) and [`0x83359ec2…dfeface`](https://sepolia.basescan.org/tx/0x83359ec2790a984cb904b103648521b787b785312b04a2029e91cb126dfeface) (before the fixes; its receipt predates the `payee` field, so the verifier refuses to call it verified).
 
 ## x402 exact on XRPL testnet
@@ -67,6 +67,6 @@ Bindings live outside the hashed receipt, so they can be added to receipts issue
 | `xrpl-testnet-escrow-a.json` (+ `bindings/xrpl-testnet.json`)   | XRPL escrow A, `d4a1e567…0678`               | L2, L3 settlement and L2.5 pass (online: signed by the enabled master key of `rUuUZJXy7qQhZkpr8ovFBgBT5JrPv3nnFf`) |
 | `arc-testnet-escrow-a.json` (+ `bindings/evm-arc-testnet.json`) | Arc `ReceptumEscrow` flow A, escrow id `…:1` | L2, L3 settlement and L2.5 pass (EIP-191 by `0x6344D17a80775A71b51A61124767AbCD22B0328B`)                          |
 
-Their delivered files were not published, so both are **PARTIALLY VERIFIED** (`missing: L1: no delivered file given`): SPEC §6 calls a receipt VERIFIED only when the delivered file was checked too.
+Their synthetic delivered bytes are published in [`deliverables/`](deliverables) (`arc-testnet-escrow-a.txt`, `xrpl-testnet-escrow-a.txt`), and with them both are **VERIFIED**. `node scripts/verify-examples.mjs` re-checks every published receipt.
 
 Files: `x402-base-sepolia.json` (settlement + signed receipt with bindings), `x402-base-sepolia-output.svg` (the delivered bytes), `bindings/*.json` (public bindings for the testnet seller on Base Sepolia, Arc, XRPL and Stellar testnets — no secrets; regenerate with `bindings/create.mjs`).

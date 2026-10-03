@@ -39,3 +39,17 @@ def test_cli_bad_input(tmp_path, capsys):
     path.write_text('{"receipt":1,"receipt":2}')
     assert main([str(path), "--offline"]) == 2
     assert main([str(tmp_path / "missing.json")]) == 2
+
+
+def test_cli_binding_level_and_allow_unbound(tmp_path, live_doc, capsys):
+    assert main([str(EXAMPLES / "x402-base-sepolia.json"), "--offline"]) == 3
+    assert "L2.5 binding   PASS" in capsys.readouterr().out
+    unbound = {k: v for k, v in live_doc["signedReceipt"].items() if k != "bindings"}
+    path = tmp_path / "unbound.json"
+    path.write_text(json.dumps(unbound))
+    assert main([str(path), "--offline", "--json"]) == 3
+    assert json.loads(capsys.readouterr().out)["levels"]["binding"]["status"] == "pending"
+    assert main([str(path), "--offline", "--json", "--allow-unbound"]) == 3
+    out = json.loads(capsys.readouterr().out)
+    assert out["levels"]["binding"]["status"] == "skipped"
+    assert "--allow-unbound" in out["levels"]["binding"]["detail"]

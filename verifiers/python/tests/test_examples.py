@@ -8,18 +8,34 @@ from receptum_verify import NOT_VERIFIED, PARTIALLY_VERIFIED, VERIFIED, extract_
 
 from conftest import EXAMPLES, load_json
 
-LIVE_HASH = "cb27b5b6a98fdaecb96fbedf557acba67bdad3a2fa6505f9836c49fbc766ba4a"
 
 
 def test_live_receipt_offline(live_doc, live_output):
+    # Expected values come from the example itself, so regenerating it needs no edit here.
     signed, anchor = extract_signed_receipt(live_doc)
     assert anchor and anchor.startswith("eip155:5042002:")
     report = verify(signed, live_output, offline=True)
-    assert report.receipt_hash == LIVE_HASH
+    assert report.receipt_hash == signed["receiptHash"]
+    assert report.seller == signed["receipt"]["seller"]["id"]
     assert report.levels["file"].status == "pass"
     assert report.levels["signature"].status == "pass"
+    assert report.levels["binding"].status == "pass", report.levels["binding"].detail
+    assert live_doc["check"]["payeeBound"] is True
     # Offline can never be fully verified (SPEC §6).
     assert report.status == PARTIALLY_VERIFIED
+
+
+def test_live_receipt_without_bindings_is_partial_and_allow_unbound_skips(live_doc, live_output):
+    signed, _ = extract_signed_receipt(live_doc)
+    unbound = {k: v for k, v in signed.items() if k != "bindings"}
+    report = verify(unbound, live_output, offline=True)
+    # Removing bindings never changes the receipt hash or signature (SPEC §4.1).
+    assert report.receipt_hash == signed["receiptHash"]
+    assert report.levels["signature"].status == "pass"
+    assert report.levels["binding"].status == "pending"
+    report = verify(unbound, live_output, offline=True, allow_unbound=True)
+    assert report.levels["binding"].status == "skipped"
+    assert "--allow-unbound" in report.levels["binding"].detail
 
 
 def test_live_receipt_without_file_is_partial(live_doc):
@@ -64,6 +80,23 @@ def test_live_receipt_online(live_doc, live_output):
         pytest.skip(f"RPC unavailable: {report.to_dict()['levels']}")
     assert report.levels["settlement"].status == "pass", report.levels["settlement"].detail
     assert report.levels["anchor"].status == "pass", report.levels["anchor"].detail
+    assert report.levels["binding"].status == "pass", report.levels["binding"].detail
+    assert report.status == VERIFIED
+
+
+@pytest.mark.online
+@online
+def test_live_receipt_online_without_binding_is_partial(live_doc, live_output):
+    signed, anchor = extract_signed_receipt(live_doc)
+    unbound = {k: v for k, v in signed.items() if k != "bindings"}
+    report = verify(unbound, live_output, anchor=anchor)
+    if any(c.status == "unavailable" for c in report.levels.values()):
+        pytest.skip(f"RPC unavailable: {report.to_dict()['levels']}")
+    assert report.levels["binding"].status == "pending"
+    assert report.status == PARTIALLY_VERIFIED
+    # The explicit legacy opt-out may reach VERIFIED, and says so.
+    report = verify(unbound, live_output, anchor=anchor, allow_unbound=True)
+    assert report.levels["binding"].status == "skipped"
     assert report.status == VERIFIED
 
 

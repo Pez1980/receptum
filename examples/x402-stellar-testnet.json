@@ -43,7 +43,27 @@
       "type": "jws",
       "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
       "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..uZMuMzZ5G-WbqRdWo6i0P6jd9CKS-JCGvQw6OPJb_n57j1kQc6VkAssSF_qFlafDj-JaKDZ4horMSKbODPJTAA"
-    }
+    },
+    "bindings": [
+      {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "account": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT",
+          "issuedAt": "2026-10-03T17:01:50.252Z",
+          "expiresAt": "2027-10-03T17:01:50.252Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..zIHE8IIT5NetXNoQWQgpWqXc4cTtI5Uq7Ok76SdbanBph6WIXFQXGWOQGYyS6ZbxUFCnISKFBTtOzj20ASVAAQ"
+        },
+        "accountProof": {
+          "type": "sep53",
+          "signature": "aQYR2ZT9pvnSk4gqflMv20w3iJ6xyQQXWpEvUITcuu7F2yxahRIdiRP/cPf2M3aNlNGt7Q3RQOgNUhgUUPcUCw=="
+        }
+      }
+    ]
   },
   "check": {
     "ok": true,

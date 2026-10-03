@@ -1,0 +1,19 @@
+{
+  "network": "stellar:testnet",
+  "contractId": "CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG",
+  "wasmHash": "0dc6b174951cad16630ab1d6600e54d4b6378d9d076fd0d0c5936e2bcaa3deaf",
+  "deployer": "GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT",
+  "deployedAt": "2026-10-03T17:05:02.000Z",
+  "transactions": {
+    "uploadWasm": {
+      "hash": "a787ad298a9da872fcef4931289832e7bc572763bc5e66d837cd47320e60a0d4",
+      "url": "https://stellar.expert/explorer/testnet/tx/a787ad298a9da872fcef4931289832e7bc572763bc5e66d837cd47320e60a0d4"
+    },
+    "createContract": {
+      "hash": "91903d2e66579223c271ca1d78e02ec69572d46b2c757e94162d9f1a5e4de9a3",
+      "url": "https://stellar.expert/explorer/testnet/tx/91903d2e66579223c271ca1d78e02ec69572d46b2c757e94162d9f1a5e4de9a3"
+    }
+  },
+  "contract": "https://stellar.expert/explorer/testnet/contract/CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG",
+  "note": "Unaudited. Testnet only."
+}

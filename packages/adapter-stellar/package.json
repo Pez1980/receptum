@@ -1,7 +1,7 @@
 {
   "name": "@receptum/adapter-stellar",
   "version": "0.0.0",
-  "description": "Stellar rail: USDC on Stellar, Soroban escrow contract, Stellar x402 facilitator, receipt anchoring.",
+  "description": "Stellar rail (testnet): claimable-balance escrow and MEMO_HASH receipt anchoring. Soroban escrow and Stellar x402 planned.",
   "license": "Apache-2.0",
   "type": "module",
   "private": true,
@@ -19,6 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@receptum/core": "workspace:*"
+    "@receptum/core": "workspace:*",
+    "@stellar/stellar-sdk": "^17"
   }
 }

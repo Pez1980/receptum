@@ -1,0 +1,24 @@
+{
+  "name": "@workreceipt/verify",
+  "version": "0.0.0",
+  "description": "CLI and static page: hash a file, find its on-chain receipt, show who delivered what, when and for how much.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workreceipt/core": "workspace:*"
+  }
+}

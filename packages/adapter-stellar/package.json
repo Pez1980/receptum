@@ -1,0 +1,24 @@
+{
+  "name": "@workreceipt/adapter-stellar",
+  "version": "0.0.0",
+  "description": "Stellar rail: USDC on Stellar, Soroban escrow contract, Stellar x402 facilitator, receipt anchoring.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workreceipt/core": "workspace:*"
+  }
+}

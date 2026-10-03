@@ -1,0 +1,24 @@
+{
+  "name": "@workreceipt/adapter-evm",
+  "version": "0.0.0",
+  "description": "EVM rail for Base and Arc: USDC x402 payments, minimal escrow contract, receipt anchoring in release events.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workreceipt/core": "workspace:*"
+  }
+}

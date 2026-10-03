@@ -1,0 +1,24 @@
+{
+  "name": "@workreceipt/adapter-xrpl",
+  "version": "0.0.0",
+  "description": "XRP Ledger rail: RLUSD payments, native Escrow, memo-anchored receipts.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workreceipt/core": "workspace:*"
+  }
+}

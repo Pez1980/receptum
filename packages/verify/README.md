@@ -22,3 +22,9 @@ Each check is `pass`, `fail`, `pending` (genuine but not final, e.g. an escrow a
 | **PARTIALLY VERIFIED** | otherwise; each missing piece is printed (`missing: …`)                                                                                                                                                                                  | 3    |
 
 Exit 2 is a usage or input error. The library returns the same verdict: `verify(signed, options)` → `{ verdict, ok, complete, missing, checks, … }`, and `parseReceiptInput(bytes)` → `{ signed, anchors }` applies the input rules. Results across all chains: [E2E_RESULTS.md](E2E_RESULTS.md).
+
+## Mainnet receipts
+
+Verification is read-only, so mainnet receipts need no opt-in: x402 `exact` settlements on Base (`eip155:8453`), Arc (`eip155:5042`), XRPL (`xrpl:0`) and Stellar pubnet are checked out of the box against public endpoints (the RPC's chain id / NetworkID / passphrase is still checked against the receipt). Every report carries `network` and `networkClass` (`mainnet` | `testnet` | `unknown`), and the CLI's first line labels them distinctly — `=== MAINNET receipt (eip155:8453) — real funds ===` vs `=== TESTNET receipt (eip155:84532) — test tokens, no real value ===` (`networkLabel(report)`).
+
+`TRUSTED_ESCROWS` has entries for `eip155:8453`, `eip155:5042` and `stellar:pubnet` that are **empty**: no `ReceptumEscrow` is deployed to a mainnet yet (escrows go to mainnet only after an independent audit, see [docs/MAINNET.md](../../docs/MAINNET.md)). Until a deployment is published there, a mainnet escrow receipt is `pending` with `untrusted deployment: …` (`--trust-escrow` accepts one explicitly).

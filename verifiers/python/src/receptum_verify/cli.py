@@ -10,6 +10,7 @@ import json
 import sys
 
 from .jcs import JCSError, loads_strict
+from .networks import network_label
 from .verify import NOT_VERIFIED, VERIFIED, InputError, extract_signed_receipt, verify
 
 _EXIT = {VERIFIED: 0, NOT_VERIFIED: 1}
@@ -83,11 +84,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:
+        # Header: mainnet and testnet receipts are labelled distinctly, before anything else.
+        print(network_label(report.network))
         print(report.status)
         if report.receipt_hash:
             print(f"  receiptHash  {report.receipt_hash}")
         if report.seller:
             print(f"  seller       {report.seller}")
+        print(f"  network      {report.network or '?'} ({report.network_class})")
         labels = {
             "file": "L1 file",
             "signature": "L2 signature",

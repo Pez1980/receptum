@@ -17,7 +17,12 @@ import {
   toStellarAmount,
 } from "./codec.js";
 import { HorizonClient, isNotFound, type HorizonOptions } from "./horizon.js";
-import { STELLAR_ESCROW_RAIL, STELLAR_TESTNET, TESTNET_USDC } from "./network.js";
+import {
+  STELLAR_ESCROW_RAIL,
+  STELLAR_TESTNET,
+  stellarNetwork,
+  type StellarNetworkLike,
+} from "./network.js";
 import { escrowClaimants, parseEscrowTerms, type HorizonClaimant } from "./predicates.js";
 import type { StellarSigner } from "./signer.js";
 import {
@@ -41,7 +46,7 @@ export const CLAIMABLE_ESCROW_CAPABILITIES: EscrowCapabilities = {
 export interface StellarEscrowOptions extends HorizonOptions {
   /** The account acting through this instance: the buyer or the seller. Omit for read-only use. */
   signer?: StellarSigner;
-  /** Asset for escrows opened by this instance (`native` or `CODE:ISSUER`). Default: testnet USDC. */
+  /** Asset for escrows opened by this instance (`native` or `CODE:ISSUER`). Default: the network's Circle USDC. */
   asset?: string;
   /**
    * When true (default) the seller's `release()` refuses to claim an escrow
@@ -83,7 +88,8 @@ export type OpenedEscrow = EscrowHandle & { releasableAfter: string; reference: 
  */
 export class StellarClaimableEscrowRail implements EscrowRail {
   readonly id = STELLAR_ESCROW_RAIL;
-  readonly network = STELLAR_TESTNET.caip2;
+  /** `stellar:testnet` (default) or `stellar:pubnet` (signing needs the mainnet opt-in). */
+  readonly network: string;
   readonly capabilities = CLAIMABLE_ESCROW_CAPABILITIES;
   private readonly horizon: HorizonClient;
   private readonly signerOrNone: StellarSigner | undefined;
@@ -94,8 +100,11 @@ export class StellarClaimableEscrowRail implements EscrowRail {
 
   constructor(options: StellarEscrowOptions) {
     this.horizon = new HorizonClient(options);
+    this.network = this.horizon.network.caip2;
     this.signerOrNone = options.signer;
-    this.asset = assetToString(parseAsset(options.asset ?? TESTNET_USDC));
+    this.asset = assetToString(
+      parseAsset(options.asset ?? `USDC:${this.horizon.network.usdcIssuer}`),
+    );
     this.requireDelivery = options.requireDeliveryForRelease ?? true;
     this.now = options.now ?? Date.now;
     this.maxHistory = options.maxHistory ?? 1000;
@@ -295,6 +304,7 @@ export class StellarClaimableEscrowRail implements EscrowRail {
     const createTx = await server.transactions().transaction(create.transaction_hash).call();
     const history: EscrowHistory = {
       escrowId: balanceId,
+      network: this.network,
       create: {
         asset: create.asset!,
         amount: create.amount!,
@@ -396,7 +406,7 @@ export class StellarClaimableEscrowRail implements EscrowRail {
             `seller has more than ${this.maxHistory} transactions before the deadline; raise maxHistory to derive delivery`,
           );
         }
-        out.push(toDeliveryTx(tx));
+        out.push(toDeliveryTx(tx, this.horizon.network));
       }
       page = await page.next();
     }
@@ -432,18 +442,24 @@ interface OperationRecordLike {
 }
 
 /** Horizon transaction record → the fields delivery derivation needs. */
-export function toDeliveryTx(tx: {
-  hash: string;
-  successful: boolean;
-  created_at: string;
-  memo_type: string;
-  memo?: string;
-  source_account: string;
-  envelope_xdr: string;
-}): DeliveryTxLike {
+export function toDeliveryTx(
+  tx: {
+    hash: string;
+    successful: boolean;
+    created_at: string;
+    memo_type: string;
+    memo?: string;
+    source_account: string;
+    envelope_xdr: string;
+  },
+  network: StellarNetworkLike = STELLAR_TESTNET,
+): DeliveryTxLike {
   const dataOps: DeliveryTxLike["dataOps"] = [];
   if (tx.successful && tx.memo_type === "hash") {
-    let parsed = TransactionBuilder.fromXDR(tx.envelope_xdr, STELLAR_TESTNET.networkPassphrase);
+    let parsed = TransactionBuilder.fromXDR(
+      tx.envelope_xdr,
+      stellarNetwork(network).networkPassphrase,
+    );
     if (parsed instanceof FeeBumpTransaction) parsed = parsed.innerTransaction;
     for (const op of (parsed as Transaction).operations) {
       if (op.type !== "manageData") continue;

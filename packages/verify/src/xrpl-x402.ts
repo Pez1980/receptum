@@ -22,9 +22,14 @@ export interface XrplX402Result {
 /** Calls one rippled JSON-RPC method and returns its `result` object. */
 export type XrplRpc = (method: string, params: Record<string, unknown>) => Promise<unknown>;
 
-/** Public JSON-RPC endpoints, by CAIP-2 id. Testnet only by default. */
+/**
+ * Public JSON-RPC endpoints, by CAIP-2 id: testnet `xrpl:1` and mainnet `xrpl:0`. Verification is
+ * read-only, so mainnet needs no opt-in; the server's NetworkID is still checked against the
+ * receipt.
+ */
 export const XRPL_JSON_RPCS: Readonly<Record<string, string>> = {
   "xrpl:1": "https://s.altnet.rippletest.net:51234",
+  "xrpl:0": "https://xrplcluster.com",
 };
 
 export interface XrplX402Payment {

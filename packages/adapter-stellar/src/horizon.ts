@@ -6,26 +6,42 @@ import {
   type Transaction,
   type xdr,
 } from "@stellar/stellar-sdk";
-import { STELLAR_TESTNET, assertTestnetHorizon } from "./network.js";
+import {
+  assertEndpointMatches,
+  assertStellarSigningAllowed,
+  stellarNetwork,
+  type StellarNetwork,
+  type StellarNetworkOptions,
+} from "./network.js";
 import type { StellarSigner } from "./signer.js";
 
-export interface HorizonOptions {
-  /** Defaults to the public testnet Horizon. Mainnet endpoints are refused. */
+export interface HorizonOptions extends StellarNetworkOptions {
+  /**
+   * Defaults to the network's public Horizon. A testnet client refuses mainnet endpoints and a
+   * pubnet client refuses testnet ones.
+   */
   horizonUrl?: string;
   /** Max fee per operation in stroops. Defaults to the network base fee. */
   fee?: string;
 }
 
-/** Thin wrapper over Horizon: builds, signs and submits testnet transactions. */
+/**
+ * Thin wrapper over Horizon: builds, signs and submits transactions — on testnet by default.
+ * On pubnet, `submit` throws `MainnetNotAllowedError` before signing unless mainnet use is allowed.
+ */
 export class HorizonClient {
   readonly server: Horizon.Server;
+  readonly network: StellarNetwork;
   private readonly fee: string;
+  private readonly allowMainnet: boolean | undefined;
 
   constructor(options: HorizonOptions = {}) {
-    const url = options.horizonUrl ?? STELLAR_TESTNET.horizonUrl;
-    assertTestnetHorizon(url);
+    this.network = stellarNetwork(options.network);
+    const url = options.horizonUrl ?? this.network.horizonUrl;
+    assertEndpointMatches(url, this.network);
     this.server = new Horizon.Server(url);
     this.fee = options.fee ?? BASE_FEE;
+    this.allowMainnet = options.allowMainnet;
   }
 
   /** Builds a transaction from `signer`'s account, signs it and submits it. */
@@ -34,10 +50,11 @@ export class HorizonClient {
     operations: xdr.Operation[],
     memo?: Memo,
   ): Promise<{ hash: string; tx: Transaction }> {
+    assertStellarSigningAllowed(this.network, this.allowMainnet);
     const account = await this.server.loadAccount(signer.publicKey);
     const builder = new TransactionBuilder(account, {
       fee: this.fee,
-      networkPassphrase: STELLAR_TESTNET.networkPassphrase,
+      networkPassphrase: this.network.networkPassphrase,
     });
     for (const op of operations) builder.addOperation(op);
     if (memo) builder.addMemo(memo);

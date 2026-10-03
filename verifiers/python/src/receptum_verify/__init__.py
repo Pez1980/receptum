@@ -7,6 +7,7 @@ spec/vectors/account-binding-v1.json only.
 from .binding import check_payee_binding, verify_binding
 from .jcs import JCSError, canonicalize, loads_strict, serialize_number
 from .jws import SignatureResult, verify_signed_receipt
+from .networks import TRUSTED_ESCROWS, network_class, network_label
 from .receipt import receipt_hash, validate_receipt
 from .verify import (
     COMMITTING_RAILS,
@@ -24,6 +25,9 @@ __version__ = "0.2.0"
 
 __all__ = [
     "COMMITTING_RAILS",
+    "TRUSTED_ESCROWS",
+    "network_class",
+    "network_label",
     "InputError",
     "NOT_VERIFIED",
     "PARTIALLY_VERIFIED",

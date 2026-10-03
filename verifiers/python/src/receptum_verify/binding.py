@@ -54,7 +54,10 @@ BINDING_JWS_TYP = "receptum-binding+jws"
 MAX_ISSUED_AT_SKEW_SECONDS = 300
 # Bindings examined per receipt: a bound on work, not a protocol limit (as in the TS verifier).
 MAX_BINDINGS = 16
-DEFAULT_XRPL_RPCS: dict[str, str] = {"xrpl:1": "https://s.altnet.rippletest.net:51234"}
+DEFAULT_XRPL_RPCS: dict[str, str] = {
+    "xrpl:1": "https://s.altnet.rippletest.net:51234",
+    "xrpl:0": "https://xrplcluster.com",  # mainnet (read-only account-key lookup)
+}
 
 _BINDING_MEMBERS = {"statement", "didProof", "accountProof"}
 _STATEMENT = {"type": True, "did": True, "account": True, "issuedAt": True, "expiresAt": False}

@@ -2,7 +2,7 @@
 
 XRP Ledger rail for Receptum: **native XRPL Escrow** (`escrow:xrpl`) and **memo-anchored receipts** (`anchor:xrpl`). No smart contracts, no custom code on-chain.
 
-**Status:** working on XRPL **testnet** (`xrpl:1`), proven end to end — see [E2E_RESULTS.md](./E2E_RESULTS.md). Not audited; mainnet is not a supported target yet.
+**Status:** working on XRPL **testnet** (`xrpl:1`, the default), proven end to end — see [E2E_RESULTS.md](./E2E_RESULTS.md). Not audited. Mainnet (`xrpl:0`) is supported behind an explicit opt-in — see [Mainnet](#mainnet-opt-in).
 
 ```ts
 import { Client } from "xrpl";
@@ -128,3 +128,14 @@ This adapter isn't needed to sell over x402 on XRPL. `@x402/xrpl` (client and se
 - RLUSD escrow is blocked on testnet by the issuer's settings, not by this adapter.
 - History scans are bounded; there is no indexer.
 - No multisig signers, destination tags or MPT amounts yet.
+
+## Mainnet (opt-in)
+
+Before every signature the adapter calls `assertNetwork(client, network, { allowMainnet })` (it replaces `assertTestnet()`, which remains as a deprecated alias). The default `network` is testnet `xrpl:1` and the server must report NetworkID 1, as before. Mainnet `xrpl:0` needs `allowMainnet: true` (or `RECEPTUM_ALLOW_MAINNET=1`) — checked before the server is even asked — and the server must then report exactly NetworkID 0:
+
+```ts
+const client = new Client(XRPL_ENDPOINTS["xrpl:0"][0]); // wss://xrplcluster.com, wss://s1.ripple.com, wss://s2.ripple.com
+const rail = new XrplEscrowRail({ client, wallet, network: "xrpl:0", allowMainnet: true });
+```
+
+`XrplAnchor` takes the same options. XRP escrow works on mainnet (native protocol escrow, no Receptum contract); RLUSD escrow needs the RLUSD issuer to enable trust-line locking. Use fresh mainnet keys only. See [docs/MAINNET.md](../../docs/MAINNET.md).

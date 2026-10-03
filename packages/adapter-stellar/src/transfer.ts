@@ -1,5 +1,6 @@
 import { fromStellarAmount } from "./codec.js";
 import { HorizonClient, isNotFound, type HorizonOptions } from "./horizon.js";
+import type { StellarNetworkLike } from "./network.js";
 import { tokenContractId } from "./soroban.js";
 
 /** Horizon's `asset_balance_changes` entry on an `invoke_host_function` operation. */
@@ -14,6 +15,8 @@ export interface AssetBalanceChange {
 }
 
 export interface TransferExpectation {
+  /** Network whose Stellar Asset Contracts `asset` maps to. Default testnet. */
+  network?: StellarNetworkLike;
   /** `native`, `CODE:ISSUER` or the token's `C…` contract id. */
   asset: string;
   /** Smallest units (7 decimals). */
@@ -31,7 +34,7 @@ export function matchSacTransfer(
   ops: readonly { type: string; asset_balance_changes?: AssetBalanceChange[] }[],
   want: TransferExpectation,
 ): AssetBalanceChange | null {
-  const token = tokenContractId(want.asset);
+  const token = tokenContractId(want.asset, want.network);
   for (const op of ops) {
     if (op.type !== "invoke_host_function") continue;
     for (const c of op.asset_balance_changes ?? []) {
@@ -39,7 +42,7 @@ export function matchSacTransfer(
         c.asset_type === "native" ? "native" : `${c.asset_code ?? ""}:${c.asset_issuer ?? ""}`;
       let changeToken: string;
       try {
-        changeToken = tokenContractId(asset);
+        changeToken = tokenContractId(asset, want.network);
       } catch {
         continue;
       }
@@ -65,7 +68,8 @@ export async function findSacTransfer(
   want: TransferExpectation,
   options: HorizonOptions = {},
 ): Promise<{ ok: true; ledger: number; createdAt: string } | { ok: false; reason: string }> {
-  const server = new HorizonClient(options).server;
+  const horizon = new HorizonClient(options);
+  const server = horizon.server;
   let tx;
   try {
     tx = await server.transactions().transaction(hash).call();
@@ -77,7 +81,7 @@ export async function findSacTransfer(
   const ops = await server.operations().forTransaction(hash).limit(200).call();
   const hit = matchSacTransfer(
     ops.records as unknown as { type: string; asset_balance_changes?: AssetBalanceChange[] }[],
-    want,
+    { network: horizon.network, ...want },
   );
   return hit
     ? { ok: true, ledger: tx.ledger_attr, createdAt: tx.created_at }

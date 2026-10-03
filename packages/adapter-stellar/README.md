@@ -12,10 +12,11 @@ Stellar rails for Receptum:
 - **`findSacTransfer`** — checks an x402 `exact` settlement on `stellar:testnet` (used by
   `@receptum/verify`).
 
-**Status:** testnet only (`stellar:testnet`). The contract and both escrow designs are
-**unaudited**. Every transaction is signed with the testnet passphrase, the mainnet Horizon is
-refused, and the Soroban RPC's network passphrase is checked before anything is signed. Mainnet
-waits for an independent audit (roadmap M7). Real end-to-end runs are recorded in
+**Status:** testnet by default (`stellar:testnet`). The contract and both escrow designs are
+**unaudited**. By default every transaction is signed with the testnet passphrase, the mainnet
+Horizon is refused, and the Soroban RPC's network passphrase is checked before anything is signed.
+Pubnet is supported behind an explicit opt-in (see [Mainnet](#mainnet-opt-in)); the escrow contract
+goes to mainnet only after an independent audit (roadmap M7). Real end-to-end runs are recorded in
 [E2E_RESULTS.md](./E2E_RESULTS.md).
 
 ## Soroban escrow
@@ -224,3 +225,31 @@ directory mode 700, files mode 600): `stellar-testnet.json` (buyer and seller),
 fund accounts with friendbot, add USDC trustlines and buy a few Circle testnet USDC with XLM on the
 testnet DEX. They write public results only (addresses, transaction hashes, explorer links, signed
 receipts) to `E2E_RESULTS.md` and refuse to write anything that looks like a secret.
+
+## Mainnet (opt-in)
+
+Pass `network: "pubnet"` to `HorizonClient`, `StellarClaimableEscrowRail`, `StellarAnchor`,
+`SorobanRpcClient` or `SorobanEscrowRail` (`STELLAR_PUBNET`: passphrase `Networks.PUBLIC`, Horizon
+`https://horizon.stellar.org`, Soroban RPC `https://mainnet.sorobanrpc.com` — SDF runs no public
+mainnet RPC, so pass your own `rpcUrl` in production). Reading needs nothing; signing throws
+`MainnetNotAllowedError` unless `allowMainnet: true` (or `RECEPTUM_ALLOW_MAINNET=1`). The default
+asset on pubnet is Circle's USDC (`PUBNET_USDC`, issuer
+`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`; SAC `PUBNET_USDC_SAC`). Soroban escrow
+ids carry the network (`stellar:pubnet:<C…>:<id>`) and a rail refuses ids of the other network.
+
+```ts
+const rail = new SorobanEscrowRail({
+  contractId,
+  signer,
+  network: "pubnet",
+  allowMainnet: true,
+  rpcUrl,
+});
+```
+
+`scripts/deploy-soroban-mainnet.mjs --audit-report <url> [--dry-run] [--max-fee-xlm 50]` deploys
+the contract to pubnet: it refuses unless `RECEPTUM_ALLOW_MAINNET=1`, reads the fresh deployer
+secret only from `RECEPTUM_MAINNET_DEPLOYER_SECRET` (never wallet files), requires the wasm to match
+`RECEPTUM_SOROBAN_WASM_HASH`, checks the RPC passphrase, prints the plan with simulated fees and
+needs the typed confirmation phrase. No pubnet deployment exists yet. See
+[docs/MAINNET.md](../../docs/MAINNET.md).

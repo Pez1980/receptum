@@ -1,6 +1,10 @@
 import {
+  assertNetworkAllowed,
   canonicalJson,
   checkPayeeBinding,
+  mainnetAllowed,
+  MainnetNotAllowedError,
+  networkClass,
   createReceipt,
   sha256Hex,
   signReceipt,
@@ -47,6 +51,47 @@ type ResourceInfo = Parameters<x402ResourceServer["createPaymentRequiredResponse
  */
 export const BINDING_EXPIRY_MARGIN_SECONDS = 300;
 
+/** The public x402 facilitator. Testnets only — Receptum never defaults a mainnet facilitator. */
+export const X402_TESTNET_FACILITATOR_URL = "https://x402.org/facilitator";
+
+export interface FacilitatorConfig {
+  /**
+   * Facilitator URL per CAIP-2 network, e.g. `{ "eip155:8453": "https://…" }`. Mainnets have no
+   * default: each one you accept must be listed here.
+   */
+  facilitators?: Readonly<Record<string, string>>;
+  /** Required (or `RECEPTUM_ALLOW_MAINNET=1`) to resolve a mainnet facilitator. */
+  allowMainnet?: boolean;
+}
+
+/**
+ * The facilitator URL to register for `network` in your `x402ResourceServer`
+ * (`new HTTPFacilitatorClient({ url: facilitatorUrlFor(network, config) })`).
+ *
+ * - Testnets: `config.facilitators[network]`, else the public `X402_TESTNET_FACILITATOR_URL`.
+ * - Mainnets (and unknown networks): only an explicitly configured URL, and only with the mainnet
+ *   opt-in. There is deliberately no default — a mainnet facilitator (Coinbase CDP or
+ *   self-hosted) is an account you choose and configure.
+ */
+export function facilitatorUrlFor(network: string, config: FacilitatorConfig = {}): string {
+  const configured = config.facilitators?.[network];
+  if (configured !== undefined) {
+    const u = new URL(configured);
+    const local =
+      u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+    if (u.protocol !== "https:" && !local)
+      throw new TypeError(`facilitator for ${network} must be an https URL: ${configured}`);
+  }
+  if (networkClass(network) === "testnet") return configured ?? X402_TESTNET_FACILITATOR_URL;
+  if (!mainnetAllowed(config.allowMainnet))
+    throw new MainnetNotAllowedError(network, "accept payments");
+  if (configured === undefined)
+    throw new Error(
+      `no facilitator configured for ${network}: mainnets have no default facilitator — set facilitators["${network}"] explicitly`,
+    );
+  return configured;
+}
+
 export interface PaidJobConfig {
   /** An initialized x402 resource server with the schemes you accept registered. */
   x402: ResourceServer;
@@ -68,6 +113,12 @@ export interface PaidJobConfig {
    * BEFORE settlement that a valid binding covers the payee and refuses to charge otherwise.
    */
   bindingVerifiers?: BindingVerifier[];
+  /**
+   * Required (or `RECEPTUM_ALLOW_MAINNET=1`) when any `accepts` option is on a mainnet (or an
+   * unknown network). Without it, `handlePaidJob` throws `MainnetNotAllowedError` before quoting
+   * or charging anything. Testnets need nothing.
+   */
+  allowMainnet?: boolean;
 }
 
 export interface JobResult {
@@ -136,6 +187,11 @@ export async function handlePaidJob(
   run: () => Promise<JobResult>,
   config: PaidJobConfig,
 ): Promise<PaidJobResponse> {
+  // Mainnet opt-in, checked before anything is quoted, verified or settled.
+  for (const a of config.accepts) {
+    const network = (a as { network?: unknown }).network;
+    if (typeof network === "string") assertNetworkAllowed(network, config.allowMainnet, "charge");
+  }
   const requirements = (
     await Promise.all(config.accepts.map((a) => config.x402.buildPaymentRequirements(a)))
   ).flat();
@@ -160,6 +216,7 @@ export async function handlePaidJob(
   }
   const matched = config.x402.findMatchingRequirements(requirements, payload);
   if (!matched) return paymentRequired("payment does not match any accepted option");
+  assertNetworkAllowed(matched.network, config.allowMainnet, "charge");
 
   // RRF v1 amounts are integers in the asset's smallest unit and `asset` must identify the token
   // exactly. Issued tokens (e.g. XRPL `extra.issuer`) have decimal amounts and an issuer that

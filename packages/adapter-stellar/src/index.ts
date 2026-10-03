@@ -1,4 +1,4 @@
-// @receptum/adapter-stellar — Stellar testnet rails: the Soroban ReceptumEscrow contract,
+// @receptum/adapter-stellar — Stellar rails (testnet by default; pubnet behind an explicit opt-in): the Soroban ReceptumEscrow contract,
 // claimable-balance escrow on native operations, and MEMO_HASH receipt anchoring. See README.md.
 export {
   StellarAnchor,
@@ -28,14 +28,24 @@ export {
 } from "./escrow.js";
 export { HorizonClient, describeSubmitError, type HorizonOptions } from "./horizon.js";
 export {
+  PUBNET_USDC,
+  PUBNET_USDC_ISSUER,
   STELLAR_ANCHOR_RAIL,
   STELLAR_ESCROW_RAIL,
+  STELLAR_NETWORKS,
+  STELLAR_PUBNET,
   STELLAR_TESTNET,
   TESTNET_USDC,
   TESTNET_USDC_ISSUER,
+  assertEndpointMatches,
+  assertStellarSigningAllowed,
   assertTestnetHorizon,
   caip10,
   explorerTxUrl,
+  stellarNetwork,
+  type StellarNetwork,
+  type StellarNetworkLike,
+  type StellarNetworkOptions,
 } from "./network.js";
 export {
   assertValidTerms,
@@ -53,6 +63,7 @@ export {
   SOROBAN_ESCROW_RAIL,
   SorobanEscrowRail,
   SorobanRpcClient,
+  PUBNET_USDC_SAC,
   TESTNET_USDC_SAC,
   decodeEscrowRecord,
   describeContractError,

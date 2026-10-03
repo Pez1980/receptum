@@ -98,6 +98,21 @@ Adapters anchor `receiptHash` as follows:
 | `escrow:xrpl` / `anchor:xrpl`                 | Memo `MemoType = hex("receptum/1")`, `MemoData = receiptHash`            |
 | `escrow:stellar-claimable` / `anchor:stellar` | `MEMO_HASH = receiptHash`                                                |
 
+### 7.1 Outputs that are not files
+
+- **HTTP responses:** `outputSha256` is the SHA-256 of the response body bytes as delivered.
+- **MCP tool results:** `outputSha256` is the SHA-256 of `JCS(result.content)`; the receipt travels in `result._meta["receptum/receipt"]`.
+
+### 7.2 Rail differences
+
+Rails enforce acceptance differently. Adapters SHOULD publish their `EscrowCapabilities`:
+
+| Rail                       | Acceptance modes enforced on-chain           | Review window starts                | Refund after delivery                               |
+| -------------------------- | -------------------------------------------- | ----------------------------------- | --------------------------------------------------- |
+| `escrow:receptum-evm`      | buyer, evaluator, auto                       | at delivery                         | only by buyer/evaluator rejection within the window |
+| `escrow:xrpl`              | buyer, evaluator (holder of the fulfillment) | n/a (release needs the fulfillment) | yes, after `CancelAfter`                            |
+| `escrow:stellar-claimable` | buyer, auto                                  | at the delivery deadline            | yes, by the buyer within its claim window           |
+
 ## 8. Test vectors
 
 `spec/vectors/rrf-v1.json` contains receipts, their JCS bytes, hashes and JWS proofs generated from the RFC 8032 §7.1 TEST 1 seed (public; testing only). Implementations SHOULD reproduce every vector byte for byte.

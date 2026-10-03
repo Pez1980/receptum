@@ -1,6 +1,6 @@
 # Security policy
 
-Receptum handles payments and escrow. We take vulnerabilities seriously.
+Receptum handles payments and escrow.
 
 ## Reporting
 
@@ -10,10 +10,10 @@ We aim to acknowledge reports within 3 business days.
 
 ## Scope
 
-- Escrow contracts and chain adapters (fund loss, unauthorized release or refund)
-- Receipt construction and verification (forged or mismatched receipts)
-- Payment verification in `server` (paying less than quoted, replay)
+- `ReceptumEscrow` and the chain adapters (fund loss, unauthorized release or refund)
+- Receipt construction, signing and verification (forged or mismatched receipts)
+- Payment verification in `server` / `client` (paying less than quoted, replay, receipt substitution)
 
 ## Status
 
-Contracts are **unaudited** until this file says otherwise. Don't deploy them with significant funds.
+All contracts and adapters are **unaudited and testnet-only**. Mainnet support will not ship before an independent audit is published here.

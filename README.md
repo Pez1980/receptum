@@ -1,58 +1,108 @@
 # Receptum
 
-**Pay-per-job for AI agents and services, with escrow and verifiable proof of delivery.**
+**Know what you paid for.** Receptum is an open receipt format for paid agent work: each receipt binds a payment to SHA-256 hashes of the exact inputs and output, signed by the seller and verifiable by anyone — on Base, Arc, Stellar, the XRP Ledger, or offline.
 
-Receptum is an open-source TypeScript SDK that lets any service charge per unit of work in stablecoins and prove what it delivered:
+> Payment receipts say you were served. Receptum says what you got.
 
-1. **Quote and pay** — the seller prices a job and answers with HTTP `402 Payment Required` ([x402](https://www.x402.org/)). Humans or AI agents pay in USDC or RLUSD.
-2. **Escrow** — funds are held on-chain until the work is delivered, so the buyer can be refunded if it isn't.
-3. **Receipt** — on delivery, the seller publishes a _delivery receipt_: SHA-256 hashes of the inputs, the output and any QA evidence, tied to the payment. Only hashes go on-chain — never the content.
-4. **Verify** — anyone holding the file can hash it and check, on-chain, who delivered it, when and for how much.
+- **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
+- **Status:** working end to end on **testnets** (October 2026). Escrow contracts are **unaudited** — do not use with real funds.
 
-It was built for AI video rendering, but works for any job with a digital deliverable: transcription, design, code generation, data enrichment, or MCP tool calls.
+## How it works
+
+1. **Quote** — a service prices a job; the agent pays through x402 or opens an escrow.
+2. **Held** — escrowed funds wait on-chain until delivery is accepted, rejected, or the deadline passes.
+3. **Delivered** — the seller signs a receipt binding the payment to hashes of the inputs and output and commits its `receiptHash` on-chain. Only hashes are published.
+4. **Released** — the buyer or evaluator accepts, or the review window closes. The receipt records which.
 
 ## Packages
 
-| Package                                                 | What it does                                                | Status           |
-| ------------------------------------------------------- | ----------------------------------------------------------- | ---------------- |
-| [`@receptum/core`](packages/core)                       | Receipts, canonical hashing, job lifecycle, rail interfaces | Usable (pre-1.0) |
-| [`@receptum/server`](packages/server)                   | Seller-side x402 middleware for Fastify / Express           | Planned          |
-| [`@receptum/client`](packages/client)                   | Buyer / agent client with spending limits                   | Planned          |
-| [`@receptum/mcp`](packages/mcp)                         | Paid MCP tools                                              | Planned          |
-| [`@receptum/verify`](packages/verify)                   | CLI + web page to verify a file against its receipt         | Planned          |
-| [`@receptum/adapter-evm`](packages/adapter-evm)         | Base and Arc: USDC, escrow contract, receipt anchoring      | Planned          |
-| [`@receptum/adapter-stellar`](packages/adapter-stellar) | Stellar: USDC, Soroban escrow                               | Planned          |
-| [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRP Ledger: RLUSD, native Escrow                            | Planned          |
+| Package                                                 | What it does                                                                                      |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [`@receptum/core`](packages/core)                       | RRF v1 receipts, JCS (RFC 8785) hashing, Ed25519 `did:key` signatures, lifecycle, rail interfaces |
+| [`@receptum/server`](packages/server)                   | Sell a job over x402: verify → work → settle → return the output with a signed receipt            |
+| [`@receptum/client`](packages/client)                   | Pay over x402 and reject results whose receipt, output hash or settlement don't match             |
+| [`@receptum/mcp`](packages/mcp)                         | Signed receipts for x402-paid MCP tools (`@x402/mcp`)                                             |
+| [`@receptum/verify`](packages/verify)                   | Library + `receptum-verify` CLI: file, signature, settlement and anchor checks                    |
+| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet and Base Sepolia                            |
+| [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRPL native Escrow with crypto-conditions + memo anchors                                          |
+| [`@receptum/adapter-stellar`](packages/adapter-stellar) | Stellar claimable-balance escrow (USDC) + `MEMO_HASH` anchors                                     |
 
-See the [architecture](docs/ARCHITECTURE.md) and [roadmap](docs/ROADMAP.md).
+## Live on testnets
+
+| What                                                         | Network                    | Evidence                                                                           |
+| ------------------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------- |
+| x402 render sold for 0.25 USDC, receipt anchored cross-chain | Base Sepolia → Arc testnet | [examples/E2E_RESULTS.md](examples/E2E_RESULTS.md)                                 |
+| Paid MCP tool call with receipt                              | Base Sepolia               | [packages/mcp/E2E_RESULTS.md](packages/mcp/E2E_RESULTS.md)                         |
+| Escrow: accept, auto-release, refund, anchor                 | Arc testnet                | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)         |
+| Escrow: release, refund, issued-token escrow                 | XRPL testnet               | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md)       |
+| Escrow (USDC): auto-release, accept, refund, reject          | Stellar testnet            | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md) |
+| Independent verification of all of the above                 | all four                   | [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md)                   |
 
 ## Quick look
 
 ```ts
-import { createReceipt, receiptHash, sha256File } from "@receptum/core";
+import {
+  createReceipt,
+  generateSellerKey,
+  sha256File,
+  signReceipt,
+  verifySignedReceipt,
+} from "@receptum/core";
 
-const receipt = createReceipt({
-  jobId: "render-8841",
-  inputSha256: [await sha256File("source.mp4")],
-  outputSha256: await sha256File("final.mp4"),
-  payment: { rail: "evm:base", asset: "USDC", amount: "2500000", reference: "0x…" },
-});
+const seller = generateSellerKey(); // store privateKeyPem securely; never commit it
+const signed = signReceipt(
+  createReceipt({
+    jobId: "render-8841",
+    seller: { id: seller.did, name: "render.example" },
+    inputSha256: [await sha256File("source.mp4")],
+    outputSha256: await sha256File("final.mp4"),
+    payment: {
+      rail: "x402:exact",
+      network: "eip155:84532",
+      asset: "USDC",
+      amount: "250000",
+      reference: "0x…",
+    },
+    acceptance: { mode: "auto", reviewWindowSeconds: 259200 },
+    remedy: { kind: "rerender", withinDays: 30 },
+  }),
+  seller,
+);
 
-receiptHash(receipt); // the one value anchored on-chain
+verifySignedReceipt(signed); // { ok: true, seller: "did:key:…", receiptHash: "…" }
 ```
+
+Verify any receipt:
+
+```sh
+node packages/verify/dist/cli.js examples/x402-base-sepolia.json examples/x402-base-sepolia-output.svg \
+  --anchor eip155:5042002:0x178192fa86acc85fb2b33189708703a96125feb5bef6c6817f8faedeefaa6103
+```
+
+## Run the examples
+
+```sh
+pnpm install && pnpm build
+node examples/toy-renderer/server.mjs        # sells renders for $0.25 on Base Sepolia
+node examples/agent-buyer/buyer.mjs           # pays, then verifies the receipt before trusting the result
+```
+
+Testnet wallets are read from `~/.config/receptum/wallets` (override with `RECEPTUM_WALLETS_DIR`). Fund them from the Circle testnet faucet, the XRPL testnet faucet or Stellar friendbot. Keys never live in this repository.
 
 ## Development
 
-Requires Node 22 and pnpm 9.
+Node 22, pnpm 9, Foundry for the contracts.
 
 ```sh
 pnpm install
-pnpm check   # format, lint, typecheck, test, build
+pnpm check                                   # format, lint, build, typecheck, tests (incl. anvil)
+(cd packages/adapter-evm && forge test)      # Solidity tests incl. fuzzing
+git config core.hooksPath .githooks          # secret scan on commit, full check on push
 ```
 
 ## Security
 
-Receptum moves money. Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md). Escrow contracts are **unaudited** until stated otherwise; don't use them with significant funds.
+Report vulnerabilities privately — see [SECURITY.md](SECURITY.md). The escrow contracts and adapters are unaudited and testnet-only.
 
 ## License
 

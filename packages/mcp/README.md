@@ -1,5 +1,8 @@
 # @receptum/mcp
 
-Turn MCP tools into paid tools: price per call, x402 payment, receipt per result.
+Signed receipts for paid MCP tools.
 
-**Status:** planned — Oct 2026. See [the roadmap](../../docs/ROADMAP.md).
+- Server: `withReceipts(paid(handler), { seller, price })` wraps an `@x402/mcp` payment-wrapped tool and adds a seller-signed receipt to `result._meta["receptum/receipt"]` on every settled call. The output hash is SHA-256 of `JCS(result.content)`.
+- Client: `verifyToolResult(result, allowedSellers)`; `captureReceipts(x402McpClient)` recovers `_meta`, which the x402 MCP client doesn't return.
+
+Live run: [E2E_RESULTS.md](E2E_RESULTS.md).

@@ -63,6 +63,22 @@ export interface EscrowRail {
   release(escrowId: string): Promise<{ reference: string }>;
   /** Buyer reclaims after the deadline when nothing was delivered. */
   refund(escrowId: string): Promise<{ reference: string }>;
+  /** Buyer or evaluator accepts a delivery early (where the rail supports it). */
+  accept?(escrowId: string): Promise<{ reference: string }>;
+  /** Buyer or evaluator rejects a delivery within the review window (where the rail supports it). */
+  reject?(escrowId: string): Promise<{ reference: string }>;
+}
+
+/**
+ * What a rail can enforce on-chain. Rails differ: e.g. XRPL escrows can't auto-release on a
+ * timer and Stellar claimable balances measure the review window from the deadline.
+ */
+export interface EscrowCapabilities {
+  acceptanceModes: readonly ("buyer" | "evaluator" | "auto")[];
+  /** Whether the review window starts at delivery (true) or at the delivery deadline (false). */
+  reviewWindowFromDelivery: boolean;
+  /** Whether the buyer can still be refunded after a delivery is recorded. */
+  refundAfterDelivery: boolean;
 }
 
 export interface AnchorRecord {

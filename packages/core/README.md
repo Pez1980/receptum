@@ -1,11 +1,11 @@
 # @receptum/core
 
-Chain-agnostic building blocks shared by every Receptum rail:
+Receptum Receipt Format v1 ([spec](../../docs/SPEC.md)).
 
-- `createReceipt` / `receiptHash` — build a delivery receipt from input and output hashes and get the single SHA-256 value that goes on-chain. Raw job ids are hashed, never published.
-- `canonicalJson` — deterministic JSON so every party hashes identical bytes.
+- `createReceipt` / `receiptHash` / `receiptBytes` — build a receipt and its JCS (RFC 8785) hash. Raw job ids are hashed, never published.
+- `generateSellerKey` / `sellerKeyFromPem` / `signReceipt` / `verifySignedReceipt` — Ed25519 `did:key` seller signatures as detached JWS; verifies offline.
 - `sha256File` — streaming file hash for large media.
 - Job lifecycle (`quoted → paid|escrowed → delivered → released|refunded`) with enforced transitions.
-- `PaymentRail`, `EscrowRail` and `Anchor` interfaces that each chain adapter implements.
+- `PaymentRail`, `EscrowRail`, `Anchor`, `EscrowCapabilities` — implemented by the chain adapters.
 
-**Status:** usable, pre-1.0 — APIs may change.
+Test vectors: `spec/vectors/rrf-v1.json` (RFC 8032 test seed — public, testing only).

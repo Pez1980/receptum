@@ -1,0 +1,25 @@
+[package]
+name = "receptum-escrow"
+version = "0.2.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Receptum escrow for Solana (devnet only, unaudited)"
+publish = false
+
+[lib]
+name = "receptum_escrow"
+crate-type = ["cdylib", "lib"]
+doctest = false
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+solana-program = "=4.0.0"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+incremental = false

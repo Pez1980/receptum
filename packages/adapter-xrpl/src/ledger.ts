@@ -17,6 +17,16 @@ export interface LedgerTx {
   };
   meta: TransactionMetadata;
   closeTime?: string;
+  /** Validated ledger index; with `meta.TransactionIndex`, the canonical order of history. */
+  ledgerIndex?: number;
+}
+
+/** Orders two validated transactions by (ledger index, transaction index). */
+export function compareTx(a: LedgerTx, b: LedgerTx): number {
+  const la = a.ledgerIndex ?? 0;
+  const lb = b.ledgerIndex ?? 0;
+  if (la !== lb) return la - lb;
+  return (a.meta.TransactionIndex ?? 0) - (b.meta.TransactionIndex ?? 0);
 }
 
 export class XrplTxError extends Error {
@@ -76,6 +86,7 @@ export async function getTx(client: Client, hash: string): Promise<LedgerTx | nu
       tx: result.tx_json as LedgerTx["tx"],
       meta: result.meta,
       ...(result.close_time_iso ? { closeTime: result.close_time_iso } : {}),
+      ...(typeof result.ledger_index === "number" ? { ledgerIndex: result.ledger_index } : {}),
     };
   } catch (err) {
     if (errorCode(err) === "txnNotFound") return null;
@@ -83,30 +94,37 @@ export async function getTx(client: Client, hash: string): Promise<LedgerTx | nu
   }
 }
 
-/** Validated, successful transactions affecting `account`, newest first. */
+/**
+ * Validated, successful transactions affecting `account`, newest first — or oldest first from
+ * `fromLedger` when `forward` is set (chronological history).
+ */
 export async function* accountTxs(
   client: Client,
   account: string,
   maxPages: number,
+  options: { forward?: boolean; fromLedger?: number } = {},
 ): AsyncGenerator<LedgerTx> {
   let marker: unknown;
   for (let page = 0; page < maxPages; page++) {
     const { result } = await client.request({
       command: "account_tx",
       account,
-      ledger_index_min: -1,
+      ledger_index_min: options.fromLedger ?? -1,
       ledger_index_max: -1,
       limit: 200,
+      ...(options.forward ? { forward: true } : {}),
       ...(marker ? { marker } : {}),
     });
     for (const t of result.transactions) {
       if (!t.validated || !t.tx_json || !t.hash || !succeeded(t.meta)) continue;
       const closeTime = (t as { close_time_iso?: string }).close_time_iso;
+      const ledgerIndex = (t as { ledger_index?: number }).ledger_index;
       yield {
         hash: t.hash,
         tx: t.tx_json as LedgerTx["tx"],
         meta: t.meta,
         ...(closeTime ? { closeTime } : {}),
+        ...(typeof ledgerIndex === "number" ? { ledgerIndex } : {}),
       };
     }
     marker = result.marker;

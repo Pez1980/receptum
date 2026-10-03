@@ -1,9 +1,12 @@
 import {
   canonicalJson,
+  checkPayeeBinding,
   createReceipt,
   sha256Hex,
   signReceipt,
   verifySignedReceipt,
+  type AccountBinding,
+  type BindingVerifier,
   type DeliveryReceipt,
   type SellerKey,
   type Sha256Hex,
@@ -59,6 +62,8 @@ export interface ReceiptedToolOptions<A> {
   price: { asset: string; amount: string; payTo?: string; scheme?: string };
   acceptance?: DeliveryReceipt["acceptance"];
   remedy?: DeliveryReceipt["remedy"];
+  /** Account bindings (SPEC §4.1) for this seller, attached to every receipt. */
+  bindings?: AccountBinding[];
 }
 
 /**
@@ -96,9 +101,14 @@ export function withReceipts<A, E>(
       acceptance: options.acceptance ?? { mode: "auto", reviewWindowSeconds: 0 },
       ...(options.remedy ? { remedy: options.remedy } : {}),
     });
+    const signed = signReceipt(receipt, options.seller);
+    const bindings = options.bindings?.filter((b) => b.statement?.did === options.seller.did);
     return {
       ...result,
-      _meta: { ...result._meta, [RECEIPT_META_KEY]: signReceipt(receipt, options.seller) },
+      _meta: {
+        ...result._meta,
+        [RECEIPT_META_KEY]: bindings?.length ? { ...signed, bindings } : signed,
+      },
     };
   };
 }
@@ -128,7 +138,14 @@ const bare = (account?: string) => account?.split(":").pop()?.toLowerCase();
 export function verifyToolResult(
   result: ToolResult,
   allowedSellers?: readonly string[],
-  options: { requireSettlement?: boolean; expected?: ToolExpectations } = {},
+  options: {
+    requireSettlement?: boolean;
+    expected?: ToolExpectations;
+    /** Require a valid seller ↔ payee account binding (SPEC §4.1). */
+    requireBinding?: boolean;
+    /** Verifiers for the payee's namespace, e.g. `evmBindingVerifier`. */
+    bindingVerifiers?: readonly BindingVerifier[];
+  } = {},
 ): ToolResultCheck {
   const signed = result._meta?.[RECEIPT_META_KEY] as SignedReceipt | undefined;
   if (!signed) return { ok: false, reasons: ["no Receptum receipt on the tool result"] };
@@ -165,6 +182,13 @@ export function verifyToolResult(
     reasons.push("receipt is for different arguments");
   if (allowedSellers && !allowedSellers.includes(r.seller.id))
     reasons.push("seller is not on the allow-list");
+  if (options.requireBinding) {
+    const bound = checkPayeeBinding(
+      signed,
+      options.bindingVerifiers ? { verifiers: options.bindingVerifiers } : {},
+    );
+    if (!bound.ok) reasons.push(`account binding: ${bound.reason}`);
+  }
   return { ok: reasons.length === 0, receipt: signed, reasons };
 }
 

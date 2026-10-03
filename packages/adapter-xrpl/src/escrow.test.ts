@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { rippleTimeToISOTime, Wallet } from "xrpl";
 import { XrplAnchor } from "./anchor.js";
 import { newEscrowSecret } from "./condition.js";
-import { parseReceiptMemos } from "./encoding.js";
+import { parseReceiptMemos, receiptMemos } from "./encoding.js";
 import { XrplEscrowRail } from "./escrow.js";
 import { fakeLedger } from "./fake-ledger.test-util.js";
 import { XrplTxError } from "./ledger.js";
@@ -131,6 +131,91 @@ describe("XrplEscrowRail", () => {
     await expect(new XrplEscrowRail({ client: ledger.client }).refund("x")).rejects.toThrow(
       /wallet/,
     );
+  });
+});
+
+describe("XrplEscrowRail delivery from chronological history", () => {
+  let ledger: ReturnType<typeof fakeLedger>;
+  let secret: ReturnType<typeof newEscrowSecret>;
+  const rail = (wallet: Wallet) =>
+    new XrplEscrowRail({ client: ledger.client, wallet, fulfillment: () => secret.fulfillment });
+  const create = () =>
+    rail(buyer).createEscrow({
+      seller: seller.address,
+      amount: "1000000",
+      asset: "XRP",
+      deliverBy: new Date(rippleTimeToISOTime(ledger.state.closeTime + 600)),
+      reviewWindowSeconds: 300,
+      condition: secret.condition,
+    });
+  /** A raw memo transaction, bypassing deliver()'s own guards (as an attacker could). */
+  const memo = (from: Wallet, hash: string, escrowId: string) =>
+    ledger.client.submitAndWait(
+      {
+        TransactionType: "AccountSet",
+        Account: from.address,
+        Memos: receiptMemos(hash, escrowId),
+      } as never,
+      { wallet: from },
+    );
+  const first = sha256Hex("first");
+  const later = sha256Hex("later");
+
+  beforeEach(() => {
+    ledger = fakeLedger();
+    secret = newEscrowSecret();
+  });
+
+  it("keeps the first delivery memo and ignores later ones", async () => {
+    const { escrowId } = await create();
+    await rail(seller).deliver(escrowId, first);
+    await memo(seller, later, escrowId);
+    expect(await rail(buyer).getEscrow(escrowId)).toMatchObject({
+      status: "delivered",
+      receiptHash: first,
+    });
+    await rail(seller).release(escrowId);
+    await memo(seller, later, escrowId);
+    expect(await rail(buyer).getEscrow(escrowId)).toMatchObject({
+      status: "released",
+      receiptHash: first,
+    });
+  });
+
+  it("ignores memos from anyone but the seller", async () => {
+    const { escrowId } = await create();
+    await memo(stranger, later, escrowId);
+    await memo(buyer, later, escrowId);
+    expect(await rail(buyer).getEscrow(escrowId)).toMatchObject({ status: "open" });
+    expect((await rail(buyer).getEscrow(escrowId)).receiptHash).toBeUndefined();
+  });
+
+  it("ignores memos sent before the EscrowCreate (e.g. for a predicted escrow id)", async () => {
+    // Predict the next escrow id (owner:sequence) and "deliver" to it before it exists.
+    const predicted = `${buyer.address}:${101}`;
+    await memo(seller, later, predicted);
+    const { escrowId } = await create();
+    expect(escrowId).toBe(predicted);
+    expect(await rail(buyer).getEscrow(escrowId)).toMatchObject({ status: "open" });
+  });
+
+  it("ignores memos after CancelAfter, and a delivery after refund doesn't count", async () => {
+    const { escrowId } = await create();
+    ledger.state.closeTime += 901; // past CancelAfter
+    await memo(seller, later, escrowId);
+    expect(await rail(buyer).getEscrow(escrowId)).toMatchObject({ status: "open" });
+    await rail(buyer).refund(escrowId);
+    await memo(seller, later, escrowId);
+    const state = await rail(buyer).getEscrow(escrowId);
+    expect(state.status).toBe("refunded");
+    expect(state.receiptHash).toBeUndefined();
+  });
+
+  it("counts a delivery at exactly CancelAfter but not one second later", async () => {
+    const { escrowId } = await create();
+    ledger.state.closeTime += 900; // == CancelAfter
+    await memo(seller, first, escrowId);
+    expect(await rail(buyer).getEscrow(escrowId)).toMatchObject({ receiptHash: first });
   });
 });
 

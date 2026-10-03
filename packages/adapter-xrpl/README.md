@@ -97,7 +97,9 @@ Resulting guarantees:
 
 Keys stay with the integrator: wallets are injected xrpl.js `Wallet`s and the adapter never stores them.
 
-`getEscrow` reads the escrow ledger entry while it exists; afterwards it finds the closing `EscrowFinish`/`EscrowCancel` in the owner's history. `delivered` and `receiptHash` come from the seller's history. Both scans are bounded by `maxHistoryPages` (200 txs per page, default 10) — very busy accounts need a larger bound or an indexer.
+- Account bindings (SPEC §4.1): `xrplAccountSigner(wallet, { account? })` signs with ripple-keypairs; `xrplBindingVerifier` checks offline that the key is the account's master key; `xrplOnlineBindingVerifier(client, address)` accepts the master key (unless `lsfDisableMaster`) or the current `RegularKey`.
+
+`getEscrow` derives state from chronological ledger history. Settlement: the escrow ledger entry while it exists; afterwards the `EscrowFinish`/`EscrowCancel` that deleted it (owner's history). Delivery: the **first** successful memo transaction from the seller naming the escrow, ordered after the `EscrowCreate` (found via the entry's `PreviousTxnID`), with a close time ≤ `CancelAfter`, and before the settling transaction — scanned forward from the creation ledger. Later memos (re-deliveries, memos after refund) are ignored, as are memos sent before the escrow existed. Scans are bounded by `maxHistoryPages` (200 txs per page, default 10); because the delivery scan runs forward, truncation can only miss a delivery, never pick a later one.
 
 ## Running the testnet E2E
 

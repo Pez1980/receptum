@@ -11,12 +11,17 @@ import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { sellerKeyFromPem, sha256Hex } from "@receptum/core";
 import { handlePaidJob } from "@receptum/server";
-import { clientsFor, EvmAnchor } from "@receptum/adapter-evm";
+import { clientsFor, evmBindingVerifier, EvmAnchor } from "@receptum/adapter-evm";
 
 const PORT = Number(process.env.PORT ?? 4021);
 const dir = process.env.RECEPTUM_WALLETS_DIR ?? join(homedir(), ".config/receptum/wallets");
 const wallets = JSON.parse(readFileSync(join(dir, "evm-testnet.json"), "utf8"));
 const sellerKey = sellerKeyFromPem(readFileSync(join(dir, "seller-ed25519.pem"), "utf8"));
+// Public account binding (SPEC §4.1): proves this did:key controls the payTo account.
+// Regenerate with examples/bindings/create.mjs when you change keys.
+const binding = JSON.parse(
+  readFileSync(new URL("../bindings/evm-base-sepolia.json", import.meta.url), "utf8"),
+);
 
 const x402 = new x402ResourceServer(
   new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" }),
@@ -94,6 +99,9 @@ const server = createServer(async (req, res) => {
         acceptance: { mode: "auto", reviewWindowSeconds: 0 },
         remedy: { kind: "rerender", withinDays: 30 },
         ...(anchor ? { anchor } : {}),
+        bindings: [binding],
+        // Refuse to charge if the binding doesn't cover payTo.
+        bindingVerifiers: [evmBindingVerifier],
       },
     );
     if (result.anchor)

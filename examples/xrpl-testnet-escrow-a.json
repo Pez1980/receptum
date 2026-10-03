@@ -1,0 +1,57 @@
+{
+  "receipt": {
+    "version": "receptum/1",
+    "receiptId": "RCPT-R734-1HBP",
+    "jobIdHash": "dd1d3f3f2e84543a935b45cfe852e04e9505dbfa97bd39dc8600ba91a1c52c30",
+    "seller": {
+      "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "name": "receptum e2e seller"
+    },
+    "inputSha256": ["dbb0fc1fa1b342e8ee00e9ba366303d08cd0776a151d904b644aec0ab60d8f18"],
+    "outputSha256": "edd01df9dc8f29274f2dd3065dfd55944f298ea4e3418db06d018e15ef04f4b1",
+    "payment": {
+      "rail": "escrow:xrpl",
+      "network": "xrpl:1",
+      "asset": "XRP",
+      "amount": "2000000",
+      "reference": "rfy1FurqCy5P7ads54PCxGUbqJyeK1LX7r:21239409",
+      "payer": "xrpl:1:rfy1FurqCy5P7ads54PCxGUbqJyeK1LX7r",
+      "payee": "xrpl:1:rUuUZJXy7qQhZkpr8ovFBgBT5JrPv3nnFf"
+    },
+    "acceptance": {
+      "mode": "buyer",
+      "reviewWindowSeconds": 600
+    },
+    "deliveredAt": "2026-10-03T15:13:34.070Z",
+    "buyer": {
+      "id": "xrpl:1:rfy1FurqCy5P7ads54PCxGUbqJyeK1LX7r"
+    }
+  },
+  "receiptHash": "d4a1e567398a727d864a1e34cd91f3e44b72cabc30b42e89b3d5bdf772a70678",
+  "proof": {
+    "type": "jws",
+    "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+    "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..EHC0KUMpHntRee5H2tar3WeaA5BgtwfeDdpSJyAoTuvxQe11TSKHP7laEjtQBocOeZM_k3UzYsJ_QN7RQIpvDQ"
+  },
+  "bindings": [
+    {
+      "statement": {
+        "type": "receptum/account-binding/1",
+        "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "account": "xrpl:1:rUuUZJXy7qQhZkpr8ovFBgBT5JrPv3nnFf",
+        "issuedAt": "2026-10-03T17:01:50.252Z",
+        "expiresAt": "2027-10-03T17:01:50.252Z"
+      },
+      "didProof": {
+        "type": "jws",
+        "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..JpzrIycmdJwVa6RKASijFOMmhmusJGEa1SCYRyO8Dc-MQk_eBldMDbgePRCqFJmfxENlyWrmL4NGwUyF_tgKAA"
+      },
+      "accountProof": {
+        "type": "xrpl",
+        "publicKey": "EDA88B07C40E25E9B2FCF4C971A741BEFEAD05B38E85E249720BAB7AB411384E1B",
+        "signature": "A05F00433CC216BE8A1825B31ADDF7568F8405532214C7BAE4A6BCE13ABABD301AFB0D816873978A250729EEE77A493003F52B0CE15474FE2778AC06CB49850C"
+      }
+    }
+  ]
+}

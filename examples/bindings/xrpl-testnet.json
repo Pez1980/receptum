@@ -1,0 +1,19 @@
+{
+  "statement": {
+    "type": "receptum/account-binding/1",
+    "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+    "account": "xrpl:1:rUuUZJXy7qQhZkpr8ovFBgBT5JrPv3nnFf",
+    "issuedAt": "2026-10-03T17:01:50.252Z",
+    "expiresAt": "2027-10-03T17:01:50.252Z"
+  },
+  "didProof": {
+    "type": "jws",
+    "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+    "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..JpzrIycmdJwVa6RKASijFOMmhmusJGEa1SCYRyO8Dc-MQk_eBldMDbgePRCqFJmfxENlyWrmL4NGwUyF_tgKAA"
+  },
+  "accountProof": {
+    "type": "xrpl",
+    "publicKey": "EDA88B07C40E25E9B2FCF4C971A741BEFEAD05B38E85E249720BAB7AB411384E1B",
+    "signature": "A05F00433CC216BE8A1825B31ADDF7568F8405532214C7BAE4A6BCE13ABABD301AFB0D816873978A250729EEE77A493003F52B0CE15474FE2778AC06CB49850C"
+  }
+}

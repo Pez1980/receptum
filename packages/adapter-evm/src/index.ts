@@ -332,3 +332,5 @@ export class EvmAnchor implements Anchor {
     };
   }
 }
+
+export { evmAccountSigner, evmBindingVerifier } from "./binding.js";

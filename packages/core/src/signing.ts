@@ -8,6 +8,7 @@ import {
 } from "node:crypto";
 import { receiptBytes, receiptHash, type DeliveryReceipt } from "./receipt.js";
 import type { Sha256Hex } from "./hash.js";
+import type { AccountBinding } from "./binding.js";
 
 // ─── base58btc / base64url ─────────────────────────────────────────────────
 
@@ -76,6 +77,16 @@ export function publicKeyFromDidKey(did: string): KeyObject {
   });
 }
 
+/** KeyObject for a raw 32-byte Ed25519 public key. */
+export function ed25519PublicKeyFromRaw(raw: Uint8Array): KeyObject {
+  if (raw.length !== 32) throw new TypeError("Ed25519 public key must be 32 bytes");
+  return createPublicKey({
+    key: Buffer.concat([ED25519_SPKI_PREFIX, raw]),
+    format: "der",
+    type: "spki",
+  });
+}
+
 export interface SellerKey {
   did: string;
   privateKey: KeyObject;
@@ -124,6 +135,64 @@ export interface SignedReceipt {
   receipt: DeliveryReceipt;
   receiptHash: Sha256Hex;
   proof: JwsProof;
+  /**
+   * Account bindings (SPEC §4.1) proving the seller's did:key also controls its payout account(s).
+   * Carried beside the receipt, not inside it: they are not part of `receiptHash`.
+   */
+  bindings?: AccountBinding[];
+}
+
+const kidFor = (did: string) => `${did}#${did.slice("did:key:".length)}`;
+
+/** Detached compact JWS (`<header>..<signature>`) over `payload` with the given `typ`. */
+export function signDetachedJws(payload: string, key: SellerKey, typ: string): JwsProof {
+  const kid = kidFor(key.did);
+  const header = b64u(JSON.stringify({ alg: "EdDSA", kid, typ }));
+  const signature = sign(null, Buffer.from(`${header}.${b64u(payload)}`), key.privateKey);
+  return { type: "jws", kid, jws: `${header}..${b64u(signature)}` };
+}
+
+/**
+ * Verifies a detached JWS made by `signDetachedJws`: exact segments and header members, the
+ * expected `typ`, `kid` = `<did>#<multibase>` for `expectedDid`, canonical 64-byte signature.
+ */
+export function verifyDetachedJws(
+  proof: JwsProof,
+  payload: string,
+  expectedDid: string,
+  typ: string,
+): { ok: true } | { ok: false; reason: string } {
+  if (proof?.type !== "jws") return { ok: false, reason: "unsupported proof type" };
+  if (typeof proof.jws !== "string" || typeof proof.kid !== "string")
+    return { ok: false, reason: "malformed detached JWS" };
+  const parts = proof.jws.split(".");
+  if (parts.length !== 3 || parts[1] !== "") return { ok: false, reason: "malformed detached JWS" };
+  const [header, , sig] = parts as [string, string, string];
+  if (!B64U.test(header) || !B64U.test(sig))
+    return { ok: false, reason: "JWS segments must be base64url" };
+  const h = JSON.parse(Buffer.from(header, "base64url").toString()) as Record<string, unknown>;
+  if (b64u(Buffer.from(header, "base64url")) !== header)
+    return { ok: false, reason: "non-canonical base64url header" };
+  const keys = Object.keys(h).sort().join(",");
+  if (keys !== "alg,kid,typ") return { ok: false, reason: "unexpected JWS header parameters" };
+  if (h.alg !== "EdDSA") return { ok: false, reason: "unsupported alg" };
+  if (h.typ !== typ) return { ok: false, reason: "unexpected typ" };
+  if (h.kid !== proof.kid) return { ok: false, reason: "kid mismatch" };
+  const kidParts = proof.kid.split("#");
+  const [did, fragment] = kidParts;
+  if (kidParts.length !== 2 || !did || fragment !== did.slice("did:key:".length))
+    return { ok: false, reason: "kid must be <did>#<multibase key>" };
+  const sigBytes = Buffer.from(sig, "base64url");
+  if (sigBytes.length !== 64 || b64u(sigBytes) !== sig)
+    return { ok: false, reason: "non-canonical signature encoding" };
+  if (did !== expectedDid) return { ok: false, reason: "signer is not the expected did" };
+  const valid = verify(
+    null,
+    Buffer.from(`${header}.${b64u(payload)}`),
+    publicKeyFromDidKey(did),
+    sigBytes,
+  );
+  return valid ? { ok: true } : { ok: false, reason: "bad signature" };
 }
 
 /**
@@ -134,16 +203,14 @@ export function signReceipt(receipt: DeliveryReceipt, key: SellerKey): SignedRec
   if (receipt.seller.id !== key.did) {
     throw new Error("receipt.seller.id must equal the signing key's did:key");
   }
-  const kid = `${key.did}#${key.did.slice("did:key:".length)}`;
-  const header = b64u(JSON.stringify({ alg: "EdDSA", kid, typ: "receptum+jws" }));
-  const payload = b64u(receiptBytes(receipt));
-  const signature = sign(null, Buffer.from(`${header}.${payload}`), key.privateKey);
   return {
     receipt,
     receiptHash: receiptHash(receipt),
-    proof: { type: "jws", kid, jws: `${header}..${b64u(signature)}` },
+    proof: signDetachedJws(receiptBytes(receipt), key, RECEIPT_JWS_TYP),
   };
 }
+
+export const RECEIPT_JWS_TYP = "receptum+jws";
 
 export type VerifyResult =
   { ok: true; seller: string; receiptHash: Sha256Hex } | { ok: false; reason: string };
@@ -154,40 +221,17 @@ export function verifySignedReceipt(signed: SignedReceipt): VerifyResult {
     const hash = receiptHash(signed.receipt);
     if (hash !== signed.receiptHash)
       return { ok: false, reason: "receiptHash does not match the receipt" };
-    if (signed.proof?.type !== "jws") return { ok: false, reason: "unsupported proof type" };
-    const parts = signed.proof.jws.split(".");
-    if (parts.length !== 3 || parts[1] !== "")
-      return { ok: false, reason: "malformed detached JWS" };
-    const [header, , sig] = parts as [string, string, string];
-    if (!B64U.test(header) || !B64U.test(sig))
-      return { ok: false, reason: "JWS segments must be base64url" };
-    const h = JSON.parse(Buffer.from(header, "base64url").toString()) as Record<string, unknown>;
-    if (b64u(Buffer.from(header, "base64url")) !== header)
-      return { ok: false, reason: "non-canonical base64url header" };
-    const keys = Object.keys(h).sort().join(",");
-    if (keys !== "alg,kid,typ") return { ok: false, reason: "unexpected JWS header parameters" };
-    if (h.alg !== "EdDSA") return { ok: false, reason: "unsupported alg" };
-    if (h.typ !== "receptum+jws") return { ok: false, reason: "unexpected typ" };
-    if (h.kid !== signed.proof.kid) return { ok: false, reason: "kid mismatch" };
-    const kidParts = signed.proof.kid.split("#");
-    const [did, fragment] = kidParts;
-    if (kidParts.length !== 2 || !did || fragment !== did.slice("did:key:".length))
-      return { ok: false, reason: "kid must be <did>#<multibase key>" };
-    const sigBytes = Buffer.from(sig, "base64url");
-    if (sigBytes.length !== 64 || b64u(sigBytes) !== sig)
-      return { ok: false, reason: "non-canonical signature encoding" };
-    if (did !== signed.receipt.seller.id)
-      return { ok: false, reason: "signer is not the receipt's seller" };
-    const payload = b64u(receiptBytes(signed.receipt));
-    const valid = verify(
-      null,
-      Buffer.from(`${header}.${payload}`),
-      publicKeyFromDidKey(did),
-      Buffer.from(sig, "base64url"),
-    );
-    return valid
-      ? { ok: true, seller: did, receiptHash: hash }
-      : { ok: false, reason: "bad signature" };
+    const did = signed.receipt.seller.id;
+    const res = verifyDetachedJws(signed.proof, receiptBytes(signed.receipt), did, RECEIPT_JWS_TYP);
+    if (!res.ok)
+      return {
+        ok: false,
+        reason:
+          res.reason === "signer is not the expected did"
+            ? "signer is not the receipt's seller"
+            : res.reason,
+      };
+    return { ok: true, seller: did, receiptHash: hash };
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) };
   }

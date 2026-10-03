@@ -120,12 +120,12 @@ export function createReceipt(input: ReceiptInput): DeliveryReceipt {
 const CAIP2 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$/;
 const RECEIPT_ID = /^RCPT-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
 const AMOUNT = /^(0|[1-9][0-9]*)$/;
-const CAIP10 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}:[-.%a-zA-Z0-9]{1,128}$/;
+export const CAIP10 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}:[-.%a-zA-Z0-9]{1,128}$/;
 const DID = /^did:[a-z0-9]+:[A-Za-z0-9._%-]+(:[A-Za-z0-9._%-]+)*$/;
 const isIdentity = (v: string) => DID.test(v) || CAIP10.test(v);
 
 /** Calendar-valid YYYY-MM-DDTHH:MM:SS(.f)Z without JavaScript date normalization. */
-function isUtcTimestamp(v: string): boolean {
+export function isUtcTimestamp(v: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?Z$/.exec(v);
   if (!m) return false;
   const [y, mo, d, h, mi, se] = m.slice(1, 7).map(Number) as [

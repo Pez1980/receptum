@@ -16,9 +16,12 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "contracts:build": "forge build && node scripts/export-artifact.mjs",
+    "contracts:test": "forge test"
   },
   "dependencies": {
-    "@receptum/core": "workspace:*"
+    "@receptum/core": "workspace:*",
+    "viem": "^2.57.2"
   }
 }

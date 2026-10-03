@@ -18,5 +18,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Build and test contracts
+        working-directory: packages/adapter-evm
+        run: |
+          forge install foundry-rs/forge-std --no-git
+          forge build
+          forge test
       - run: pnpm install --frozen-lockfile
       - run: pnpm check

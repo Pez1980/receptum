@@ -19,3 +19,8 @@ wallet*.json
 *.db
 .vscode/
 .idea/
+# Foundry
+packages/adapter-evm/lib/
+packages/adapter-evm/contracts/out/
+packages/adapter-evm/contracts/cache/
+broadcast/

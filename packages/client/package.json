@@ -1,5 +1,5 @@
 {
-  "name": "@workreceipt/client",
+  "name": "@receptum/client",
   "version": "0.0.0",
   "description": "Buyer and agent client: pays HTTP 402 responses within per-agent spending limits and verifies receipts.",
   "license": "Apache-2.0",
@@ -19,6 +19,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@workreceipt/core": "workspace:*"
+    "@receptum/core": "workspace:*"
   }
 }

@@ -1,4 +1,4 @@
-# @workreceipt/adapter-xrpl
+# @receptum/adapter-xrpl
 
 XRP Ledger rail: RLUSD payments, native Escrow, memo-anchored receipts.
 

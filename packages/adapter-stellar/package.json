@@ -1,5 +1,5 @@
 {
-  "name": "@workreceipt/adapter-stellar",
+  "name": "@receptum/adapter-stellar",
   "version": "0.0.0",
   "description": "Stellar rail: USDC on Stellar, Soroban escrow contract, Stellar x402 facilitator, receipt anchoring.",
   "license": "Apache-2.0",
@@ -19,6 +19,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@workreceipt/core": "workspace:*"
+    "@receptum/core": "workspace:*"
   }
 }

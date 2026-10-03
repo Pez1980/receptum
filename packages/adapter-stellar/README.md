@@ -1,4 +1,4 @@
-# @workreceipt/adapter-stellar
+# @receptum/adapter-stellar
 
 Stellar rail: USDC on Stellar, Soroban escrow contract, Stellar x402 facilitator, receipt anchoring.
 

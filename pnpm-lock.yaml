@@ -32,25 +32,25 @@ importers:
 
   packages/adapter-evm:
     dependencies:
-      '@workreceipt/core':
+      '@receptum/core':
         specifier: workspace:*
         version: link:../core
 
   packages/adapter-stellar:
     dependencies:
-      '@workreceipt/core':
+      '@receptum/core':
         specifier: workspace:*
         version: link:../core
 
   packages/adapter-xrpl:
     dependencies:
-      '@workreceipt/core':
+      '@receptum/core':
         specifier: workspace:*
         version: link:../core
 
   packages/client:
     dependencies:
-      '@workreceipt/core':
+      '@receptum/core':
         specifier: workspace:*
         version: link:../core
 
@@ -58,19 +58,19 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@workreceipt/core':
+      '@receptum/core':
         specifier: workspace:*
         version: link:../core
 
   packages/server:
     dependencies:
-      '@workreceipt/core':
+      '@receptum/core':
         specifier: workspace:*
         version: link:../core
 
   packages/verify:
     dependencies:
-      '@workreceipt/core':
+      '@receptum/core':
         specifier: workspace:*
         version: link:../core
 

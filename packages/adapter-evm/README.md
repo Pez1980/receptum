@@ -1,4 +1,4 @@
-# @workreceipt/adapter-evm
+# @receptum/adapter-evm
 
 EVM rail for Base and Arc: USDC x402 payments, minimal escrow contract, receipt anchoring in release events.
 

@@ -1,6 +1,6 @@
-# @workreceipt/core
+# @receptum/core
 
-Chain-agnostic building blocks shared by every WorkReceipt rail:
+Chain-agnostic building blocks shared by every Receptum rail:
 
 - `createReceipt` / `receiptHash` — build a delivery receipt from input and output hashes and get the single SHA-256 value that goes on-chain. Raw job ids are hashed, never published.
 - `canonicalJson` — deterministic JSON so every party hashes identical bytes.

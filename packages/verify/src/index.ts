@@ -1,2 +1,2 @@
-// @workreceipt/verify — not implemented yet. Planned: Oct 2026 (Colosseum). See docs/ROADMAP.md.
+// @receptum/verify — not implemented yet. Planned: Oct 2026 (Colosseum). See docs/ROADMAP.md.
 export {};

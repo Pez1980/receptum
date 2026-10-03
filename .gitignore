@@ -12,3 +12,10 @@ coverage/
 *.key
 *.keystore
 wallet*.json
+# Local tooling state and databases
+.wrangler/
+*.sqlite
+*.sqlite3
+*.db
+.vscode/
+.idea/

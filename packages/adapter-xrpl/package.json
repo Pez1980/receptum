@@ -1,5 +1,5 @@
 {
-  "name": "@workreceipt/adapter-xrpl",
+  "name": "@receptum/adapter-xrpl",
   "version": "0.0.0",
   "description": "XRP Ledger rail: RLUSD payments, native Escrow, memo-anchored receipts.",
   "license": "Apache-2.0",
@@ -19,6 +19,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@workreceipt/core": "workspace:*"
+    "@receptum/core": "workspace:*"
   }
 }

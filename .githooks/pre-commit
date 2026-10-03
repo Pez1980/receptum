@@ -1,0 +1,19 @@
+#!/bin/sh
+# Blocks commits that contain secrets or files that must never be published.
+set -e
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --staged --no-banner --redact || {
+    echo "pre-commit: gitleaks found a possible secret. Remove it before committing." >&2
+    exit 1
+  }
+else
+  echo "pre-commit: gitleaks not installed — secret scan skipped (CI still scans)." >&2
+fi
+
+blocked=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '(^|/)(\.env($|\.)|.*\.(pem|key|p12|keystore|sqlite|sqlite3|db)$|wallet[^/]*\.json$|\.wrangler/|\.DS_Store$)' | grep -v '\.env\.example$' || true)
+if [ -n "$blocked" ]; then
+  echo "pre-commit: these files must not be committed:" >&2
+  echo "$blocked" >&2
+  exit 1
+fi

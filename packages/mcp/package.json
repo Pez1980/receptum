@@ -1,5 +1,5 @@
 {
-  "name": "@workreceipt/mcp",
+  "name": "@receptum/mcp",
   "version": "0.0.0",
   "description": "Turn MCP tools into paid tools: price per call, x402 payment, receipt per result.",
   "license": "Apache-2.0",
@@ -19,6 +19,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@workreceipt/core": "workspace:*"
+    "@receptum/core": "workspace:*"
   }
 }

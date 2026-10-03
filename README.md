@@ -1,8 +1,8 @@
-# WorkReceipt
+# Receptum
 
 **Pay-per-job for AI agents and services, with escrow and verifiable proof of delivery.**
 
-WorkReceipt is an open-source TypeScript SDK that lets any service charge per unit of work in stablecoins and prove what it delivered:
+Receptum is an open-source TypeScript SDK that lets any service charge per unit of work in stablecoins and prove what it delivered:
 
 1. **Quote and pay** — the seller prices a job and answers with HTTP `402 Payment Required` ([x402](https://www.x402.org/)). Humans or AI agents pay in USDC or RLUSD.
 2. **Escrow** — funds are held on-chain until the work is delivered, so the buyer can be refunded if it isn't.
@@ -13,23 +13,23 @@ It was built for AI video rendering, but works for any job with a digital delive
 
 ## Packages
 
-| Package                                                    | What it does                                                | Status           |
-| ---------------------------------------------------------- | ----------------------------------------------------------- | ---------------- |
-| [`@workreceipt/core`](packages/core)                       | Receipts, canonical hashing, job lifecycle, rail interfaces | Usable (pre-1.0) |
-| [`@workreceipt/server`](packages/server)                   | Seller-side x402 middleware for Fastify / Express           | Planned          |
-| [`@workreceipt/client`](packages/client)                   | Buyer / agent client with spending limits                   | Planned          |
-| [`@workreceipt/mcp`](packages/mcp)                         | Paid MCP tools                                              | Planned          |
-| [`@workreceipt/verify`](packages/verify)                   | CLI + web page to verify a file against its receipt         | Planned          |
-| [`@workreceipt/adapter-evm`](packages/adapter-evm)         | Base and Arc: USDC, escrow contract, receipt anchoring      | Planned          |
-| [`@workreceipt/adapter-stellar`](packages/adapter-stellar) | Stellar: USDC, Soroban escrow                               | Planned          |
-| [`@workreceipt/adapter-xrpl`](packages/adapter-xrpl)       | XRP Ledger: RLUSD, native Escrow                            | Planned          |
+| Package                                                 | What it does                                                | Status           |
+| ------------------------------------------------------- | ----------------------------------------------------------- | ---------------- |
+| [`@receptum/core`](packages/core)                       | Receipts, canonical hashing, job lifecycle, rail interfaces | Usable (pre-1.0) |
+| [`@receptum/server`](packages/server)                   | Seller-side x402 middleware for Fastify / Express           | Planned          |
+| [`@receptum/client`](packages/client)                   | Buyer / agent client with spending limits                   | Planned          |
+| [`@receptum/mcp`](packages/mcp)                         | Paid MCP tools                                              | Planned          |
+| [`@receptum/verify`](packages/verify)                   | CLI + web page to verify a file against its receipt         | Planned          |
+| [`@receptum/adapter-evm`](packages/adapter-evm)         | Base and Arc: USDC, escrow contract, receipt anchoring      | Planned          |
+| [`@receptum/adapter-stellar`](packages/adapter-stellar) | Stellar: USDC, Soroban escrow                               | Planned          |
+| [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRP Ledger: RLUSD, native Escrow                            | Planned          |
 
 See the [architecture](docs/ARCHITECTURE.md) and [roadmap](docs/ROADMAP.md).
 
 ## Quick look
 
 ```ts
-import { createReceipt, receiptHash, sha256File } from "@workreceipt/core";
+import { createReceipt, receiptHash, sha256File } from "@receptum/core";
 
 const receipt = createReceipt({
   jobId: "render-8841",
@@ -52,7 +52,7 @@ pnpm check   # format, lint, typecheck, test, build
 
 ## Security
 
-WorkReceipt moves money. Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md). Escrow contracts are **unaudited** until stated otherwise; don't use them with significant funds.
+Receptum moves money. Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md). Escrow contracts are **unaudited** until stated otherwise; don't use them with significant funds.
 
 ## License
 

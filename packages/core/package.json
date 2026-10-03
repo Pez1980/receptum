@@ -1,7 +1,7 @@
 {
-  "name": "@workreceipt/core",
+  "name": "@receptum/core",
   "version": "0.0.0",
-  "description": "Chain-agnostic job lifecycle, delivery receipts and rail interfaces for WorkReceipt.",
+  "description": "Chain-agnostic job lifecycle, delivery receipts and rail interfaces for Receptum.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

@@ -1,11 +1,11 @@
 # Security policy
 
-WorkReceipt handles payments and escrow. We take vulnerabilities seriously.
+Receptum handles payments and escrow. We take vulnerabilities seriously.
 
 ## Reporting
 
 Please **do not** open a public issue. Report privately via GitHub's
-[private vulnerability reporting](https://github.com/Pez1980/workreceipt/security/advisories/new).
+[private vulnerability reporting](https://github.com/Pez1980/receptum/security/advisories/new).
 We aim to acknowledge reports within 3 business days.
 
 ## Scope

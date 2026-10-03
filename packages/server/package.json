@@ -1,5 +1,5 @@
 {
-  "name": "@workreceipt/server",
+  "name": "@receptum/server",
   "version": "0.0.0",
   "description": "Seller-side x402 middleware for Fastify and Express: price a route, answer HTTP 402, verify payment, issue receipts.",
   "license": "Apache-2.0",
@@ -19,6 +19,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@workreceipt/core": "workspace:*"
+    "@receptum/core": "workspace:*"
   }
 }

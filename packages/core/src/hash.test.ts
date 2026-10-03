@@ -12,7 +12,7 @@ describe("hashing", () => {
   });
 
   it("hashes files identically to in-memory data", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "workreceipt-"));
+    const dir = await mkdtemp(join(tmpdir(), "receptum-"));
     const file = join(dir, "clip.bin");
     await writeFile(file, "abc");
     expect(await sha256File(file)).toBe(sha256Hex("abc"));

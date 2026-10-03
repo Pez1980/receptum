@@ -1,5 +1,5 @@
 {
-  "name": "workreceipt",
+  "name": "receptum",
   "private": true,
   "description": "Open-source pay-per-job SDK: stablecoin payment, escrow and verifiable delivery receipts for AI agents and services.",
   "license": "Apache-2.0",

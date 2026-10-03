@@ -1,7 +1,7 @@
 import { canonicalJson } from "./canonical.js";
 import { isSha256Hex, sha256Hex, type Sha256Hex } from "./hash.js";
 
-export const RECEIPT_VERSION = "workreceipt/1" as const;
+export const RECEIPT_VERSION = "receptum/1" as const;
 
 /**
  * Proof that a seller delivered a specific output for a specific paid job.

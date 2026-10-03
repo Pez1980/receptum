@@ -1,4 +1,4 @@
-# @workreceipt/client
+# @receptum/client
 
 Buyer and agent client: pays HTTP 402 responses within per-agent spending limits and verifies receipts.
 

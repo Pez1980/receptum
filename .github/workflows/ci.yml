@@ -76,5 +76,5 @@ jobs:
           built=$(sha256sum target/wasm32v1-none/release/receptum_escrow.wasm | cut -d' ' -f1)
           committed=$(sha256sum receptum_escrow.wasm | cut -d' ' -f1)
           echo "built $built, committed $committed"
-          # Reported, not enforced: the committed wasm was built on macOS (aarch64).
-          [ "$built" = "$committed" ] || echo "::warning::receptum_escrow.wasm is not reproduced bit-for-bit on this runner"
+          # Enforced: the deployed wasm (built on macOS aarch64) reproduces bit-for-bit on Linux x86_64.
+          [ "$built" = "$committed" ] || { echo "::error::receptum_escrow.wasm does not match the committed (deployed) build"; exit 1; }

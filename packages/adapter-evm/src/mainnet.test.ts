@@ -46,7 +46,7 @@ function mocked(network: EvmNetwork, allowMainnet?: boolean) {
 }
 
 describe("EVM mainnet entries", () => {
-  it("lists Base and Arc mainnet with Circle USDC", () => {
+  it("lists Base, Arc and Arbitrum One mainnet with Circle USDC", () => {
     expect(MAINNETS["eip155:8453"]).toMatchObject({
       usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       explorer: "https://basescan.org",
@@ -59,9 +59,27 @@ describe("EVM mainnet entries", () => {
       mainnet: true,
     });
     expect(MAINNETS["eip155:5042"].chain.id).toBe(5042);
+    // Native USDC on Arbitrum One (not the bridged USDC.e).
+    expect(MAINNETS["eip155:42161"]).toMatchObject({
+      usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      explorer: "https://arbiscan.io",
+      mainnet: true,
+    });
+    expect(TESTNETS["eip155:421614"]).toMatchObject({
+      usdc: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+      explorer: "https://sepolia.arbiscan.io",
+      mainnet: false,
+    });
     for (const n of Object.values(TESTNETS)) expect(n.mainnet).toBe(false);
     expect(Object.keys(NETWORKS).sort()).toEqual(
-      ["eip155:5042002", "eip155:84532", "eip155:8453", "eip155:5042"].sort(),
+      [
+        "eip155:5042002",
+        "eip155:84532",
+        "eip155:421614",
+        "eip155:8453",
+        "eip155:5042",
+        "eip155:42161",
+      ].sort(),
     );
     for (const [id, n] of Object.entries(NETWORKS)) expect(`eip155:${n.chain.id}`).toBe(id);
   });
@@ -75,6 +93,7 @@ describe("clientsFor mainnet gate", () => {
       /explicit opt-in/,
     );
     expect(() => clientsFor("eip155:8453", account, { allowMainnet: false })).toThrow();
+    expect(() => clientsFor("eip155:42161", account)).toThrow(MainnetNotAllowedError);
   });
 
   it("allows mainnet with allowMainnet or RECEPTUM_ALLOW_MAINNET=1", () => {
@@ -89,6 +108,7 @@ describe("clientsFor mainnet gate", () => {
   it("keeps testnets the default, without any opt-in", () => {
     vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
     expect(clientsFor("eip155:84532", account).network.mainnet).toBe(false);
+    expect(clientsFor("eip155:421614", account).network.mainnet).toBe(false);
     expect(clientsFor("eip155:5042002", account, { allowMainnet: false }).network.mainnet).toBe(
       false,
     );

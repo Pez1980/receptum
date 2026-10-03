@@ -30,6 +30,7 @@ RECEPTUM_ESCROW_CODE_HASH = "58c8beee19bb48209d7398ba2ecad2b6ec48a77e4929ac82286
 # ReceptumEscrow deployments published by the project (packages/adapter-evm/E2E_RESULTS.md).
 TRUSTED_EVM_ESCROWS: dict[str, tuple[str, ...]] = {
     "eip155:5042002": ("0x20d69c6c647559f48a7e6b0a3f922e99a4068f16",),
+    "eip155:421614": ("0x1cd7ed69a10d5aafcf2fcb927a431183b3c43862",),
 }
 # bytes4(keccak256("escrows(uint256)"))
 ESCROWS_SELECTOR = keccak256(b"escrows(uint256)")[:4].hex()

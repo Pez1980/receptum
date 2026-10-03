@@ -17,9 +17,19 @@ __all__ = [
 ]
 
 TESTNET_NETWORKS = frozenset(
-    {"eip155:84532", "eip155:5042002", "eip155:31337", "eip155:1337", "xrpl:1", "stellar:testnet"}
+    {
+        "eip155:84532",
+        "eip155:5042002",
+        "eip155:421614",
+        "eip155:31337",
+        "eip155:1337",
+        "xrpl:1",
+        "stellar:testnet",
+    }
 )
-MAINNET_NETWORKS = frozenset({"eip155:8453", "eip155:5042", "xrpl:0", "stellar:pubnet"})
+MAINNET_NETWORKS = frozenset(
+    {"eip155:8453", "eip155:5042", "eip155:42161", "xrpl:0", "stellar:pubnet"}
+)
 
 # ReceptumEscrow deployments published by the project. Mainnet entries are deliberately EMPTY:
 # nothing has been deployed to a mainnet, and escrow contracts go there only after an independent
@@ -27,9 +37,11 @@ MAINNET_NETWORKS = frozenset({"eip155:8453", "eip155:5042", "xrpl:0", "stellar:p
 # untrusted deployment.
 TRUSTED_ESCROWS: dict[str, tuple[str, ...]] = {
     "eip155:5042002": ("0x20d69c6c647559f48a7e6b0a3f922e99a4068f16",),
+    "eip155:421614": ("0x1cd7ed69a10d5aafcf2fcb927a431183b3c43862",),
     "stellar:testnet": ("CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG",),
     "eip155:8453": (),
     "eip155:5042": (),
+    "eip155:42161": (),
     "stellar:pubnet": (),
 }
 

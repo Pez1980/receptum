@@ -6,7 +6,7 @@
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
 - **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec — check receipts on every rail without trusting the TypeScript code
-- **Status:** v0.2.0, working end to end on **four testnets** (October 2026): x402 payments on Base, Stellar and the XRP Ledger, escrow on Arc, Stellar (Soroban) and the XRP Ledger. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
+- **Status:** v0.2.0, working end to end on **five testnets** (October 2026): x402 payments on Base, Stellar and the XRP Ledger, escrow on Arc, Arbitrum Sepolia, Stellar (Soroban) and the XRP Ledger. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
 
 ## Install
 
@@ -34,7 +34,7 @@ All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0
 | [`@receptum/client`](packages/client)                   | Pay over x402 and reject results whose receipt, output hash or settlement don't match                                  |
 | [`@receptum/mcp`](packages/mcp)                         | Signed receipts for x402-paid MCP tools (`@x402/mcp`)                                                                  |
 | [`@receptum/verify`](packages/verify)                   | Library + `receptum-verify` CLI: file, signature, settlement and anchor checks                                         |
-| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet and Base Sepolia                                                 |
+| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet, Arbitrum Sepolia and Base Sepolia                               |
 | [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRPL native Escrow with crypto-conditions + memo anchors                                                               |
 | [`@receptum/adapter-stellar`](packages/adapter-stellar) | Soroban `ReceptumEscrow` contract + rail, claimable-balance escrow (USDC), `MEMO_HASH` anchors, x402 settlement checks |
 
@@ -53,6 +53,7 @@ pnpm build && node scripts/verify-examples.mjs
 | x402 render, 0.01 XRP, memo anchor                                                  | XRPL testnet               | VERIFIED                                       | [examples/x402-xrpl](examples/x402-xrpl)                                                                         |
 | Paid MCP tool call with receipt, anchored on Arc                                    | Base Sepolia → Arc testnet | VERIFIED                                       | [packages/mcp/E2E_RESULTS.md](packages/mcp/E2E_RESULTS.md)                                                       |
 | `ReceptumEscrow`: buyer accepts · auto-release (also refund, standalone anchor)     | Arc testnet                | VERIFIED                                       | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)                                       |
+| `ReceptumEscrow`: buyer accepts · auto-release (also refund, standalone anchor)     | Arbitrum Sepolia           | VERIFIED                                       | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md#arbitrum-sepolia-eip155421614)         |
 | Native Escrow with crypto-condition: release (also refund, issued-token escrow)     | XRPL testnet               | VERIFIED                                       | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md)                                     |
 | Soroban escrow (USDC): buyer accepts · auto-release                                 | Stellar testnet            | VERIFIED                                       | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
 | Soroban escrow: evaluator rejected → refunded (also missed deadline, seller refund) | Stellar testnet            | NOT VERIFIED (correct: the seller wasn't paid) | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |

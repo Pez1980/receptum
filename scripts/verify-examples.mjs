@@ -12,6 +12,7 @@ const wrapper = (doc) => ({
 });
 const soroban = json("packages/adapter-stellar/e2e-soroban-results.json").flows;
 const arc = json("packages/adapter-evm/e2e-results.json").flows;
+const arbitrum = json("packages/adapter-evm/e2e-results.arbitrum-sepolia.json").flows;
 const mcp = json("packages/mcp/e2e-results.json");
 
 const cases = [
@@ -55,6 +56,18 @@ const cases = [
     "ReceptumEscrow · Arc · auto-release",
     { signed: arc[1].signedReceipt, anchors: [] },
     "examples/deliverables/arc-testnet-escrow-b.txt",
+    "VERIFIED",
+  ],
+  [
+    "ReceptumEscrow · Arbitrum Sepolia · buyer accepts",
+    wrapper(json("examples/arbitrum-sepolia-escrow-a.json")),
+    "examples/deliverables/arbitrum-sepolia-escrow-a.txt",
+    "VERIFIED",
+  ],
+  [
+    "ReceptumEscrow · Arbitrum Sepolia · auto-release",
+    { signed: arbitrum[1].signedReceipt, anchors: [] },
+    "examples/deliverables/arbitrum-sepolia-escrow-b.txt",
     "VERIFIED",
   ],
   [

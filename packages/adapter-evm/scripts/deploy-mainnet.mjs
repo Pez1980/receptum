@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Deploys ReceptumEscrow to an EVM MAINNET (Base eip155:8453 or Arc eip155:5042). Not part of CI.
+// Deploys ReceptumEscrow to an EVM MAINNET (Base eip155:8453, Arc eip155:5042 or Arbitrum One eip155:42161). Not part of CI.
 //
 //   pnpm --filter @receptum/adapter-evm build
 //   RECEPTUM_ALLOW_MAINNET=1 RECEPTUM_MAINNET_DEPLOYER_KEY=0x… \
@@ -21,11 +21,11 @@ import { createInterface } from "node:readline/promises";
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-export const MAINNET_IDS = ["eip155:8453", "eip155:5042"];
+export const MAINNET_IDS = ["eip155:8453", "eip155:5042", "eip155:42161"];
 export const KEY_ENV = "RECEPTUM_MAINNET_DEPLOYER_KEY";
 
 const USAGE =
-  "usage: RECEPTUM_ALLOW_MAINNET=1 RECEPTUM_MAINNET_DEPLOYER_KEY=0x… node deploy-mainnet.mjs <eip155:8453|eip155:5042> --audit-report <url> [--rpc <url>] [--dry-run] [--out <file>]";
+  "usage: RECEPTUM_ALLOW_MAINNET=1 RECEPTUM_MAINNET_DEPLOYER_KEY=0x… node deploy-mainnet.mjs <eip155:8453|eip155:5042|eip155:42161> --audit-report <url> [--rpc <url>] [--dry-run] [--out <file>]";
 
 export class Refusal extends Error {}
 

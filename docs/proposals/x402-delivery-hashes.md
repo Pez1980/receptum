@@ -1,6 +1,6 @@
 # Proposal: content-binding fields for the x402 offer-and-receipt extension
 
-**Status:** draft, not yet filed upstream · **Target:** `x402-foundation/x402` — `specs/extensions/extension-offer-and-receipt.md` · **Author:** Receptum (Apache-2.0)
+**Status:** submitted upstream on 4 Oct 2026 as [review comment on x402-foundation/x402#3186](https://github.com/x402-foundation/x402/pull/3186#issuecomment-5973093815). That PR (following issue [#2833](https://github.com/x402-foundation/x402/issues/2833)) already adds a signed `responseHash` to a v2 receipt, so instead of a duplicate proposal we asked for the three pieces it lacks: a defined hash input for MCP tool results, an optional request/input hash, and the settled `amount` ([#3006](https://github.com/x402-foundation/x402/issues/3006)). · **Target:** `specs/extensions/extension-offer-and-receipt.md` · **Author:** Receptum (Apache-2.0)
 
 ## Summary
 

@@ -29,7 +29,10 @@ __all__ = [
     "xrpl_json_rpc",
 ]
 
-DEFAULT_XRPL_JSON_RPCS: dict[str, str] = {"xrpl:1": "https://s.altnet.rippletest.net:51234"}
+DEFAULT_XRPL_JSON_RPCS: dict[str, str] = {
+    "xrpl:1": "https://s.altnet.rippletest.net:51234",
+    "xrpl:0": "https://xrplcluster.com",  # mainnet (read-only; NetworkID is still checked)
+}
 # SPEC §7: MemoType = hex("receptum/1"), MemoData = the 32 receiptHash bytes.
 RECEIPT_MEMO_TYPE = b"receptum/1".hex().upper()
 

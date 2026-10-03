@@ -2,7 +2,12 @@ import { Operation } from "@stellar/stellar-sdk";
 import type { Anchor, AnchorRecord, Sha256Hex } from "@receptum/core";
 import { receiptHashFromBase64, receiptMemo } from "./codec.js";
 import { HorizonClient, isNotFound, type HorizonOptions } from "./horizon.js";
-import { STELLAR_ANCHOR_RAIL, STELLAR_TESTNET } from "./network.js";
+import {
+  STELLAR_ANCHOR_RAIL,
+  STELLAR_TESTNET,
+  stellarNetwork,
+  type StellarNetworkLike,
+} from "./network.js";
 import type { StellarSigner } from "./signer.js";
 
 export interface StellarAnchorOptions extends HorizonOptions {
@@ -32,13 +37,14 @@ export function matchAnchor(
   tx: AnchorTxLike,
   receiptHash: Sha256Hex,
   account?: string,
+  network: StellarNetworkLike = STELLAR_TESTNET,
 ): AnchorRecord | null {
   if (!tx.successful || tx.memo_type !== "hash") return null;
   if (account && tx.source_account !== account) return null;
   if (receiptHashFromBase64(tx.memo) !== receiptHash) return null;
   return {
     rail: STELLAR_ANCHOR_RAIL,
-    network: STELLAR_TESTNET.caip2,
+    network: stellarNetwork(network).caip2,
     receiptHash,
     reference: tx.hash,
     anchoredAt: new Date(tx.created_at).toISOString(),
@@ -52,6 +58,8 @@ export function matchAnchor(
  */
 export class StellarAnchor implements Anchor {
   readonly id = STELLAR_ANCHOR_RAIL;
+  /** CAIP-2 id of the network this anchor is on. */
+  readonly network: string;
   private readonly horizon: HorizonClient;
   private readonly signer: StellarSigner | undefined;
   private readonly account: string | undefined;
@@ -59,6 +67,7 @@ export class StellarAnchor implements Anchor {
 
   constructor(options: StellarAnchorOptions = {}) {
     this.horizon = new HorizonClient(options);
+    this.network = this.horizon.network.caip2;
     this.signer = options.signer;
     this.account = options.account ?? options.signer?.publicKey;
     this.maxScan = options.maxScan ?? 200;
@@ -86,7 +95,7 @@ export class StellarAnchor implements Anchor {
     if (hint?.reference) {
       try {
         const tx = (await server.transactions().transaction(hint.reference).call()) as AnchorTxLike;
-        return matchAnchor(tx, receiptHash, this.account);
+        return matchAnchor(tx, receiptHash, this.account, this.horizon.network);
       } catch (err) {
         if (isNotFound(err)) return null;
         throw err;
@@ -97,7 +106,7 @@ export class StellarAnchor implements Anchor {
     let scanned = 0;
     while (page.records.length > 0 && scanned < this.maxScan) {
       for (const tx of page.records as unknown as AnchorTxLike[]) {
-        const hit = matchAnchor(tx, receiptHash, this.account);
+        const hit = matchAnchor(tx, receiptHash, this.account, this.horizon.network);
         if (hit) return hit;
       }
       scanned += page.records.length;

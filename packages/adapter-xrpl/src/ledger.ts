@@ -1,7 +1,18 @@
+import { assertNetworkAllowed } from "@receptum/core";
 import type { Client, Memo, SubmittableTransaction, TransactionMetadata, Wallet } from "xrpl";
 
 /** CAIP-2 ids of the public XRPL networks (by NetworkID). */
 export const XRPL_TESTNET = "xrpl:1";
+export const XRPL_MAINNET = "xrpl:0";
+
+/**
+ * Public WebSocket endpoints by CAIP-2 id. Mainnet (`xrpl:0`) is listed for convenience; signing
+ * there still requires the explicit opt-in (`allowMainnet: true` or `RECEPTUM_ALLOW_MAINNET=1`).
+ */
+export const XRPL_ENDPOINTS: Readonly<Record<string, readonly string[]>> = {
+  [XRPL_TESTNET]: ["wss://s.altnet.rippletest.net:51233"],
+  [XRPL_MAINNET]: ["wss://xrplcluster.com", "wss://s1.ripple.com", "wss://s2.ripple.com"],
+};
 
 /** A validated transaction as seen through `tx` / `account_tx` (API v2). */
 export interface LedgerTx {
@@ -78,27 +89,66 @@ const resultCode = (meta: unknown): string | undefined =>
 
 const succeeded = (meta: unknown): meta is TransactionMetadata => resultCode(meta) === "tesSUCCESS";
 
-/** Autofills, signs, submits and waits for validation; throws unless tesSUCCESS. */
-/** XRPL testnet's NetworkID. Signing is refused on any other network. */
+/** XRPL testnet's NetworkID. */
 export const XRPL_TESTNET_NETWORK_ID = 1;
+/** XRPL mainnet's NetworkID. */
+export const XRPL_MAINNET_NETWORK_ID = 0;
 
-/** Throws unless the connected server reports XRPL testnet. Checked before every signature. */
-export async function assertTestnet(client: Client): Promise<void> {
+/** NetworkID of an `xrpl:<NetworkID>` CAIP-2 id. */
+export function xrplNetworkId(caip2: string): number {
+  const m = /^xrpl:(0|[1-9][0-9]{0,9})$/.exec(caip2);
+  if (!m?.[1]) throw new TypeError(`not an XRPL network id: ${caip2}`);
+  return Number(m[1]);
+}
+
+export interface NetworkGuardOptions {
+  /** Required (or `RECEPTUM_ALLOW_MAINNET=1`) to sign on mainnet `xrpl:0`. */
+  allowMainnet?: boolean;
+}
+
+/**
+ * Throws unless the connected server serves `expected` (a CAIP-2 id, default testnet `xrpl:1`).
+ * Checked before every signature. Testnet needs nothing; mainnet `xrpl:0` (and any other network)
+ * needs the explicit opt-in, checked before the server is even asked. The server must then report
+ * exactly that NetworkID (testnet 1, mainnet 0); a server that reports none is refused, so a
+ * testnet server can never be taken for mainnet or vice versa.
+ */
+export async function assertNetwork(
+  client: Client,
+  expected: string = XRPL_TESTNET,
+  options: NetworkGuardOptions = {},
+): Promise<void> {
+  const want = xrplNetworkId(expected);
+  assertNetworkAllowed(expected, options.allowMainnet, "sign");
   const info = await client.request({ command: "server_info" });
   const id = (info.result.info as { network_id?: number }).network_id;
-  if (id !== XRPL_TESTNET_NETWORK_ID) {
+  if (id !== want) {
     throw new Error(
-      `refusing to sign: connected XRPL server reports NetworkID ${id ?? "none"}, expected testnet (1)`,
+      `refusing to sign: connected XRPL server reports NetworkID ${id ?? "none"}, expected ${expected === XRPL_TESTNET ? "testnet (1)" : `${expected} (${want})`}`,
     );
   }
 }
 
+/**
+ * Throws unless the connected server reports XRPL testnet.
+ * @deprecated Use `assertNetwork(client, "xrpl:1")` (the default).
+ */
+export async function assertTestnet(client: Client): Promise<void> {
+  return assertNetwork(client, XRPL_TESTNET);
+}
+
+/**
+ * Autofills, signs, submits and waits for validation; throws unless tesSUCCESS. Refuses to sign
+ * unless the server serves `network` (default testnet; mainnet needs the opt-in).
+ */
 export async function submit(
   client: Client,
   wallet: Wallet,
   tx: SubmittableTransaction,
+  network: string = XRPL_TESTNET,
+  options: NetworkGuardOptions = {},
 ): Promise<LedgerTx> {
-  await assertTestnet(client);
+  await assertNetwork(client, network, options);
   const res = await client.submitAndWait(tx, { wallet, autofill: true });
   const { meta, hash, tx_json, close_time_iso } = res.result;
   if (!succeeded(meta)) throw new XrplTxError(resultCode(meta) ?? "unknown", hash);

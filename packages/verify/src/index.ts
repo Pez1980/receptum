@@ -1,6 +1,8 @@
 import {
   checkPayeeBinding,
   isCaip2,
+  networkClass,
+  type NetworkClass,
   JsonInputError,
   parseStrictJsonBytes,
   sha256File,
@@ -24,6 +26,7 @@ import {
   StellarAnchor,
   StellarClaimableEscrowRail,
   SorobanRpcClient,
+  stellarNetwork,
   findSacTransfer,
   parseSorobanEscrowId,
   tokenContractId,
@@ -31,6 +34,7 @@ import {
 import {
   parseEscrowId as parseXrplEscrowId,
   parseReceiptMemos,
+  XRPL_ENDPOINTS,
   XrplEscrowRail,
   xrplBindingVerifier,
   xrplOnlineBindingVerifier,
@@ -74,10 +78,20 @@ export interface VerifyReport {
   missing: string[];
   receiptHash: string;
   seller: string;
+  /** `payment.network` of the receipt (CAIP-2). */
+  network?: string;
+  /**
+   * `mainnet`, `testnet` or `unknown`: lets every consumer label mainnet receipts distinctly
+   * (a testnet receipt proves nothing about real money).
+   */
+  networkClass: NetworkClass;
   checks: Check[];
 }
 
-const XRPL_TESTNET_WSS = "wss://s.altnet.rippletest.net:51233";
+/** Stellar networks the verifier reads (testnet and pubnet; read-only, so no opt-in). */
+const STELLAR_IDS = ["stellar:testnet", "stellar:pubnet"];
+/** XRPL networks with a public WebSocket endpoint (testnet `xrpl:1`, mainnet `xrpl:0`). */
+const xrplWss = (network: string) => XRPL_ENDPOINTS[network]?.[0];
 
 /**
  * Rails that commit `receiptHash` themselves (SPEC §7). Every other rail (e.g. x402) needs a
@@ -201,19 +215,37 @@ export const TRUSTED_ESCROWS: Record<string, readonly string[]> = {
   "eip155:5042002": ["0x20d69c6c647559f48a7e6b0a3f922e99a4068f16"],
   // Soroban ReceptumEscrow (packages/adapter-stellar/contracts/receptum-escrow/deployment.testnet.json).
   "stellar:testnet": ["CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG"],
+  // Mainnets: deliberately EMPTY. No ReceptumEscrow has been deployed to a mainnet; escrow
+  // contracts go to mainnet only after an independent audit (docs/MAINNET.md §0). Until a
+  // deployment is published here, mainnet escrow receipts report an untrusted deployment.
+  "eip155:8453": [],
+  "eip155:5042": [],
+  "stellar:pubnet": [],
 };
 
+/** The "not in the registry" result, worded for mainnets that have no published deployment. */
+function untrustedDeployment(network: string, what: string): string {
+  const published = TRUSTED_ESCROWS[network]?.length ?? 0;
+  return networkClass(network) === "mainnet" && published === 0
+    ? `untrusted deployment: no ${what} deployment has been published for mainnet ${network} yet (pass --trust-escrow to accept it)`
+    : `untrusted deployment: ${what}, but this deployment isn't in the trusted registry (pass --trust-escrow to accept it)`;
+}
+
 /** Same Stellar asset, whether written `CODE:ISSUER`, `native` or as its contract id. */
-function sameStellarAsset(a: string, b: string): boolean {
+function sameStellarAsset(a: string, b: string, network: string): boolean {
   try {
-    return tokenContractId(a) === tokenContractId(b);
+    return (
+      tokenContractId(a, stellarNetwork(network)) === tokenContractId(b, stellarNetwork(network))
+    );
   } catch {
     return false;
   }
 }
 
-async function withXrpl<T>(fn: (client: Client) => Promise<T>): Promise<T> {
-  const client = new Client(XRPL_TESTNET_WSS);
+async function withXrpl<T>(network: string, fn: (client: Client) => Promise<T>): Promise<T> {
+  const url = xrplWss(network);
+  if (!url) throw new Unavailable(`no XRPL endpoint configured for ${network}`);
+  const client = new Client(url);
   await client.connect();
   try {
     return await fn(client);
@@ -288,10 +320,7 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       const trusted = [...(TRUSTED_ESCROWS[network] ?? []), ...trustedEscrows].some((t) =>
         sameAddr(t, ref.contract),
       );
-      if (!trusted)
-        return pending(
-          "ReceptumEscrow code, but this deployment isn't in the trusted registry (pass --trust-escrow to accept it)",
-        );
+      if (!trusted) return pending(untrustedDeployment(network, "ReceptumEscrow code"));
       if (!payeeAddr) return noPayee();
       if (statusName === "delivered")
         return pending(
@@ -300,21 +329,23 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       return pass("escrow released to the payee; committed receiptHash and terms match");
     }
     if (rail === SOROBAN_ESCROW_RAIL) {
-      if (network !== "stellar:testnet") return unavailable(`unsupported network ${network}`);
+      if (!STELLAR_IDS.includes(network)) return unavailable(`unsupported network ${network}`);
       let ref: ReturnType<typeof parseSorobanEscrowId>;
       try {
         ref = parseSorobanEscrowId(reference);
       } catch (err) {
         return fail(err instanceof Error ? err.message : String(err));
       }
-      const rpc = new SorobanRpcClient();
+      if (ref.network !== network)
+        return fail(`escrow reference is on ${ref.network}, receipt says ${network}`);
+      const rpc = new SorobanRpcClient({ network: stellarNetwork(network) });
       if ((await rpc.contractWasmHash(ref.contractId)) !== RECEPTUM_SOROBAN_WASM_HASH)
         return fail("referenced contract does not run the published ReceptumEscrow wasm");
       const e = await rpc.readEscrow(ref.contractId, ref.id);
       const acc = signed.receipt.acceptance;
       let token: string | null = null;
       try {
-        token = tokenContractId(asset);
+        token = tokenContractId(asset, stellarNetwork(network));
       } catch {
         // reported below
       }
@@ -339,10 +370,7 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       const trusted = [...(TRUSTED_ESCROWS[network] ?? []), ...trustedEscrows].includes(
         ref.contractId,
       );
-      if (!trusted)
-        return pending(
-          "ReceptumEscrow wasm, but this deployment isn't in the trusted registry (pass --trust-escrow to accept it)",
-        );
+      if (!trusted) return pending(untrustedDeployment(network, "ReceptumEscrow wasm"));
       if (!payeeAddr) return noPayee();
       if (e.status === "delivered")
         return pending(
@@ -351,8 +379,10 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       return pass("Soroban escrow released to the payee; committed receiptHash and terms match");
     }
     if (rail === STELLAR_ESCROW_RAIL) {
-      if (network !== "stellar:testnet") return unavailable(`unsupported network ${network}`);
-      const state = await new StellarClaimableEscrowRail({}).getEscrow(reference);
+      if (!STELLAR_IDS.includes(network)) return unavailable(`unsupported network ${network}`);
+      const state = await new StellarClaimableEscrowRail({
+        network: stellarNetwork(network),
+      }).getEscrow(reference);
       const acc = signed.receipt.acceptance;
       const window =
         (Date.parse(state.releasableAfter!) - Date.parse(state.refundableAfter)) / 1000;
@@ -360,7 +390,7 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
         state.receiptHash !== signed.receiptHash &&
           "no delivery anchor for this receipt before the deadline",
         state.amount !== amount && "amount differs",
-        !sameStellarAsset(state.asset, asset) && "asset differs",
+        !sameStellarAsset(state.asset, asset, network) && "asset differs",
         payerAddr && state.buyer !== payerAddr && "buyer differs from payment.payer",
         payeeAddr && state.seller !== payeeAddr && "seller differs from payment.payee",
         window !== acc.reviewWindowSeconds &&
@@ -380,23 +410,22 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       return unavailable(`only the x402 "exact" scheme is recognised, not ${rail}`);
     if (rail === "x402:exact" && network.startsWith("xrpl:"))
       return { level: 3, name, ...(await verifyXrplX402Payment(signed.receipt.payment)) };
-    if (rail === "x402:exact" && network === "stellar:testnet") {
+    if (rail === "x402:exact" && STELLAR_IDS.includes(network)) {
       // SPEC §7.3 (Stellar): a successful transaction whose Stellar Asset Contract `transfer`
       // moves exactly `amount` of `asset` to the payee (from the payer, when stated).
       if (!/^[0-9a-f]{64}$/.test(reference))
         return fail("payment.reference is not a Stellar transaction hash (64 lower-case hex)");
       try {
-        tokenContractId(asset);
+        tokenContractId(asset, stellarNetwork(network));
       } catch {
         return fail("payment.asset is not a Stellar asset (CODE:ISSUER, native or a C… contract)");
       }
       if (!payeeAddr) return noPayee();
-      const r = await findSacTransfer(reference, {
-        asset,
-        amount,
-        to: payeeAddr,
-        ...(payerAddr ? { from: payerAddr } : {}),
-      });
+      const r = await findSacTransfer(
+        reference,
+        { asset, amount, to: payeeAddr, ...(payerAddr ? { from: payerAddr } : {}) },
+        { network: stellarNetwork(network) },
+      );
       return r.ok
         ? pass(`${amount} base units paid to ${payeeAddr} in ledger ${r.ledger}`)
         : fail(r.reason);
@@ -425,14 +454,16 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
         : fail("no transfer of that amount to the payee in the settlement transaction");
     }
     if (rail === "escrow:xrpl") {
-      if (network !== "xrpl:1") return unavailable(`unsupported network ${network}`);
+      if (!xrplWss(network)) return unavailable(`unsupported network ${network}`);
       try {
         parseXrplEscrowId(reference);
       } catch (err) {
         return fail(err instanceof Error ? err.message : String(err));
       }
-      const r = await withXrpl((client) =>
-        verifyXrplEscrowPayment(signed, (id) => new XrplEscrowRail({ client }).getEscrow(id)),
+      const r = await withXrpl(network, (client) =>
+        verifyXrplEscrowPayment(signed, (id) =>
+          new XrplEscrowRail({ client, network }).getEscrow(id),
+        ),
       );
       return { level: 3, name, ...r };
     }
@@ -491,10 +522,10 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
         `receiptHash anchored in ${reference} (block ${mined.blockNumber}, from ${tx.from})`,
       );
     }
-    if (network === "xrpl:1") {
+    if (xrplWss(network)) {
       // anchor:xrpl — a validated tesSUCCESS tx whose first receptum/1 memo carries receiptHash.
       if (!/^[0-9A-Fa-f]{64}$/.test(reference)) return fail("anchor transaction hash is malformed");
-      return await withXrpl(async (client) => {
+      return await withXrpl(network, async (client) => {
         let result: {
           validated?: boolean;
           meta?: unknown;
@@ -519,10 +550,12 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
           : fail("no receptum/1 memo for this receiptHash in that transaction");
       });
     }
-    if (network === "stellar:testnet") {
+    if (STELLAR_IDS.includes(network)) {
       // anchor:stellar — a successful tx with MEMO_HASH = receiptHash.
       if (!/^[0-9a-f]{64}$/.test(reference)) return fail("anchor transaction hash is malformed");
-      const found = await new StellarAnchor().find(hash, { reference });
+      const found = await new StellarAnchor({ network: stellarNetwork(network) }).find(hash, {
+        reference,
+      });
       return found
         ? pass(`MEMO_HASH anchored ${found.anchoredAt}`)
         : fail("no successful MEMO_HASH transaction for this receiptHash at that reference");
@@ -571,10 +604,13 @@ export async function verifyBinding(
   const verifiers = [...BINDING_VERIFIERS];
   let mode = "offline";
   let lookupError: string | undefined;
-  if (!options.offline && payee.startsWith("xrpl:1:")) {
-    const address = payee.slice("xrpl:1:".length);
+  const xrplNet = /^(xrpl:[0-9]+):/.exec(payee)?.[1];
+  if (!options.offline && xrplNet && xrplWss(xrplNet)) {
+    const address = payee.slice(xrplNet.length + 1);
     try {
-      verifiers.unshift(await withXrpl((client) => xrplOnlineBindingVerifier(client, address)));
+      verifiers.unshift(
+        await withXrpl(xrplNet, (client) => xrplOnlineBindingVerifier(client, address)),
+      );
       mode = "online, current account keys";
     } catch (err) {
       lookupError = `could not load XRPL account keys: ${err instanceof Error ? err.message : String(err)}`;
@@ -717,8 +753,22 @@ export async function verify(
     missing,
     receiptHash: signed?.receiptHash,
     seller: signed?.receipt?.seller?.id,
+    ...(typeof network === "string" ? { network } : {}),
+    networkClass: networkClass(typeof network === "string" ? network : undefined),
     checks,
   };
+}
+
+/**
+ * One-line header that tells mainnet receipts apart from testnet ones — printed first by the
+ * CLI. A testnet receipt is evidence about test tokens only.
+ */
+export function networkLabel(report: Pick<VerifyReport, "network" | "networkClass">): string {
+  const n = report.network ?? "unknown network";
+  if (report.networkClass === "mainnet") return `=== MAINNET receipt (${n}) — real funds ===`;
+  if (report.networkClass === "testnet")
+    return `=== TESTNET receipt (${n}) — test tokens, no real value ===`;
+  return `=== receipt on an unrecognised network (${n}) — neither a known mainnet nor testnet ===`;
 }
 
 /** A receipt file: a bare signed receipt, or a wrapper `{ signedReceipt, anchor?, … }`. */

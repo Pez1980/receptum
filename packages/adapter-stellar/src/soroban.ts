@@ -19,7 +19,18 @@ import {
   type Sha256Hex,
 } from "@receptum/core";
 import { parseAsset } from "./codec.js";
-import { STELLAR_TESTNET, TESTNET_USDC } from "./network.js";
+import {
+  assertStellarSigningAllowed,
+  PUBNET_USDC,
+  STELLAR_PUBNET,
+  STELLAR_TESTNET,
+  TESTNET_USDC,
+  assertEndpointMatches,
+  stellarNetwork,
+  type StellarNetwork,
+  type StellarNetworkLike,
+  type StellarNetworkOptions,
+} from "./network.js";
 import type { StellarSigner } from "./signer.js";
 
 /** Rail id written to `payment.rail` for the Soroban ReceptumEscrow (SPEC §7). */
@@ -54,32 +65,55 @@ export const SOROBAN_ESCROW_ERRORS: Record<number, string> = {
 
 // ─── Escrow ids ────────────────────────────────────────────────────────────
 
-/** escrowId format: `stellar:testnet:<contract C…>:<id>`, e.g. `stellar:testnet:CABC…:7`. */
-export function formatSorobanEscrowId(contractId: string, id: bigint | number): string {
+/**
+ * escrowId format: `<caip2>:<contract C…>:<id>`, e.g. `stellar:testnet:CABC…:7` (default testnet)
+ * or `stellar:pubnet:CABC…:7`.
+ */
+export function formatSorobanEscrowId(
+  contractId: string,
+  id: bigint | number,
+  network: StellarNetworkLike = STELLAR_TESTNET,
+): string {
   if (!StrKey.isValidContract(contractId)) throw new TypeError(`invalid contract id ${contractId}`);
-  return `${STELLAR_TESTNET.caip2}:${contractId}:${BigInt(id)}`;
+  return `${stellarNetwork(network).caip2}:${contractId}:${BigInt(id)}`;
 }
 
-export function parseSorobanEscrowId(escrowId: string): { contractId: string; id: bigint } {
-  const m = /^stellar:testnet:(C[A-Z2-7]{55}):([1-9][0-9]{0,19})$/.exec(escrowId);
-  if (!m?.[1] || !m[2] || !StrKey.isValidContract(m[1]) || BigInt(m[2]) >= 2n ** 64n) {
+export function parseSorobanEscrowId(escrowId: string): {
+  contractId: string;
+  id: bigint;
+  network: "stellar:testnet" | "stellar:pubnet";
+} {
+  const m = /^(stellar:(?:testnet|pubnet)):(C[A-Z2-7]{55}):([1-9][0-9]{0,19})$/.exec(escrowId);
+  if (!m?.[1] || !m[2] || !m[3] || !StrKey.isValidContract(m[2]) || BigInt(m[3]) >= 2n ** 64n) {
     throw new TypeError(`invalid Soroban escrowId: ${escrowId}`);
   }
-  return { contractId: m[1], id: BigInt(m[2]) };
+  return {
+    contractId: m[2],
+    id: BigInt(m[3]),
+    network: m[1] as "stellar:testnet" | "stellar:pubnet",
+  };
 }
 
 /**
- * Token contract for an asset: the Stellar Asset Contract of `native` / `CODE:ISSUER` on testnet,
- * or a `C…` contract id unchanged.
+ * Token contract for an asset: the Stellar Asset Contract of `native` / `CODE:ISSUER` on the
+ * network (default testnet), or a `C…` contract id unchanged.
  */
-export function tokenContractId(asset: string): string {
+export function tokenContractId(
+  asset: string,
+  network: StellarNetworkLike = STELLAR_TESTNET,
+): string {
   if (StrKey.isValidContract(asset)) return asset;
-  return parseAsset(asset).contractId(STELLAR_TESTNET.networkPassphrase);
+  return parseAsset(asset).contractId(stellarNetwork(network).networkPassphrase);
 }
 
 /** Testnet USDC's Stellar Asset Contract. */
 export const TESTNET_USDC_SAC = new Asset("USDC", TESTNET_USDC.split(":")[1]!).contractId(
   STELLAR_TESTNET.networkPassphrase,
+);
+
+/** Mainnet (pubnet) Circle USDC's Stellar Asset Contract. */
+export const PUBNET_USDC_SAC = new Asset("USDC", PUBNET_USDC.split(":")[1]!).contractId(
+  STELLAR_PUBNET.networkPassphrase,
 );
 
 // ─── Contract storage codec (pure) ─────────────────────────────────────────
@@ -185,12 +219,13 @@ export function sorobanEscrowState(
   contractId: string,
   id: bigint,
   r: SorobanEscrowRecord,
+  network: StellarNetworkLike = STELLAR_TESTNET,
 ): SorobanEscrowState {
   const delivered = r.deliveredAt > 0 && r.receiptHash !== undefined;
   return {
     rail: SOROBAN_ESCROW_RAIL,
-    network: STELLAR_TESTNET.caip2,
-    escrowId: formatSorobanEscrowId(contractId, id),
+    network: stellarNetwork(network).caip2,
+    escrowId: formatSorobanEscrowId(contractId, id, network),
     contractId,
     amount: r.amount.toString(),
     asset: r.token,
@@ -223,30 +258,48 @@ export function describeContractError(err: unknown): Error {
 
 // ─── RPC ───────────────────────────────────────────────────────────────────
 
-export interface SorobanRpcOptions {
-  /** Defaults to the public testnet Soroban RPC. The network passphrase is checked before signing. */
+export interface SorobanRpcOptions extends StellarNetworkOptions {
+  /**
+   * Defaults to the network's Soroban RPC (testnet: SDF's; pubnet: a community endpoint — pass your
+   * own). The RPC's network passphrase is checked before every call.
+   */
   rpcUrl?: string;
 }
 
-/** Builds, simulates, signs, submits and confirms Soroban invocations on testnet. */
+/**
+ * Builds, simulates, signs, submits and confirms Soroban invocations — on testnet by default.
+ * On pubnet, `invoke` throws `MainnetNotAllowedError` before signing unless mainnet use is allowed.
+ */
 export class SorobanRpcClient {
   readonly server: rpc.Server;
+  readonly network: StellarNetwork;
+  private readonly allowMainnet: boolean | undefined;
   private checked: Promise<void> | undefined;
 
   constructor(options: SorobanRpcOptions = {}) {
-    const url = options.rpcUrl ?? STELLAR_TESTNET.sorobanRpcUrl;
+    this.network = stellarNetwork(options.network);
+    const url = options.rpcUrl ?? this.network.sorobanRpcUrl;
+    assertEndpointMatches(url, this.network);
     this.server = new rpc.Server(url, { allowHttp: url.startsWith("http://localhost") });
+    this.allowMainnet = options.allowMainnet;
   }
 
-  /** Refuses any RPC whose network isn't Stellar testnet. */
-  assertTestnet(): Promise<void> {
+  /** Refuses any RPC whose passphrase isn't this client's network. */
+  assertNetwork(): Promise<void> {
     this.checked ??= this.server.getNetwork().then((n) => {
-      if (n.passphrase !== STELLAR_TESTNET.networkPassphrase) {
+      if (n.passphrase !== this.network.networkPassphrase) {
         this.checked = undefined;
-        throw new Error(`refusing RPC on "${n.passphrase}": this adapter is testnet-only`);
+        throw new Error(
+          `refusing RPC on "${n.passphrase}": this client is configured for ${this.network.caip2}`,
+        );
       }
     });
     return this.checked;
+  }
+
+  /** @deprecated Use `assertNetwork()`; kept for callers of 0.2 (checks the configured network). */
+  assertTestnet(): Promise<void> {
+    return this.assertNetwork();
   }
 
   /**
@@ -258,11 +311,12 @@ export class SorobanRpcClient {
     signer: StellarSigner,
     operation: xdr.Operation,
   ): Promise<{ hash: string; returnValue?: xdr.ScVal; ledger: number }> {
-    await this.assertTestnet();
+    assertStellarSigningAllowed(this.network, this.allowMainnet);
+    await this.assertNetwork();
     const account = await this.server.getAccount(signer.publicKey);
     const draft = new TransactionBuilder(account, {
       fee: BASE_FEE,
-      networkPassphrase: STELLAR_TESTNET.networkPassphrase,
+      networkPassphrase: this.network.networkPassphrase,
     })
       .addOperation(operation)
       .setTimeout(120)
@@ -294,7 +348,7 @@ export class SorobanRpcClient {
 
   /** SHA-256 (hex) of the wasm a contract runs, or null for non-wasm (e.g. asset) contracts. */
   async contractWasmHash(contractId: string): Promise<string | null> {
-    await this.assertTestnet();
+    await this.assertNetwork();
     const instance = await this.server.getContractInstance(contractId);
     const exe = instance.executable as unknown as {
       type: string;
@@ -307,7 +361,7 @@ export class SorobanRpcClient {
 
   /** Reads escrow `id` straight from contract storage (no account or simulation needed). */
   async readEscrow(contractId: string, id: bigint): Promise<SorobanEscrowRecord> {
-    await this.assertTestnet();
+    await this.assertNetwork();
     let entry;
     try {
       entry = await this.server.getContractData(
@@ -333,7 +387,7 @@ export interface SorobanEscrowOptions extends SorobanRpcOptions {
   contractId: string;
   /** The account acting through this instance (buyer, seller, evaluator, or anyone). */
   signer?: StellarSigner;
-  /** Asset for escrows opened by this instance: `native`, `CODE:ISSUER` or a token `C…`. Default: testnet USDC. */
+  /** Asset for escrows opened by this instance: `native`, `CODE:ISSUER` or a token `C…`. Default: the network's Circle USDC. */
   asset?: string;
 }
 
@@ -355,11 +409,12 @@ export type OpenedSorobanEscrow = SorobanEscrowState & { reference: string };
 /**
  * `EscrowRail` on the Soroban ReceptumEscrow contract: the same hybrid state machine as the EVM
  * escrow (review window from delivery, optional evaluator, delivery-conditional refunds).
- * Unaudited; testnet only.
+ * Unaudited: testnet by default; pubnet only with the explicit mainnet opt-in (and, for real funds,
+ * only after an independent audit — docs/MAINNET.md §0).
  */
 export class SorobanEscrowRail implements EscrowRail {
   readonly id = SOROBAN_ESCROW_RAIL;
-  readonly network = STELLAR_TESTNET.caip2;
+  readonly network: string;
   readonly capabilities = SOROBAN_ESCROW_CAPABILITIES;
   readonly rpc: SorobanRpcClient;
   readonly contractId: string;
@@ -371,8 +426,12 @@ export class SorobanEscrowRail implements EscrowRail {
       throw new TypeError(`invalid contract id ${options.contractId}`);
     this.contractId = options.contractId;
     this.rpc = new SorobanRpcClient(options);
+    this.network = this.rpc.network.caip2;
     this.signer = options.signer;
-    this.token = tokenContractId(options.asset ?? TESTNET_USDC);
+    this.token = tokenContractId(
+      options.asset ?? `USDC:${this.rpc.network.usdcIssuer}`,
+      this.rpc.network,
+    );
   }
 
   private get contract() {
@@ -385,7 +444,9 @@ export class SorobanEscrowRail implements EscrowRail {
   }
 
   private idOf(escrowId: string): bigint {
-    const { contractId, id } = parseSorobanEscrowId(escrowId);
+    const { contractId, id, network } = parseSorobanEscrowId(escrowId);
+    if (network !== this.network)
+      throw new Error(`escrow ${escrowId} is on ${network}, rail is on ${this.network}`);
     if (contractId !== this.contractId)
       throw new Error(`escrow ${escrowId} belongs to another contract`);
     return id;
@@ -416,14 +477,21 @@ export class SorobanEscrowRail implements EscrowRail {
     );
     if (!res.returnValue) throw new Error(`open ${res.hash} returned no escrow id`);
     const id = scValToNative(res.returnValue) as bigint;
-    const state = await this.getEscrow(formatSorobanEscrowId(this.contractId, id));
+    const state = await this.getEscrow(
+      formatSorobanEscrowId(this.contractId, id, this.rpc.network),
+    );
     return { ...state, reference: res.hash };
   }
 
   /** Reads the escrow from contract storage (needs no key). */
   async getEscrow(escrowId: string): Promise<SorobanEscrowState> {
     const id = this.idOf(escrowId);
-    return sorobanEscrowState(this.contractId, id, await this.rpc.readEscrow(this.contractId, id));
+    return sorobanEscrowState(
+      this.contractId,
+      id,
+      await this.rpc.readEscrow(this.contractId, id),
+      this.rpc.network,
+    );
   }
 
   /** Seller: commits `receiptHash` (by the deadline). Starts the review window. */

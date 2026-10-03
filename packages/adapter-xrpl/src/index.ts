@@ -34,9 +34,15 @@ export {
   type XrplEscrowState,
 } from "./escrow.js";
 export {
+  assertNetwork,
   assertTestnet,
+  xrplNetworkId,
+  XRPL_ENDPOINTS,
+  XRPL_MAINNET,
+  XRPL_MAINNET_NETWORK_ID,
   XRPL_TESTNET,
   XRPL_TESTNET_NETWORK_ID,
+  type NetworkGuardOptions,
   XrplHistoryIncompleteError,
   XrplTxError,
 } from "./ledger.js";

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { parseReceiptInput, verify, type ReceiptInput } from "./index.js";
+import { networkLabel, parseReceiptInput, verify, type ReceiptInput } from "./index.js";
 
 const usage =
   "usage: receptum-verify <receipt.json> [delivered-file] [--anchor <caip2>:<tx>]... [--trust-escrow <address|contract-id>]... [--allow-unbound] [--offline] [--json]";
@@ -60,7 +60,9 @@ if (values.json) {
     skipped: "SKIP",
     unavailable: "N/A ",
   } as const;
-  console.log(`receipt ${report.receiptHash}\nseller  ${report.seller}\n`);
+  console.log(
+    `${networkLabel(report)}\nreceipt ${report.receiptHash}\nseller  ${report.seller}\nnetwork ${report.network ?? "?"}\n`,
+  );
   for (const c of report.checks)
     console.log(`[${mark[c.status]}] L${c.level} ${c.name} — ${c.detail}`);
   console.log(`\n${report.verdict}`);

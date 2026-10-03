@@ -2,6 +2,24 @@
 
 All packages are versioned together. Testnet only; contracts are unaudited.
 
+## Unreleased
+
+### Added — mainnet readiness (opt-in; testnet stays the default)
+
+- `@receptum/core`: `networkClass`, `assertNetworkAllowed`, `mainnetAllowed`, `MainnetNotAllowedError`. Signing on a mainnet or unknown network requires `allowMainnet: true` or `RECEPTUM_ALLOW_MAINNET=1`.
+- `@receptum/adapter-evm`: Base (`eip155:8453`) and Arc (`eip155:5042`) mainnet entries (`MAINNETS`), gated in `clientsFor` and every signing path; `scripts/deploy-mainnet.mjs` (refuses without the flag and an audit report, plan + interactive confirmation, never reads wallet files).
+- `@receptum/adapter-xrpl`: `assertNetwork(client, expected, { allowMainnet })` replaces `assertTestnet()` (kept as a deprecated alias); `xrpl:0` endpoints; `network`/`allowMainnet` on the escrow rail and anchor.
+- `@receptum/adapter-stellar`: `STELLAR_PUBNET`, Circle mainnet USDC (`PUBNET_USDC`, `PUBNET_USDC_SAC`), `network: "pubnet"` + opt-in on every client and rail; network-qualified Soroban escrow ids; `scripts/deploy-soroban-mainnet.mjs`.
+- `@receptum/verify` and the Python verifier: mainnet endpoints, empty mainnet `TRUSTED_ESCROWS` entries (mainnet escrow receipts report `untrusted deployment`), `network`/`networkClass` in reports and a MAINNET/TESTNET header line in both CLIs.
+- `@receptum/server`: `facilitatorUrlFor` (no default mainnet facilitator) and `allowMainnet` in `handlePaidJob`. `@receptum/client`: `networks` + `allowMainnet` in `createReceptumFetch`.
+
+### Changed
+
+- Both verifier CLIs now print the network label as the first line of human-readable output (the verdict moves to the second line; `--json` is unchanged apart from the new `network`/`networkClass` members).
+- `parseSorobanEscrowId` also returns `network`, and accepts `stellar:pubnet` ids.
+
+Nothing has been deployed to a mainnet.
+
 ## 0.2.0 — October 2026
 
 ### Added

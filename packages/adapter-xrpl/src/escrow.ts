@@ -46,8 +46,13 @@ export interface XrplEscrowRailOptions {
   client: Client;
   /** Signs deliver/release/refund (and createEscrow). Keys stay with the integrator. */
   wallet?: Wallet;
-  /** CAIP-2 id of the network the client is connected to. Default `xrpl:1` (testnet). */
+  /**
+   * CAIP-2 id of the network the client is connected to. Default `xrpl:1` (testnet). Mainnet
+   * `xrpl:0` needs `allowMainnet: true` (or `RECEPTUM_ALLOW_MAINNET=1`) before anything is signed.
+   */
   network?: string;
+  /** Opt-in for signing on mainnet `xrpl:0`. */
+  allowMainnet?: boolean;
   /**
    * Returns the PREIMAGE-SHA-256 fulfillment for an escrow, once the buyer has
    * accepted delivery. Required to release.
@@ -128,6 +133,14 @@ export class XrplEscrowRail implements EscrowRail {
     this.maxPages = opts.maxHistoryPages ?? 10;
   }
 
+  private submit(wallet: Wallet, tx: Parameters<typeof submit>[2]) {
+    return submit(this.client, wallet, tx, this.network, this.guard);
+  }
+
+  private get guard() {
+    return this.opts.allowMainnet !== undefined ? { allowMainnet: this.opts.allowMainnet } : {};
+  }
+
   /** Buyer locks funds for the seller. Returns the handle and the EscrowCreate tx hash. */
   async createEscrow(params: CreateEscrowParams): Promise<EscrowHandle & { reference: string }> {
     const wallet = this.wallet();
@@ -136,7 +149,7 @@ export class XrplEscrowRail implements EscrowRail {
     }
     const cancelAfter =
       unixTimeToRippleTime(params.deliverBy.getTime()) + params.reviewWindowSeconds;
-    const tx = await submit(this.client, wallet, {
+    const tx = await this.submit(wallet, {
       TransactionType: "EscrowCreate",
       Account: wallet.address,
       Destination: params.seller,
@@ -205,7 +218,7 @@ export class XrplEscrowRail implements EscrowRail {
     if (entry.CancelAfter && (await validatedCloseTime(this.client)) > entry.CancelAfter) {
       throw new Error("escrow is past CancelAfter; delivery can no longer be paid");
     }
-    const tx = await submit(this.client, wallet, {
+    const tx = await this.submit(wallet, {
       TransactionType: "AccountSet",
       Account: wallet.address,
       Memos: receiptMemos(receiptHash, escrowId),
@@ -233,7 +246,7 @@ export class XrplEscrowRail implements EscrowRail {
         throw new Error("fulfillment does not match the escrow condition");
       }
     }
-    const tx = await submit(this.client, wallet, {
+    const tx = await this.submit(wallet, {
       TransactionType: "EscrowFinish",
       Account: wallet.address,
       Owner: owner,
@@ -254,7 +267,7 @@ export class XrplEscrowRail implements EscrowRail {
     if ((await validatedCloseTime(this.client)) <= entry.CancelAfter) {
       throw new Error(`escrow is not refundable until ${rippleTimeToISOTime(entry.CancelAfter)}`);
     }
-    const tx = await submit(this.client, wallet, {
+    const tx = await this.submit(wallet, {
       TransactionType: "EscrowCancel",
       Account: wallet.address,
       Owner: owner,

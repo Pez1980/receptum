@@ -6,7 +6,7 @@ import type {
   EscrowStatus,
   Sha256Hex,
 } from "@receptum/core";
-import { isSha256Hex } from "@receptum/core";
+import { assertNetworkAllowed, isSha256Hex, networkClass } from "@receptum/core";
 import {
   createPublicClient,
   createWalletClient,
@@ -21,7 +21,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
-import { arcTestnet, baseSepolia } from "viem/chains";
+import { arc, arcTestnet, base, baseSepolia } from "viem/chains";
 import {
   receptumEscrowAbi,
   receptumEscrowBytecode,
@@ -37,25 +37,61 @@ export interface EvmNetwork {
   /** USDC ERC-20 contract (6 decimals). */
   usdc: Address;
   explorer: string;
+  /** True for a mainnet: signing on it requires the explicit opt-in (see `clientsFor`). */
+  mainnet?: boolean;
 }
 
-/** Testnets with Circle USDC. Mainnets are deliberately absent until the escrow is audited. */
-export const NETWORKS = {
+/** Testnets with Circle USDC — the default. */
+export const TESTNETS = {
   "eip155:5042002": {
     caip2: "eip155:5042002",
     chain: arcTestnet,
     usdc: "0x3600000000000000000000000000000000000000",
     explorer: "https://explorer.testnet.arc.io",
+    mainnet: false,
   },
   "eip155:84532": {
     caip2: "eip155:84532",
     chain: baseSepolia,
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     explorer: "https://sepolia.basescan.org",
+    mainnet: false,
   },
 } as const satisfies Record<string, EvmNetwork>;
 
+/**
+ * Mainnets with Circle USDC. Listed so verifiers can read them, but every signing path refuses
+ * them unless the caller opts in (`allowMainnet: true` or `RECEPTUM_ALLOW_MAINNET=1`).
+ * USDC: Circle's published addresses (developers.circle.com/stablecoins/usdc-contract-addresses).
+ * On Arc, USDC is the native gas token; `0x3600…0000` is its optional ERC-20 interface (6 decimals).
+ */
+export const MAINNETS = {
+  "eip155:8453": {
+    caip2: "eip155:8453",
+    chain: base,
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    explorer: "https://basescan.org",
+    mainnet: true,
+  },
+  "eip155:5042": {
+    caip2: "eip155:5042",
+    chain: arc,
+    usdc: "0x3600000000000000000000000000000000000000",
+    explorer: "https://explorer.arc.io",
+    mainnet: true,
+  },
+} as const satisfies Record<string, EvmNetwork>;
+
+/** Every supported network: testnets (default) and opt-in mainnets. */
+export const NETWORKS = { ...TESTNETS, ...MAINNETS } as const satisfies Record<string, EvmNetwork>;
+
 export type NetworkId = keyof typeof NETWORKS;
+export type TestnetId = keyof typeof TESTNETS;
+export type MainnetId = keyof typeof MAINNETS;
+
+/** Does signing on `network` need the mainnet opt-in? Known testnets and local chains don't. */
+export const requiresMainnetOptIn = (network: EvmNetwork): boolean =>
+  network.mainnet === true || networkClass(network.caip2) !== "testnet";
 
 export const RAIL_ID = "escrow:receptum-evm";
 
@@ -93,21 +129,55 @@ export interface EvmClients {
   publicClient: PublicClient;
   walletClient: WalletClient;
   account: Account;
+  /**
+   * Mainnet opt-in for this bundle. Without it (or `RECEPTUM_ALLOW_MAINNET=1`), every signing
+   * call on a mainnet or unknown chain throws `MainnetNotAllowedError` before anything is signed.
+   */
+  allowMainnet?: boolean;
 }
 
-export function clientsFor(networkId: NetworkId, account: Account, rpcUrl?: string): EvmClients {
-  const network = NETWORKS[networkId];
-  const transport = http(rpcUrl);
+export interface ClientsOptions {
+  rpcUrl?: string;
+  /** Required (or `RECEPTUM_ALLOW_MAINNET=1`) for a mainnet network. */
+  allowMainnet?: boolean;
+}
+
+/** Throws before any signature unless `c` is on a testnet or mainnet use is allowed. */
+export function assertSigningAllowed(c: Pick<EvmClients, "network" | "allowMainnet">): void {
+  if (!requiresMainnetOptIn(c.network)) return;
+  assertNetworkAllowed(c.network.caip2, c.allowMainnet, "sign");
+}
+
+/**
+ * Signing clients for `networkId`. Mainnet ids throw `MainnetNotAllowedError` here unless
+ * `allowMainnet: true` is passed or `RECEPTUM_ALLOW_MAINNET=1` is set. The third argument may be
+ * an RPC URL (legacy form) or `{ rpcUrl, allowMainnet }`.
+ */
+export function clientsFor(
+  networkId: NetworkId,
+  account: Account,
+  options?: string | ClientsOptions,
+): EvmClients {
+  const network: EvmNetwork | undefined = NETWORKS[networkId];
+  if (!network) throw new TypeError(`unknown EVM network ${String(networkId)}`);
+  const opts: ClientsOptions = typeof options === "string" ? { rpcUrl: options } : (options ?? {});
+  assertSigningAllowed({
+    network,
+    ...(opts.allowMainnet !== undefined ? { allowMainnet: opts.allowMainnet } : {}),
+  });
+  const transport = http(opts.rpcUrl);
   return {
     network,
     account,
     publicClient: createPublicClient({ chain: network.chain, transport }) as PublicClient,
     walletClient: createWalletClient({ chain: network.chain, transport, account }),
+    ...(opts.allowMainnet !== undefined ? { allowMainnet: opts.allowMainnet } : {}),
   };
 }
 
 /** Deploys a ReceptumEscrow contract and returns its address. */
 export async function deployEscrow(c: EvmClients): Promise<Address> {
+  assertSigningAllowed(c);
   const hash = await c.walletClient.deployContract({
     abi: receptumEscrowAbi,
     bytecode: receptumEscrowBytecode,
@@ -151,6 +221,7 @@ export class EvmEscrowRail implements EscrowRail {
     functionName: "deliver" | "accept" | "reject" | "release" | "refund" | "sellerRefund",
     args: readonly unknown[],
   ) {
+    assertSigningAllowed(this.c);
     const hash = await this.c.walletClient.writeContract({
       address: contract,
       abi: receptumEscrowAbi,
@@ -166,6 +237,7 @@ export class EvmEscrowRail implements EscrowRail {
 
   /** Buyer: approve the token and open an escrow. Returns the escrowId and transaction hashes. */
   async open(p: OpenEscrowParams): Promise<{ escrowId: string; approve: Hex; open: Hex }> {
+    assertSigningAllowed(this.c);
     const token = p.token ?? this.c.network.usdc;
     const approve = await this.c.walletClient.writeContract({
       address: token,
@@ -301,6 +373,7 @@ export class EvmAnchor implements Anchor {
   constructor(private readonly c: EvmClients) {}
 
   async anchor(receiptHash: Sha256Hex): Promise<AnchorRecord> {
+    assertSigningAllowed(this.c);
     const hash = await this.c.walletClient.sendTransaction({
       to: this.c.account.address,
       value: 0n,

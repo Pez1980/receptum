@@ -23,6 +23,9 @@ __all__ = [
 DEFAULT_RPCS: dict[str, str] = {
     "eip155:84532": "https://sepolia.base.org",
     "eip155:5042002": "https://rpc.testnet.arc.io",
+    # Mainnets (read-only verification; the RPC's chain id is still checked against the receipt).
+    "eip155:8453": "https://mainnet.base.org",
+    "eip155:5042": "https://rpc.mainnet.arc.io",
 }
 ANCHOR_PREFIX = b"receptum/1"
 # keccak256("Transfer(address,address,uint256)")
@@ -205,7 +208,9 @@ def parse_anchor(anchor: str) -> tuple[str, str]:
 # Transaction-hash formats of the anchor networks this verifier recognises but cannot query.
 _OTHER_ANCHOR_TX = {
     "xrpl:1": re.compile(r"^[0-9A-Fa-f]{64}\Z"),
+    "xrpl:0": re.compile(r"^[0-9A-Fa-f]{64}\Z"),
     "stellar:testnet": re.compile(r"^[0-9a-f]{64}\Z"),
+    "stellar:pubnet": re.compile(r"^[0-9a-f]{64}\Z"),
 }
 
 

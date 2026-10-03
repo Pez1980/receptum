@@ -57,14 +57,14 @@ describe("Soroban escrow ids", () => {
   it("round-trips stellar:testnet:<contract>:<id>", () => {
     const id = formatSorobanEscrowId(contractId, 7n);
     expect(id).toBe(`stellar:testnet:${contractId}:7`);
-    expect(parseSorobanEscrowId(id)).toEqual({ contractId, id: 7n });
+    expect(parseSorobanEscrowId(id)).toEqual({ contractId, id: 7n, network: "stellar:testnet" });
   });
 
   it("rejects malformed ids", () => {
     for (const bad of [
       `stellar:testnet:${contractId}:0`,
       `stellar:testnet:${contractId}:07`,
-      `stellar:pubnet:${contractId}:1`,
+      `stellar:futurenet:${contractId}:1`,
       `stellar:testnet:${buyer}:1`,
       `stellar:testnet:${contractId}:18446744073709551616`,
       `stellar:testnet:${contractId}`,

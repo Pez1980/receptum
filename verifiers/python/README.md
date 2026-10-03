@@ -35,9 +35,11 @@ is bound to the recomputed `receiptHash`, so the wrapper does not need to be tru
 
 ```sh
 $ python -m receptum_verify ../../examples/x402-base-sepolia.json ../../examples/x402-base-sepolia-output.svg
+=== TESTNET receipt (eip155:84532) — test tokens, no real value ===
 VERIFIED
   receiptHash  11e739252cc2d6e76adf0819a9f3914c6c49fbdbc6a572c424786b792658ee5b
   seller       did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t
+  network      eip155:84532 (testnet)
   L1 file        PASS        SHA-256(file) = outputSha256 = 301917f6…6544234a
   L2 signature   PASS        receiptHash recomputed and JWS verifies against did:key:z6Mkqc7R…
   L2.5 binding   PASS        did:key:z6Mkqc7R… ↔ eip155:84532:0x6344…328B: EIP-191 signature recovers 0x6344…328B (offline)
@@ -144,3 +146,7 @@ signed, anchors = extract_signed_receipt(doc)
 report = verify(signed, open("output.svg", "rb").read(), anchor=anchors)
 print(report.status, report.missing, report.to_dict())
 ```
+
+## Mainnet receipts
+
+Mainnet endpoints are built in (`eip155:8453` `https://mainnet.base.org`, `eip155:5042` `https://rpc.mainnet.arc.io`, `xrpl:0` `https://xrplcluster.com`); x402 `exact` settlements there are checked out of the box, and the RPC's chain id / NetworkID is still checked against the receipt. The CLI's first line labels the network — `=== MAINNET receipt (…) — real funds ===` or `=== TESTNET receipt (…) — test tokens, no real value ===` — and `--json` reports `network` and `networkClass`. `TRUSTED_ESCROWS` (in `networks.py`) mirrors `@receptum/verify`: the mainnet entries are empty until a deployment is published, so mainnet escrow receipts report `untrusted deployment` (`unavailable`; this verifier does not read escrow state).

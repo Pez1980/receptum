@@ -9,6 +9,7 @@ from typing import Any
 from .binding import DEFAULT_XRPL_RPCS, check_payee_binding
 from .evm import DEFAULT_RPCS, CheckResult, check_evm_anchor, check_x402_exact
 from .jws import verify_signed_receipt
+from .networks import network_class, untrusted_deployment
 from .xrpl_x402 import check_xrpl_anchor, check_xrpl_x402_exact
 
 __all__ = [
@@ -47,12 +48,17 @@ class Report:
     errors: list[str] = field(default_factory=list)
     # When neither VERIFIED nor NOT VERIFIED: every missing piece that prevented VERIFIED.
     missing: list[str] = field(default_factory=list)
+    # payment.network (CAIP-2) and its class: "mainnet", "testnet" or "unknown".
+    network: str | None = None
+    network_class: str = "unknown"
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
             "receiptHash": self.receipt_hash,
             "seller": self.seller,
+            "network": self.network,
+            "networkClass": self.network_class,
             "levels": {k: v.to_dict() for k, v in self.levels.items()},
             "missing": self.missing,
             "errors": self.errors,
@@ -203,6 +209,14 @@ def verify(
             )
         elif pay["rail"] == "x402:exact" and pay["network"].startswith("xrpl:"):
             levels["settlement"] = check_xrpl_x402_exact(receipt, rpcs)
+        elif pay["rail"] in ("escrow:receptum-evm", "escrow:receptum-soroban") and (
+            untrusted := untrusted_deployment(pay["network"], str(pay.get("reference", "")))
+        ):
+            # This verifier doesn't read escrow state; it still reports a deployment that can't
+            # count yet (every mainnet one, until a deployment is published in TRUSTED_ESCROWS).
+            levels["settlement"] = CheckResult(
+                "unavailable", f"{untrusted}; escrow state is not checked by this verifier"
+            )
         else:
             levels["settlement"] = CheckResult(
                 "unavailable",
@@ -222,4 +236,17 @@ def verify(
             )
 
     status, missing = verdict_of(levels, rail)
-    return Report(status, sig.receipt_hash, sig.seller, levels, sig.errors, missing)
+    network = None
+    if isinstance(receipt, dict) and isinstance(receipt.get("payment"), dict):
+        n = receipt["payment"].get("network")
+        network = n if isinstance(n, str) else None
+    return Report(
+        status,
+        sig.receipt_hash,
+        sig.seller,
+        levels,
+        sig.errors,
+        missing,
+        network=network,
+        network_class=network_class(network),
+    )

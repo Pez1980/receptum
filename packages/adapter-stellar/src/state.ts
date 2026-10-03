@@ -122,6 +122,8 @@ export function allocateClaimPayments(
 /** Everything the chain says about one escrow balance, already fetched. */
 export interface EscrowHistory {
   escrowId: string;
+  /** CAIP-2 id of the network the history was read from. Default `stellar:testnet`. */
+  network?: string;
   create: {
     asset: string;
     /** Horizon decimal amount, e.g. "1.0000000". */
@@ -169,7 +171,7 @@ export function deriveEscrowState(h: EscrowHistory): StellarEscrowState {
   const delivery = findDelivery(h.escrowId, terms, h.create.createdAt, h.deliveryTxs);
   const base = {
     rail: STELLAR_ESCROW_RAIL,
-    network: STELLAR_TESTNET.caip2,
+    network: h.network ?? STELLAR_TESTNET.caip2,
     escrowId: h.escrowId,
     amount,
     asset: h.create.asset,

@@ -25,13 +25,15 @@ def test_cli_bare_signed_receipt(tmp_path, live_doc, capsys):
     path = tmp_path / "signed.json"
     path.write_text(json.dumps(live_doc["signedReceipt"]))
     assert main([str(path), "--offline"]) == 3
-    assert capsys.readouterr().out.startswith("PARTIALLY VERIFIED")
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "=== TESTNET receipt (eip155:84532) — test tokens, no real value ==="
+    assert lines[1] == "PARTIALLY VERIFIED"
 
 
 def test_cli_tampered(capsys):
     code = main([str(EXAMPLES / "x402-base-sepolia-tampered.json"), "--offline"])
     assert code == 1
-    assert capsys.readouterr().out.startswith("NOT VERIFIED")
+    assert capsys.readouterr().out.splitlines()[1] == "NOT VERIFIED"
 
 
 def test_cli_bad_input(tmp_path, capsys):

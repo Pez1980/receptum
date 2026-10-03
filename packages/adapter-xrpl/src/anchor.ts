@@ -17,8 +17,13 @@ export interface XrplAnchorOptions {
   client: Client;
   /** Signs anchor transactions. Not needed for `find`. */
   wallet?: Wallet;
-  /** CAIP-2 id of the network the client is connected to. Default `xrpl:1` (testnet). */
+  /**
+   * CAIP-2 id of the network the client is connected to. Default `xrpl:1` (testnet). Mainnet
+   * `xrpl:0` needs `allowMainnet: true` (or `RECEPTUM_ALLOW_MAINNET=1`) before anything is signed.
+   */
   network?: string;
+  /** Opt-in for signing on mainnet `xrpl:0`. */
+  allowMainnet?: boolean;
   /** Account whose history `find` scans when no reference is given. Defaults to the wallet. */
   account?: string;
   /** account_tx pages (200 txs each) scanned by `find` without a reference. Default 10. */
@@ -41,11 +46,13 @@ export class XrplAnchor implements Anchor {
     if (!isSha256Hex(receiptHash)) throw new TypeError("receiptHash must be hex64");
     const wallet = this.opts.wallet;
     if (!wallet) throw new Error("anchor needs a wallet");
-    const tx = await submit(this.opts.client, wallet, {
-      TransactionType: "AccountSet",
-      Account: wallet.address,
-      Memos: receiptMemos(receiptHash),
-    });
+    const tx = await submit(
+      this.opts.client,
+      wallet,
+      { TransactionType: "AccountSet", Account: wallet.address, Memos: receiptMemos(receiptHash) },
+      this.network,
+      this.opts.allowMainnet !== undefined ? { allowMainnet: this.opts.allowMainnet } : {},
+    );
     return this.record(receiptHash, tx);
   }
 

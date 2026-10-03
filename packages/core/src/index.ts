@@ -82,3 +82,15 @@ export type {
   PaymentRail,
   Quote,
 } from "./rails.js";
+export {
+  ALLOW_MAINNET_ENV,
+  assertNetworkAllowed,
+  isMainnet,
+  isTestnet,
+  MAINNET_NETWORKS,
+  MainnetNotAllowedError,
+  mainnetAllowed,
+  networkClass,
+  TESTNET_NETWORKS,
+  type NetworkClass,
+} from "./networks.js";

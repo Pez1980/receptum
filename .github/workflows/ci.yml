@@ -27,3 +27,36 @@ jobs:
           forge test
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+
+  soroban:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/adapter-stellar/contracts/receptum-escrow
+    steps:
+      - uses: actions/checkout@v7
+      # Version, wasm target and components come from the contract's rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+          targets: wasm32v1-none
+          components: rustfmt, clippy
+      - name: Format, lint and test the Soroban escrow
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+      - name: Install stellar-cli
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://github.com/stellar/stellar-cli/releases/download/v28.1.0/stellar-cli-28.1.0-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C "$HOME/.local/bin" stellar
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/stellar" --version
+      - name: Build the contract wasm and compare it with the committed (deployed) build
+        run: |
+          stellar contract build
+          built=$(sha256sum target/wasm32v1-none/release/receptum_escrow.wasm | cut -d' ' -f1)
+          committed=$(sha256sum receptum_escrow.wasm | cut -d' ' -f1)
+          echo "built $built, committed $committed"
+          # Reported, not enforced: the committed wasm was built on macOS (aarch64).
+          [ "$built" = "$committed" ] || echo "::warning::receptum_escrow.wasm is not reproduced bit-for-bit on this runner"

@@ -24,3 +24,6 @@ packages/adapter-evm/lib/
 packages/adapter-evm/contracts/out/
 packages/adapter-evm/contracts/cache/
 broadcast/
+# Soroban (Rust)
+packages/adapter-stellar/contracts/*/target/
+packages/adapter-stellar/contracts/*/test_snapshots/

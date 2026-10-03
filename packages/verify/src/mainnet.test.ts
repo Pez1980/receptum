@@ -108,11 +108,12 @@ describe("network labels", () => {
 
 describe("mainnet trusted-deployment registry", () => {
   it("has entries for every escrow mainnet, all empty (nothing deployed yet)", () => {
-    for (const n of ["eip155:8453", "eip155:5042", "stellar:pubnet"]) {
+    for (const n of ["eip155:8453", "eip155:5042", "eip155:42161", "stellar:pubnet"]) {
       expect(Object.hasOwn(TRUSTED_ESCROWS, n)).toBe(true);
       expect(TRUSTED_ESCROWS[n]).toEqual([]);
     }
     expect(TRUSTED_ESCROWS["eip155:5042002"]?.length).toBe(1);
+    expect(TRUSTED_ESCROWS["eip155:421614"]?.length).toBe(1);
   });
 
   it("has mainnet XRPL JSON-RPC endpoints", () => {

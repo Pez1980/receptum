@@ -213,6 +213,7 @@ const GENUINE_ESCROW_CODE = keccak256(receptumEscrowDeployedBytecode);
  */
 export const TRUSTED_ESCROWS: Record<string, readonly string[]> = {
   "eip155:5042002": ["0x20d69c6c647559f48a7e6b0a3f922e99a4068f16"],
+  "eip155:421614": ["0x1cd7ed69a10d5aafcf2fcb927a431183b3c43862"],
   // Soroban ReceptumEscrow (packages/adapter-stellar/contracts/receptum-escrow/deployment.testnet.json).
   "stellar:testnet": ["CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG"],
   // Mainnets: deliberately EMPTY. No ReceptumEscrow has been deployed to a mainnet; escrow
@@ -220,6 +221,7 @@ export const TRUSTED_ESCROWS: Record<string, readonly string[]> = {
   // deployment is published here, mainnet escrow receipts report an untrusted deployment.
   "eip155:8453": [],
   "eip155:5042": [],
+  "eip155:42161": [],
   "stellar:pubnet": [],
 };
 

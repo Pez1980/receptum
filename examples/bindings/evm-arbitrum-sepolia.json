@@ -1,0 +1,18 @@
+{
+  "statement": {
+    "type": "receptum/account-binding/1",
+    "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+    "account": "eip155:421614:0x6344D17a80775A71b51A61124767AbCD22B0328B",
+    "issuedAt": "2026-10-03T21:59:05.699Z",
+    "expiresAt": "2027-10-03T21:59:05.699Z"
+  },
+  "didProof": {
+    "type": "jws",
+    "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+    "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..MRE3d-3yUK4hHrdNH-zatirvwVuKwkuoIUZJVX5mKcvBQFA2yyQTMeDGSpD4iYT8P4kjRb6a-ErOdKUI26L7Cw"
+  },
+  "accountProof": {
+    "type": "eip191",
+    "signature": "0xe414845f47049e3b492efe59dd064b84982330bd5c073b2f6f36aa8d5974ab7563f9279176d7a631371136ceb31fcee0052ed6098e4fac153fbcdd91338dc04b1c"
+  }
+}

@@ -21,7 +21,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
-import { arc, arcTestnet, base, baseSepolia } from "viem/chains";
+import { arbitrum, arbitrumSepolia, arc, arcTestnet, base, baseSepolia } from "viem/chains";
 import {
   receptumEscrowAbi,
   receptumEscrowBytecode,
@@ -57,6 +57,13 @@ export const TESTNETS = {
     explorer: "https://sepolia.basescan.org",
     mainnet: false,
   },
+  "eip155:421614": {
+    caip2: "eip155:421614",
+    chain: arbitrumSepolia,
+    usdc: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    explorer: "https://sepolia.arbiscan.io",
+    mainnet: false,
+  },
 } as const satisfies Record<string, EvmNetwork>;
 
 /**
@@ -78,6 +85,13 @@ export const MAINNETS = {
     chain: arc,
     usdc: "0x3600000000000000000000000000000000000000",
     explorer: "https://explorer.arc.io",
+    mainnet: true,
+  },
+  "eip155:42161": {
+    caip2: "eip155:42161",
+    chain: arbitrum,
+    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    explorer: "https://arbiscan.io",
     mainnet: true,
   },
 } as const satisfies Record<string, EvmNetwork>;

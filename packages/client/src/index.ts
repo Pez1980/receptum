@@ -1,6 +1,7 @@
 import {
   assertNetworkAllowed,
   checkPayeeBinding,
+  parseXrplIssuedAsset,
   sha256Hex,
   verifySignedReceipt,
   type BindingVerifier,
@@ -10,6 +11,9 @@ import { decodePaymentResponseHeader } from "@x402/core/http";
 
 export const RECEIPT_HEADER = "Receptum-Receipt";
 
+/** Exact decimal ↔ integer 10^-15-unit conversion for XRPL issued tokens (SPEC §7.3). */
+export { xrplUnitsToValue, xrplValueToUnits } from "@receptum/core";
+
 export function decodeReceiptHeader(value: string): SignedReceipt {
   return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as SignedReceipt;
 }
@@ -17,10 +21,18 @@ export function decodeReceiptHeader(value: string): SignedReceipt {
 /** What the buyer independently expects — never taken from the response itself. */
 export interface Expected {
   network?: string;
+  /**
+   * Asset as the receipt states it: an EVM token address (compared case-insensitively), XRPL
+   * `XRP` or `<currency>.<issuer>` (compared by currency identity and issuer), or the rail's own
+   * identifier (compared exactly).
+   */
   asset?: string;
-  /** Exact amount in base units. */
+  /**
+   * Exact amount, an integer in the receipt's unit: the token's smallest unit, XRP drops, or for
+   * XRPL issued tokens 10^-15 units (`xrplValueToUnits("0.25")` = "250000000000000").
+   */
   amount?: string;
-  /** Upper bound in base units. */
+  /** Upper bound, an integer in the same unit as `amount`. */
   maxAmount?: string;
   /** CAIP-10 payee the buyer intended to pay. */
   payee?: string;
@@ -65,6 +77,28 @@ export interface BindingOptions {
 }
 
 const bare = (account?: string) => account?.split(":").pop()?.toLowerCase();
+const INTEGER = /^(0|[1-9][0-9]*)$/;
+
+/** Same asset on `network`: EVM addresses ignore case, XRPL compares protocol identity. */
+function sameAsset(network: string, a: string, b: string): boolean {
+  if (network.startsWith("eip155:")) return a.toLowerCase() === b.toLowerCase();
+  if (network.startsWith("xrpl:") && a !== "XRP" && b !== "XRP") {
+    try {
+      const x = parseXrplIssuedAsset(a);
+      const y = parseXrplIssuedAsset(b);
+      return x.currency === y.currency && x.issuer === y.issuer;
+    } catch {
+      return false;
+    }
+  }
+  return a === b;
+}
+
+/** Same CAIP-10 account: EVM addresses ignore case; other namespaces are case-sensitive. */
+const sameAccount = (a?: string, b?: string) =>
+  a !== undefined &&
+  b !== undefined &&
+  (a.startsWith("eip155:") ? a.toLowerCase() === b.toLowerCase() : a === b);
 
 /**
  * Checks a delivered response against its Receptum receipt. Pure; no network.
@@ -119,13 +153,21 @@ export function checkDelivery(
   const e = options.expected ?? {};
   const before = reasons.length;
   if (e.network && r.payment.network !== e.network) reasons.push("unexpected network");
-  if (e.asset && r.payment.asset.toLowerCase() !== e.asset.toLowerCase())
+  if (e.asset && !sameAsset(r.payment.network, r.payment.asset, e.asset))
     reasons.push("unexpected asset");
-  if (e.amount && r.payment.amount !== e.amount) reasons.push("unexpected amount");
-  if (e.maxAmount && BigInt(r.payment.amount) > BigInt(e.maxAmount))
+  for (const [name, value] of [
+    ["amount", e.amount],
+    ["maxAmount", e.maxAmount],
+  ] as const)
+    if (value !== undefined && !INTEGER.test(value))
+      reasons.push(
+        `expected.${name} must be an integer in the receipt's unit (for XRPL issued tokens, 10^-15 units)`,
+      );
+  if (e.amount && INTEGER.test(e.amount) && r.payment.amount !== e.amount)
+    reasons.push("unexpected amount");
+  if (e.maxAmount && INTEGER.test(e.maxAmount) && BigInt(r.payment.amount) > BigInt(e.maxAmount))
     reasons.push("amount exceeds the maximum");
-  if (e.payee && r.payment.payee?.toLowerCase() !== e.payee.toLowerCase())
-    reasons.push("unexpected payee");
+  if (e.payee && !sameAccount(r.payment.payee, e.payee)) reasons.push("unexpected payee");
   if (e.payer && bare(r.payment.payer) !== bare(e.payer)) reasons.push("unexpected payer");
   if (
     e.inputSha256 &&

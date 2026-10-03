@@ -27,6 +27,7 @@ export {
   type XrplAssetId,
 } from "./encoding.js";
 export {
+  XRPL_ESCROW_CAPABILITIES,
   XRPL_ESCROW_RAIL,
   XrplEscrowRail,
   type CreateEscrowParams,

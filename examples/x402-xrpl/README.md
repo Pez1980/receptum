@@ -16,4 +16,10 @@ node packages/verify/dist/cli.js examples/x402-xrpl-testnet.json examples/x402-x
 
 Testnet only. Keys stay in `~/.config/receptum/wallets` (`xrpl-x402-testnet.json` with mode 600, plus `seller-ed25519.pem`); the scripts print addresses only and refuse to write a seed into the repo. Results: `examples/x402-xrpl-testnet.json` (settlement, anchor, signed receipt) and `examples/x402-xrpl-testnet-output.svg` (the delivered bytes). See [examples/E2E_RESULTS.md](../E2E_RESULTS.md).
 
-**Why XRP:** `@x402/xrpl` supports issued currencies too: `asset` is the currency code, `extra.issuer` names the issuer and `amount` is the decimal value. But `handlePaidJob` records only `requirements.asset` in the receipt, so an issued-currency receipt would lose its issuer, and an issuer-less `USD` must not verify. The client's `maxAmount` check is also integer-only. RLUSD testnet is held at Ripple's faucet. XRP avoids all three problems. Issued-token x402 is therefore unsupported in RRF v1 (SPEC §7.3): `@receptum/server` refuses such requirements before charging, and the verifiers never pass such a receipt (a different currency or issuer fails; a match is `unavailable`).
+**Issued tokens** (`e2e-token.mjs`, after `setup-token.mjs`): the same job priced at **0.25** of a self-issued, RLUSD-style token (`RCPT`, 40-hex currency code) from a fresh issuer account (`asfDefaultRipple`, trust lines for buyer and seller, buyer funded). `@x402/xrpl` expresses the price as `asset` = the currency code, `extra.issuer` = the issuer and `amount` = the decimal value `"0.25"`; `handlePaidJob` records `payment.asset` = `<currency>.<issuer>` and `payment.amount` = `"250000000000000"` (10^-15 units, SPEC §7.3) and refuses, before charging, values that are not whole 10^-15 units. The buyer caps the price in the same integer units (a requirements selector before signing, `expected.maxAmount` on the receipt). The public facilitator accepted the issued currency and the receipt is VERIFIED (`examples/x402-xrpl-token-testnet.json`).
+
+```sh
+node examples/x402-xrpl/setup-token.mjs   # once: fresh issuer + evaluator, trust lines, buyer funded
+node examples/x402-xrpl/e2e-token.mjs
+node packages/verify/dist/cli.js examples/x402-xrpl-token-testnet.json examples/x402-xrpl-token-testnet-output.svg
+```

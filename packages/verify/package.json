@@ -27,6 +27,12 @@
     "viem": "^2.57.2",
     "xrpl": "^5.3.0"
   },
+  "devDependencies": {
+    "@receptum/client": "workspace:*",
+    "@receptum/server": "workspace:*",
+    "@x402/core": "^2.28.0",
+    "@x402/xrpl": "2.28.0"
+  },
   "bin": {
     "receptum-verify": "./dist/cli.js"
   },

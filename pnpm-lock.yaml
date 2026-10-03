@@ -265,6 +265,19 @@ importers:
       xrpl:
         specifier: ^5.3.0
         version: 5.3.0
+    devDependencies:
+      '@receptum/client':
+        specifier: workspace:*
+        version: link:../client
+      '@receptum/server':
+        specifier: workspace:*
+        version: link:../server
+      '@x402/core':
+        specifier: ^2.28.0
+        version: 2.28.0
+      '@x402/xrpl':
+        specifier: 2.28.0
+        version: 2.28.0
 
 packages:
 

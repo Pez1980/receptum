@@ -9,6 +9,8 @@ import {
   sha256Hex,
   signReceipt,
   verifySignedReceipt,
+  xrplIssuedAsset,
+  xrplValueToUnits,
   type AccountBinding,
   type Anchor,
   type AnchorRecord,
@@ -171,6 +173,47 @@ function authorizationId(payload: unknown, req: { network: string; asset: string
   }
 }
 
+/**
+ * How a matched x402 requirement is recorded in the receipt (SPEC §2, §7.3). Usually the
+ * requirement's own `asset` and integer `amount`. An XRPL issued token (`extra.issuer`; `asset`
+ * is the currency code and `amount` its decimal value) becomes `asset` = `<currency>.<issuer>`,
+ * with the currency as on the ledger, and `amount` = the value in integer 10^-15 units, converted
+ * exactly ("0.25" → "250000000000000"). Throws — before anything is charged — for a value that is
+ * not a whole number of 10^-15 units or has no exact XRPL amount, an invalid currency or issuer,
+ * and for issued-token requirements on other networks, which RRF v1 cannot record.
+ */
+export function receiptPaymentTerms(req: {
+  network: string;
+  asset: string;
+  amount: string;
+  extra?: Record<string, unknown>;
+}): { asset: string; amount: (amount: string) => string } {
+  const issuer = req.extra?.issuer;
+  if (issuer === undefined) return { asset: req.asset, amount: (a) => a };
+  const refuse = (why: string): never => {
+    throw new Error(
+      `issued-token payment (${req.network} ${req.asset}) cannot be recorded in an RRF v1 receipt: ${why}`,
+    );
+  };
+  if (typeof issuer !== "string" || !req.network.startsWith("xrpl:"))
+    return refuse("only XRPL issued tokens are defined");
+  let asset = "";
+  try {
+    asset = xrplIssuedAsset(req.asset, issuer);
+  } catch (err) {
+    refuse(err instanceof Error ? err.message : String(err));
+  }
+  const amount = (value: string): string => {
+    try {
+      return xrplValueToUnits(value);
+    } catch (err) {
+      return refuse(err instanceof Error ? err.message : String(err));
+    }
+  };
+  amount(req.amount); // validate before charging
+  return { asset, amount };
+}
+
 /** base64url(JSON) — compact enough for a response header. */
 export const encodeReceiptHeader = (signed: SignedReceipt) =>
   Buffer.from(JSON.stringify(signed)).toString("base64url");
@@ -218,13 +261,9 @@ export async function handlePaidJob(
   if (!matched) return paymentRequired("payment does not match any accepted option");
   assertNetworkAllowed(matched.network, config.allowMainnet, "charge");
 
-  // RRF v1 amounts are integers in the asset's smallest unit and `asset` must identify the token
-  // exactly. Issued tokens (e.g. XRPL `extra.issuer`) have decimal amounts and an issuer that
-  // `asset` alone would drop, so refuse them before anything is charged.
-  if (typeof (matched.extra as Record<string, unknown> | undefined)?.issuer === "string")
-    throw new Error(
-      `issued-token payments (${matched.network} ${matched.asset}) are not supported by RRF v1 receipts`,
-    );
+  // RRF v1 amounts are integers and `asset` must identify the token exactly. Refuse, before
+  // anything is charged, any requirement the receipt could not record losslessly.
+  const receiptTerms = receiptPaymentTerms(matched);
 
   const lock = authorizationId(payload, matched);
   if (inFlight.has(lock))
@@ -252,7 +291,7 @@ export async function handlePaidJob(
         payment: {
           rail: `x402:${matched.scheme}`,
           network,
-          asset: matched.asset,
+          asset: receiptTerms.asset,
           amount: settledAmount,
           reference,
           payee: `${network}:${matched.payTo}`,
@@ -267,7 +306,10 @@ export async function handlePaidJob(
     const withBindings = (signed: SignedReceipt): SignedReceipt =>
       bindings?.length ? { ...signed, bindings } : signed;
     const preflight = withBindings(
-      signReceipt(draft("pending", matched.amount, matched.network), config.seller),
+      signReceipt(
+        draft("pending", receiptTerms.amount(matched.amount), matched.network),
+        config.seller,
+      ),
     );
     if (!verifySignedReceipt(preflight).ok)
       throw new Error("seller key can't produce a valid receipt signature");
@@ -299,7 +341,7 @@ export async function handlePaidJob(
       signReceipt(
         draft(
           settled.transaction,
-          settled.amount ?? matched.amount,
+          receiptTerms.amount(settled.amount ?? matched.amount),
           settled.network,
           settled.payer,
         ),

@@ -1,4 +1,14 @@
-import { isSha256Hex, RECEIPT_VERSION, type Sha256Hex } from "@receptum/core";
+import {
+  isSha256Hex,
+  parseXrplIssuedAsset,
+  RECEIPT_VERSION,
+  xrplCanonicalCurrency,
+  xrplCurrencyId,
+  xrplIssuedAsset,
+  xrplUnitsToValue,
+  xrplValueToUnits,
+  type Sha256Hex,
+} from "@receptum/core";
 import { isValidClassicAddress, type Memo } from "xrpl";
 
 const hex = (text: string) => Buffer.from(text, "utf8").toString("hex").toUpperCase();
@@ -60,14 +70,13 @@ export const caip10 = (network: string, address: string) => `${network}:${addres
 
 export type XrplAmount = string | { currency: string; issuer: string; value: string };
 
-/** Characters XRPL allows in a 3-character (standard) currency code. Case-sensitive. */
-const STANDARD_CODE = /^[A-Za-z0-9?!@#$%^&*<>(){}[\]|]{3}$/;
 /** 160-bit standard layout: 12 zero bytes, the 3 code bytes, 5 zero bytes. */
 const STANDARD_LAYOUT = /^0{24}([0-9A-F]{6})0{10}$/;
 
 /**
- * Currency code on the wire: 3-character standard codes as-is (case preserved), longer symbols
- * (4–20 characters) as the 40-hex of their UTF-8 bytes, 40-hex codes upper-cased.
+ * Wire currency code for a display symbol: 3-character standard codes as-is (case preserved),
+ * longer symbols (4–20 characters) as the 40-hex of their UTF-8 bytes, 40-hex codes upper-cased.
+ * A helper for building amounts; receipts carry the on-ledger code (`xrplCanonicalCurrency`).
  */
 export function currencyCode(symbol: string): string {
   if (symbol === "XRP") throw new TypeError("XRP is not an issued currency");
@@ -78,45 +87,26 @@ export function currencyCode(symbol: string): string {
 }
 
 /**
- * The 160-bit protocol identity of a wire currency code (XRPL binary format), as 40 upper-case
- * hex. A 3-character code is encoded into the standard layout byte for byte, so `usd` and `USD`
- * are different currencies. A 40-hex code is its own identity; only its hex spelling is
- * normalized. A 40-hex code with the standard layout (first byte 0x00) therefore IS that
- * standard code, exactly as the ledger stores it, while a nonstandard code whose bytes merely
- * spell `USD` is a different currency. Throws on `XRP` (as a standard code or its encoding),
- * characters outside the standard set, longer symbols (use `currencyCode` first) and
- * 0x00-prefixed codes that are not in the standard layout.
+ * The 160-bit protocol identity of an on-ledger currency code (XRPL binary format), as 40
+ * upper-case hex: a 3-character code byte for byte in the standard layout (case-sensitive, so
+ * `usd` ≠ `USD`), a 40-hex code as itself (only its hex spelling is normalized). A standard-layout
+ * 40-hex code therefore IS that standard code, while a nonstandard code whose bytes merely spell
+ * `USD` is a different currency. Throws on `XRP`, characters outside the standard set, display
+ * symbols (use `currencyCode` first) and 0x00-prefixed codes not in the standard layout.
  */
-export function currencyId(code: string): string {
-  let id: string;
-  if (/^[0-9A-F]{40}$/i.test(code)) id = code.toUpperCase();
-  else if (STANDARD_CODE.test(code)) id = `${"00".repeat(12)}${hex(code)}${"00".repeat(5)}`;
-  else throw new TypeError(`not an XRPL currency code: ${code}`);
-  if (id.startsWith("00")) {
-    const m = STANDARD_LAYOUT.exec(id);
-    const text = m ? Buffer.from(m[1]!, "hex").toString("latin1") : "";
-    if (!m || !STANDARD_CODE.test(text) || text === "XRP")
-      throw new TypeError(`not a valid XRPL currency: ${code}`);
-  }
-  return id;
-}
+export const currencyId = xrplCurrencyId;
 
 /** Protocol identity of an escrowed or delivered asset: XRP, or (160-bit currency, issuer). */
 export type XrplAssetId = { currency: "XRP" } | { currency: string; issuer: string };
 
 /**
- * Parses a receipt's `payment.asset` — `XRP`, or `<currency>.<issuer>` with a 3-character code,
- * a 4–20 character symbol or a 40-hex code, and a classic issuer address — into its protocol
- * identity. Throws TypeError on anything else.
+ * Parses a receipt's `payment.asset` — `XRP`, or `<currency>.<issuer>` with the currency as on
+ * the ledger (a 3-character code or 40-hex; display symbols such as `RLUSD` are refused) and a
+ * classic issuer address — into its protocol identity (SPEC §7.3). Throws TypeError otherwise.
  */
 export function parseXrplAsset(asset: string): XrplAssetId {
   if (asset === "XRP") return { currency: "XRP" };
-  const dot = asset.lastIndexOf(".");
-  const symbol = asset.slice(0, dot);
-  const issuer = asset.slice(dot + 1);
-  if (dot <= 0 || !isValidClassicAddress(issuer))
-    throw new TypeError(`asset must be "XRP" or "<currency>.<issuer>": ${asset}`);
-  return { currency: currencyId(currencyCode(symbol)), issuer };
+  return parseXrplIssuedAsset(asset);
 }
 
 /** Protocol identity of a ledger amount; null when its currency is not a valid code. */
@@ -152,56 +142,29 @@ export function currencySymbol(code: string): string {
   }
 }
 
-function scale(units: string, decimals: number): string {
-  const padded = units.padStart(decimals + 1, "0");
-  const whole = padded.slice(0, padded.length - decimals);
-  const frac = padded.slice(padded.length - decimals).replace(/0+$/, "");
-  return frac ? `${whole}.${frac}` : whole;
-}
-
-// rippled may render issued values in scientific notation, e.g. "1e-7".
-function unscale(value: string, decimals: number): string {
-  const m = /^([0-9]+)(?:\.([0-9]+))?(?:e([+-]?[0-9]+))?$/i.exec(value);
-  if (!m) throw new TypeError(`unsupported amount value: ${value}`);
-  const frac = m[2] ?? "";
-  let digits = (m[1] ?? "0") + frac;
-  let exp = Number(m[3] ?? 0) - frac.length + decimals;
-  while (exp < 0 && digits.endsWith("0")) {
-    digits = digits.slice(0, -1);
-    exp++;
-  }
-  if (exp < 0) throw new RangeError(`${value} has more than ${decimals} decimals`);
-  return BigInt(digits + "0".repeat(exp)).toString();
+/**
+ * Converts a receipt amount to an XRPL amount (SPEC §7.3): XRP drops as-is; an issued token's
+ * integer 10^-15 units as its decimal value, e.g. `"250000000000000"` → `"0.25"`. `asset` is
+ * `XRP` or `<currency>.<issuer>` (on-ledger currency). Throws when the amount has no exact XRPL
+ * issued amount.
+ */
+export function toXrplAmount(asset: string, amount: string): XrplAmount {
+  if (!/^(0|[1-9][0-9]*)$/.test(amount)) throw new TypeError("amount must be an integer string");
+  if (asset === "XRP") return amount;
+  const { issuer } = parseXrplIssuedAsset(asset);
+  const currency = xrplCanonicalCurrency(asset.slice(0, asset.indexOf(".")));
+  return { currency, issuer, value: xrplUnitsToValue(amount) };
 }
 
 /**
- * Converts a Receptum amount (integer, smallest unit) to an XRPL amount.
- * `asset` is "XRP" (drops) or "<currency>.<issuer>" with `decimals` fractional digits.
+ * A ledger amount as a receipt's `asset` and `amount`: XRP drops, or `<currency>.<issuer>` with the
+ * currency as rippled writes it and the value as integer 10^-15 units. Throws RangeError when the
+ * value is not a whole number of 10^-15 units, TypeError on an invalid currency.
  */
-export function toXrplAmount(asset: string, amount: string, decimals: number): XrplAmount {
-  if (!/^(0|[1-9][0-9]*)$/.test(amount)) throw new TypeError("amount must be an integer string");
-  if (asset === "XRP") return amount;
-  const dot = asset.lastIndexOf(".");
-  const symbol = dot > 0 ? asset.slice(0, dot) : "";
-  const issuer = asset.slice(dot + 1);
-  if (!symbol || !issuer || !isValidClassicAddress(issuer)) {
-    throw new TypeError(`asset must be "XRP" or "<currency>.<issuer>": ${asset}`);
-  }
-  currencyId(currencyCode(symbol)); // validates the code
-  const value = scale(amount, decimals);
-  if (value.replace(/^[0.]+|\./g, "").length > 15) {
-    throw new RangeError("issued amounts are limited to 15 significant digits");
-  }
-  return { currency: currencyCode(symbol), issuer, value };
-}
-
-export function fromXrplAmount(
-  amount: XrplAmount,
-  decimals: number,
-): { asset: string; amount: string } {
+export function fromXrplAmount(amount: XrplAmount): { asset: string; amount: string } {
   if (typeof amount === "string") return { asset: "XRP", amount };
   return {
-    asset: `${currencySymbol(amount.currency)}.${amount.issuer}`,
-    amount: unscale(amount.value, decimals),
+    asset: xrplIssuedAsset(amount.currency, amount.issuer),
+    amount: xrplValueToUnits(amount.value),
   };
 }

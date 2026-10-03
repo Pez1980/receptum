@@ -111,16 +111,37 @@ describe("XrplEscrowRail", () => {
     expect(await rail(seller).getEscrow(escrowId)).toMatchObject({ status: "refunded" });
   });
 
-  it("escrows issued tokens with integer amounts", async () => {
+  it("escrows issued tokens with integer 10^-15 amounts (SPEC §7.3)", async () => {
     const issuer = Wallet.generate().address;
-    const handle = await create(`RLUSD.${issuer}`, "1250000");
-    expect(ledger.state.submitted[0]!.Amount).toEqual({
-      currency: "524C555344000000000000000000000000000000",
-      issuer,
-      value: "1.25",
+    const RLUSD = "524C555344000000000000000000000000000000";
+    const handle = await create(`${RLUSD}.${issuer}`, "1250000000000000");
+    expect(ledger.state.submitted[0]!.Amount).toEqual({ currency: RLUSD, issuer, value: "1.25" });
+    expect(handle).toMatchObject({ asset: `${RLUSD}.${issuer}`, amount: "1250000000000000" });
+    expect(await rail(buyer).getEscrow(handle.escrowId)).toMatchObject({
+      amount: "1250000000000000",
+      xrpl: { currency: RLUSD, issuer, value: "1.25" },
     });
-    expect(handle).toMatchObject({ asset: `RLUSD.${issuer}`, amount: "1250000" });
-    expect(await rail(buyer).getEscrow(handle.escrowId)).toMatchObject({ amount: "1250000" });
+    await expect(create(`RLUSD.${issuer}`, "1")).rejects.toThrow(TypeError); // display symbol
+    await expect(create(`USD.${issuer}`, "12345678901234567")).rejects.toThrow(RangeError);
+  });
+
+  it("reports an escrowed value finer than 10^-15 with an empty amount", async () => {
+    const issuer = Wallet.generate().address;
+    await ledger.client.submitAndWait(
+      {
+        TransactionType: "EscrowCreate",
+        Account: buyer.address,
+        Destination: seller.address,
+        Amount: { currency: "USD", issuer, value: "1e-16" },
+        Condition: secret.condition,
+        CancelAfter: ledger.state.closeTime + 900,
+      } as never,
+      { wallet: buyer, autofill: true } as never,
+    );
+    const tx = ledger.state.submitted.at(-1)!;
+    const state = await rail(buyer).getEscrow(`${buyer.address}:${tx.Sequence}`);
+    expect(state).toMatchObject({ asset: `USD.${issuer}`, amount: "" });
+    expect(state.xrpl.value).toBe("1e-16");
   });
 
   it("surfaces failed engine results and unknown escrows", async () => {
@@ -248,6 +269,7 @@ describe("XrplEscrowRail protocol identity and terms", () => {
     expect(state.xrpl).toEqual({
       currency: nonstandard,
       issuer,
+      value: "0.000000000000001",
       condition: secret.condition,
       cancelAfter: ledger.state.closeTime - 10 + 900,
       deliveryCloseTime: ledger.state.closeTime,
@@ -264,6 +286,79 @@ describe("XrplEscrowRail protocol identity and terms", () => {
       condition: secret.condition,
     });
     expect((await rail(buyer).getEscrow(escrowId)).xrpl).toMatchObject({ currency: "XRP" });
+  });
+});
+
+describe("XrplEscrowRail evaluator flow", () => {
+  const evaluator = Wallet.generate();
+  let ledger: ReturnType<typeof fakeLedger>;
+  let secret: ReturnType<typeof newEscrowSecret>;
+  let handedToEvaluator: string | undefined;
+  const rail = (wallet: Wallet) =>
+    new XrplEscrowRail({
+      client: ledger.client,
+      wallet,
+      // Off-ledger: the buyer gave the fulfillment to the evaluator only.
+      fulfillment: () => (wallet === evaluator ? handedToEvaluator : undefined),
+    });
+
+  beforeEach(() => {
+    ledger = fakeLedger();
+    secret = newEscrowSecret();
+    handedToEvaluator = secret.fulfillment;
+  });
+
+  const open = () =>
+    rail(buyer).createEscrow({
+      seller: seller.address,
+      amount: "2000000",
+      asset: "XRP",
+      deliverBy: new Date(rippleTimeToISOTime(ledger.state.closeTime + 600)),
+      reviewWindowSeconds: 300,
+      condition: secret.condition,
+    });
+
+  it("advertises buyer and evaluator acceptance, never auto", () => {
+    expect(rail(buyer).capabilities).toEqual({
+      acceptanceModes: ["buyer", "evaluator"],
+      reviewWindowFromDelivery: false,
+      refundAfterDelivery: true,
+    });
+  });
+
+  it("open → deliver → evaluator finishes; the ledger records the evaluator as finisher", async () => {
+    const { escrowId } = await open();
+    await rail(seller).deliver(escrowId, receiptHash);
+    // The seller can't release: it never had the fulfillment.
+    await expect(rail(seller).release(escrowId)).rejects.toThrow(/fulfillment/);
+    await expect(
+      rail(seller).accept(escrowId, { evaluator: `xrpl:1:${evaluator.address}` }),
+    ).rejects.toThrow(/only the evaluator/);
+    await expect(
+      rail(evaluator).accept(escrowId, { evaluator: `xrpl:0:${evaluator.address}` }),
+    ).rejects.toThrow(/not an account on xrpl:1/);
+    const { reference } = await rail(evaluator).accept(escrowId, {
+      evaluator: `xrpl:1:${evaluator.address}`,
+    });
+    expect(ledger.state.submitted.at(-1)).toMatchObject({
+      TransactionType: "EscrowFinish",
+      Account: evaluator.address,
+      Fulfillment: secret.fulfillment,
+    });
+    const state = await rail(buyer).getEscrow(escrowId);
+    expect(state).toMatchObject({ status: "released", receiptHash });
+    expect(state.xrpl).toMatchObject({ settledBy: evaluator.address, settlementTx: reference });
+  });
+
+  it("rejection is not finishing: after CancelAfter the buyer refunds, and the refund is recorded", async () => {
+    const { escrowId } = await open();
+    await rail(seller).deliver(escrowId, receiptHash);
+    ledger.state.closeTime += 901;
+    const { reference } = await rail(buyer).refund(escrowId);
+    const state = await rail(seller).getEscrow(escrowId);
+    expect(state.status).toBe("refunded");
+    expect(state.xrpl).toMatchObject({ settledBy: buyer.address, settlementTx: reference });
+    await expect(rail(evaluator).accept(escrowId)).rejects.toThrow(/not open/);
   });
 });
 

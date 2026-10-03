@@ -1,0 +1,109 @@
+{
+  "network": "xrpl:1",
+  "flow": "escrow:xrpl evaluator mode — buyer gives the fulfillment to the evaluator, the evaluator finishes",
+  "accounts": {
+    "buyer": "rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf",
+    "seller": "r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+    "evaluator": "rJiEkxUmhX2GZ3XGmq3mnC85MAiuSo9XwT"
+  },
+  "transactions": [
+    {
+      "step": "EscrowCreate (rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf:21252567) by the buyer",
+      "hash": "BE8239468A14AD5531A0C533A96905918A86E3B22D85CC06898C4619CE458393",
+      "url": "https://testnet.xrpl.org/transactions/BE8239468A14AD5531A0C533A96905918A86E3B22D85CC06898C4619CE458393"
+    },
+    {
+      "step": "AccountSet delivery memo by the seller",
+      "hash": "6DB51BAC67488605184F8B16BFF0136130ADE99FEA67E95F59AAFB513D7BCDD6",
+      "url": "https://testnet.xrpl.org/transactions/6DB51BAC67488605184F8B16BFF0136130ADE99FEA67E95F59AAFB513D7BCDD6"
+    },
+    {
+      "step": "EscrowFinish by the evaluator",
+      "hash": "DD570910469B6D6365A7124CDD2F50C0FC71391CD542AE2189D5837ABAA08C5E",
+      "url": "https://testnet.xrpl.org/transactions/DD570910469B6D6365A7124CDD2F50C0FC71391CD542AE2189D5837ABAA08C5E"
+    }
+  ],
+  "escrow": {
+    "rail": "escrow:xrpl",
+    "network": "xrpl:1",
+    "escrowId": "rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf:21252567",
+    "amount": "1000000",
+    "asset": "XRP",
+    "buyer": "rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf",
+    "seller": "r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+    "refundableAfter": "2026-10-03T21:06:32.000Z",
+    "status": "released",
+    "receiptHash": "4c5903be004a2defcae855e8553a35a2108fce744aab7ae994ded50dc5e1a8aa",
+    "xrpl": {
+      "currency": "XRP",
+      "condition": "A0258020D1FB56D7B35DB0B8162A48D56391B433873D48A4DCFA48E91E6C322D1A2576BB810120",
+      "cancelAfter": 844376792,
+      "deliveryCloseTime": 844375601,
+      "settledBy": "rJiEkxUmhX2GZ3XGmq3mnC85MAiuSo9XwT",
+      "settlementTx": "DD570910469B6D6365A7124CDD2F50C0FC71391CD542AE2189D5837ABAA08C5E"
+    }
+  },
+  "deliverable": "examples/deliverables/xrpl-testnet-escrow-evaluator.txt",
+  "signedReceipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-F53P-VN9A",
+      "jobIdHash": "626cb0562cbd6d215c8fdaecb86b7353bb83a7b2f458caf6ef4931020c1da822",
+      "seller": {
+        "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "name": "receptum e2e seller (xrpl)"
+      },
+      "inputSha256": ["6f3338268ea51545a6133dc97b12a2bfee4439adcb8a9c342070c97071067464"],
+      "outputSha256": "adc58e857b3aa048f2f5ad7dedc53401c18d53aa7f66ad706ce8b12ed876aeb9",
+      "payment": {
+        "rail": "escrow:xrpl",
+        "network": "xrpl:1",
+        "asset": "XRP",
+        "amount": "1000000",
+        "reference": "rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf:21252567",
+        "payer": "xrpl:1:rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf",
+        "payee": "xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s"
+      },
+      "acceptance": {
+        "mode": "evaluator",
+        "reviewWindowSeconds": 600,
+        "evaluator": "xrpl:1:rJiEkxUmhX2GZ3XGmq3mnC85MAiuSo9XwT"
+      },
+      "deliveredAt": "2026-10-03T20:46:37.636Z",
+      "buyer": {
+        "id": "xrpl:1:rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf"
+      },
+      "remedy": {
+        "kind": "refund",
+        "withinDays": 7
+      }
+    },
+    "receiptHash": "4c5903be004a2defcae855e8553a35a2108fce744aab7ae994ded50dc5e1a8aa",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..-fd-P5oOD3D223BNMTfquRcYw0g2TVHZu76_G4VlsMlipSoFmjm7By4Lwgb57wQ1uUQOKlLm7lzsd6o6JE4hAg"
+    },
+    "bindings": [
+      {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "account": "xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+          "issuedAt": "2026-10-03T17:54:09.575Z",
+          "expiresAt": "2027-10-03T17:54:09.575Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..nvPyZCvAeRi5m9P0q-Hz8Q0YczWUMgcfZM7S2EE0_8mrm2Atwy3Y-KNokvWIocLhCzW3b5yQa34qJ_QRGtkuCg"
+        },
+        "accountProof": {
+          "type": "xrpl",
+          "publicKey": "EDF467790A9257C18B222ED2C7EADCF72A5A66A44CC47D92FC4C00FEA4944E2EF3",
+          "signature": "9E58CEDAD9A133A0D0C89900D6EF85585FE696E5546012A2B15AA51CCC99C6775FA9A35C217277ED7314D76CD28C43FE6D1C7BEDD4931358508A421339732B0E"
+        }
+      }
+    ]
+  }
+}

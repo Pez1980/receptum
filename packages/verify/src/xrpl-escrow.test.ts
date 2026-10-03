@@ -110,7 +110,7 @@ describe("escrow:xrpl level 3", () => {
     expect(checkXrplEscrow(over, state(over)).status).toBe("fail");
   });
 
-  it("never verifies evaluator mode: holding the fulfillment doesn't prove who decided", () => {
+  it("never verifies a non-XRPL evaluator: holding the fulfillment doesn't prove who decided", () => {
     const s = receipt({
       mode: "evaluator",
       reviewWindowSeconds: 600,
@@ -121,6 +121,86 @@ describe("escrow:xrpl level 3", () => {
     expect(r.detail).toMatch(/evaluator/);
     // Contradictions still fail first.
     expect(checkXrplEscrow(s, state(s, { amount: "1" })).status).toBe("fail");
+  });
+
+  describe("evaluator mode: the EscrowFinish Account is the on-ledger decision (SPEC §7.3)", () => {
+    const EVALUATOR = "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe";
+    const evaluated = (evaluator = `xrpl:1:${EVALUATOR}`) =>
+      receipt({ mode: "evaluator", reviewWindowSeconds: 600, evaluator });
+    const finished = (
+      s: SignedReceipt,
+      by: string | undefined,
+      over: Partial<XrplEscrowState> = {},
+    ) => state(s, over, { settledBy: by, settlementTx: "F".repeat(64) });
+
+    it("passes when the evaluator's own account finished the escrow", () => {
+      const s = evaluated();
+      const r = checkXrplEscrow(s, finished(s, EVALUATOR));
+      expect(r.status).toBe("pass");
+      expect(r.detail).toContain(EVALUATOR);
+    });
+
+    it("fails when anyone else finished it — seller, buyer or a third party", () => {
+      const s = evaluated();
+      for (const by of [SELLER, BUYER, ISSUER]) {
+        const r = checkXrplEscrow(s, finished(s, by));
+        expect(r.status, by).toBe("fail");
+        expect(r.detail).toMatch(/not by the evaluator/);
+      }
+    });
+
+    it("is pending while delivered and fails once refunded (rejection)", () => {
+      const s = evaluated();
+      const pending = checkXrplEscrow(s, finished(s, undefined, { status: "delivered" }));
+      expect(pending).toMatchObject({ status: "pending" });
+      expect(pending.detail).toMatch(/evaluator's EscrowFinish/);
+      expect(checkXrplEscrow(s, finished(s, BUYER, { status: "refunded" })).status).toBe("fail");
+    });
+
+    it("needs the same ledger terms as buyer mode: a Condition and the review-window bound", () => {
+      const s = evaluated();
+      const unconditional = state(s, {}, { settledBy: EVALUATOR, condition: undefined });
+      expect(checkXrplEscrow(s, unconditional).status).toBe("fail");
+      const long = receipt({
+        mode: "evaluator",
+        reviewWindowSeconds: 1188,
+        evaluator: `xrpl:1:${EVALUATOR}`,
+      });
+      expect(checkXrplEscrow(long, finished(long, EVALUATOR)).status).toBe("fail");
+    });
+
+    it("fails an XRPL evaluator on another network, an invalid address, or the seller itself", () => {
+      for (const ev of [`xrpl:0:${EVALUATOR}`, "xrpl:1:rNotAnAddress", `xrpl:1:${SELLER}`]) {
+        const s = evaluated(ev);
+        const by = ev.split(":")[2]!;
+        expect(checkXrplEscrow(s, finished(s, by)).status, ev).toBe("fail");
+      }
+    });
+
+    it("stays unavailable for an evaluator that is not an XRPL account", () => {
+      for (const ev of [
+        "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+        "eip155:1:0x0000000000000000000000000000000000000001",
+      ]) {
+        const s = evaluated(ev);
+        expect(checkXrplEscrow(s, finished(s, EVALUATOR)).status, ev).toBe("unavailable");
+      }
+    });
+
+    it("is unavailable when the history doesn't say who finished", () => {
+      const s = evaluated();
+      expect(checkXrplEscrow(s, finished(s, undefined)).status).toBe("unavailable");
+    });
+  });
+
+  it("fails an issued-token escrow whose value has no 10^-15 integer form", () => {
+    const s = receipt(undefined, `USD.${ISSUER}`);
+    const r = checkXrplEscrow(
+      s,
+      state(s, { amount: "" }, { currency: USD, issuer: ISSUER, value: "1e-16" }),
+    );
+    expect(r.status).toBe("fail");
+    expect(r.detail).toMatch(/10\^-15/);
   });
 
   it("fails auto mode on a conditional escrow, and acceptance modes on an unconditional one", () => {

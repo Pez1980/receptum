@@ -260,7 +260,7 @@ try {
   });
   step(`C issuer pays buyer 100 ${TOKEN}`, issueTx);
   const c = await releaseFlow(client, "C", {
-    amount: "5000000", // 5.000000 with 6 decimals
+    amount: "5000000000000000", // 5 tokens in 10^-15 units (SPEC §7.3)
     asset: `${TOKEN}.${issuer.address}`,
     deliverBy: new Date(Date.now() + 600_000),
     reviewWindowSeconds: 600,

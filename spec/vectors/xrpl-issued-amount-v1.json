@@ -1,0 +1,53 @@
+{
+  "description": "XRPL issued-token amounts in RRF v1 receipts (SPEC §7.3): payment.amount is the token value as an integer number of 10^-15 units. 'values': issued value strings as rippled or xrpl.js write them (Amount.value, delivered_amount.value) and the payment.amount they denote; units null: the value has no exact 10^-15 integer (or is malformed or outside the XRPL issued-amount range) — a seller MUST refuse it and a verifier MUST fail it. 'units': payment.amount integers and the plain decimal value a seller writes on the ledger; value null: no exact XRPL issued amount (more than 16 significant digits, or outside the range). No floating point anywhere.",
+  "values": [
+    { "value": "0.25", "units": "250000000000000" },
+    { "value": "1", "units": "1000000000000000" },
+    { "value": "1e-2", "units": "10000000000000" },
+    { "value": "1E-2", "units": "10000000000000" },
+    { "value": "1.5e3", "units": "1500000000000000000" },
+    { "value": "1.5e+3", "units": "1500000000000000000" },
+    { "value": "25e-2", "units": "250000000000000" },
+    { "value": "0.000000000000001", "units": "1" },
+    { "value": "1e-15", "units": "1" },
+    { "value": "1000000000000000e-30", "units": "1" },
+    { "value": "0.1000000000000000", "units": "100000000000000" },
+    { "value": "000.5", "units": "500000000000000" },
+    { "value": "1234567890.123456", "units": "1234567890123456000000000" },
+    { "value": "0", "units": "0" },
+    { "value": "0.0", "units": "0" },
+    { "value": "0e5", "units": "0" },
+    { "value": "0.0000000000000001", "units": null },
+    { "value": "1e-16", "units": null },
+    { "value": "1.5e-15", "units": null },
+    { "value": "0.1234567890123456", "units": null },
+    { "value": "12345678901234567", "units": null },
+    { "value": "10000.000000000001", "units": null },
+    { "value": "1e97", "units": null },
+    { "value": "1e-200", "units": null },
+    { "value": "-1", "units": null },
+    { "value": "-0.25", "units": null },
+    { "value": "+1", "units": null },
+    { "value": ".5", "units": null },
+    { "value": "1.", "units": null },
+    { "value": "1e", "units": null },
+    { "value": "", "units": null },
+    { "value": "NaN", "units": null }
+  ],
+  "units": [
+    { "units": "250000000000000", "value": "0.25" },
+    { "units": "1", "value": "0.000000000000001" },
+    { "units": "1000000000000000", "value": "1" },
+    { "units": "1500000000000000000", "value": "1500" },
+    { "units": "0", "value": "0" },
+    { "units": "1234567890123456000000000", "value": "1234567890.123456" },
+    { "units": "12345678901234567", "value": null },
+    {
+      "units": "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "value": null
+    },
+    { "units": "01", "value": null },
+    { "units": "1.5", "value": null },
+    { "units": "-1", "value": null }
+  ]
+}

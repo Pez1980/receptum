@@ -2,6 +2,12 @@
 
 All packages are versioned together. Testnet only; contracts are unaudited.
 
+## Unreleased
+
+### Added
+
+- **Python verifier parity** (`verifiers/python`): level 3 for `x402:exact` on Stellar testnet, `escrow:receptum-evm` (runtime-code hash pinned to the artifact, trusted registry, `escrows(id)` via hand-encoded `eth_call`), `escrow:receptum-soroban` (wasm hash and escrow storage via `getLedgerEntries`, hand-written XDR, SAC ids), `escrow:xrpl` (history-derived delivery and settlement, incomplete history `unavailable`), `escrow:stellar-claimable` (memo + data-entry delivery, batch-claim allocation) and `anchor:stellar`; `--trust-escrow` and `--horizon` options; `verifiers/python/scripts/verify_examples.py` reaches the TypeScript verdict on every published receipt.
+
 ## 0.2.0 — October 2026
 
 ### Added

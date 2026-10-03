@@ -42,6 +42,21 @@ def _parser() -> argparse.ArgumentParser:
         help="override/add a JSON-RPC endpoint (repeatable)",
     )
     p.add_argument(
+        "--horizon",
+        action="append",
+        default=[],
+        metavar="CAIP2=URL",
+        help="override/add a Horizon endpoint for a Stellar network (repeatable)",
+    )
+    p.add_argument(
+        "--trust-escrow",
+        action="append",
+        default=[],
+        metavar="ADDRESS|CONTRACT",
+        help="also trust this ReceptumEscrow deployment (EVM address or Soroban contract id; "
+        "repeatable)",
+    )
+    p.add_argument(
         "--allow-unbound",
         action="store_true",
         help="accept a receipt without any account binding (legacy receipts); invalid bindings still fail",
@@ -63,21 +78,24 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, JCSError, InputError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    rpcs = {}
-    for item in args.rpc:
-        caip2, sep, url = item.partition("=")
-        if not sep:
-            print(f"error: --rpc expects CAIP2=URL, got {item!r}", file=sys.stderr)
-            return 2
-        rpcs[caip2] = url
+    endpoints: dict[str, dict[str, str]] = {"rpc": {}, "horizon": {}}
+    for flag in endpoints:
+        for item in getattr(args, flag):
+            caip2, sep, url = item.partition("=")
+            if not sep:
+                print(f"error: --{flag} expects CAIP2=URL, got {item!r}", file=sys.stderr)
+                return 2
+            endpoints[flag][caip2] = url
 
     report = verify(
         signed,
         file_bytes,
         anchor=wrapper_anchors + args.anchor,
         offline=args.offline,
-        rpcs=rpcs,
+        rpcs=endpoints["rpc"],
+        horizons=endpoints["horizon"],
         allow_unbound=args.allow_unbound,
+        trusted_escrows=args.trust_escrow,
     )
 
     if args.json:

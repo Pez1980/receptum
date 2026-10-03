@@ -467,7 +467,9 @@ def verify_binding(binding: Any, *, xrpl_keys: XrplKeys | None = None) -> Bindin
         err.append("accountProof must be an object with a string type")
         return res
     namespace, reference, address = st["account"].split(":", 2)
-    expected = {"eip155": "eip191", "xrpl": "xrpl", "stellar": "sep53"}.get(namespace)
+    expected = {"eip155": "eip191", "xrpl": "xrpl", "stellar": "sep53", "solana": "solana"}.get(
+        namespace
+    )
     if expected is None:
         err.append(f"account namespace {namespace} is not supported (unverified, fail closed)")
         return res
@@ -478,6 +480,10 @@ def verify_binding(binding: Any, *, xrpl_keys: XrplKeys | None = None) -> Bindin
         detail = _verify_eip191(proof, address, message, err)
     elif namespace == "xrpl":
         detail = _verify_xrpl(proof, address, message, err, xrpl_keys, res)
+    elif namespace == "solana":
+        from .solana import verify_solana_proof
+
+        detail = verify_solana_proof(proof, f"{namespace}:{reference}", address, message, err)
     else:
         detail = _verify_sep53(proof, address, message, err)
     if detail is None:

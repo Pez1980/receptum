@@ -17,9 +17,25 @@ __all__ = [
 ]
 
 TESTNET_NETWORKS = frozenset(
-    {"eip155:84532", "eip155:5042002", "eip155:31337", "eip155:1337", "xrpl:1", "stellar:testnet"}
+    {
+        "eip155:84532",
+        "eip155:5042002",
+        "eip155:31337",
+        "eip155:1337",
+        "xrpl:1",
+        "stellar:testnet",
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",  # Solana devnet
+    }
 )
-MAINNET_NETWORKS = frozenset({"eip155:8453", "eip155:5042", "xrpl:0", "stellar:pubnet"})
+MAINNET_NETWORKS = frozenset(
+    {
+        "eip155:8453",
+        "eip155:5042",
+        "xrpl:0",
+        "stellar:pubnet",
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",  # Solana mainnet-beta
+    }
+)
 
 # ReceptumEscrow deployments published by the project. Mainnet entries are deliberately EMPTY:
 # nothing has been deployed to a mainnet, and escrow contracts go there only after an independent
@@ -28,9 +44,12 @@ MAINNET_NETWORKS = frozenset({"eip155:8453", "eip155:5042", "xrpl:0", "stellar:p
 TRUSTED_ESCROWS: dict[str, tuple[str, ...]] = {
     "eip155:5042002": ("0x20d69c6c647559f48a7e6b0a3f922e99a4068f16",),
     "stellar:testnet": ("CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG",),
+    # receptum_escrow, immutable (packages/adapter-solana/program/deployment.devnet.json).
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": ("6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv",),
     "eip155:8453": (),
     "eip155:5042": (),
     "stellar:pubnet": (),
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": (),
 }
 
 

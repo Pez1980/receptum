@@ -33,6 +33,7 @@ from receptum_verify.binding import (
 from receptum_verify.encoding import b64url_encode, did_key_from_public_key
 from receptum_verify.hashes import keccak256, ripemd160
 from receptum_verify.jcs import canonicalize
+from receptum_verify.solana import b58decode
 
 from conftest import EXAMPLES, REPO, load_json
 
@@ -166,6 +167,12 @@ def test_vector_reproduced_byte_for_byte(vector):
         priv = xrpl_secp256k1_from_passphrase(key)
         assert _compressed(priv).hex().upper() == proof["publicKey"]
         assert sign_xrpl_secp256k1(priv, m) == proof["signature"]
+    elif ns == "solana":
+        seed = bytes.fromhex(key)
+        priv = Ed25519PrivateKey.from_private_bytes(seed)
+        assert b58decode(st["account"].split(":")[2]) == priv.public_key().public_bytes_raw()
+        digest = hashlib.sha256(b"Solana Signed Message:\n" + m).digest()
+        assert base64.b64encode(priv.sign(digest)).decode() == proof["signature"]
     else:
         seed = bytes.fromhex(key)
         pub = Ed25519PrivateKey.from_private_bytes(seed).public_key().public_bytes_raw()
@@ -195,7 +202,7 @@ def _vec(ns):
     return copy.deepcopy(BY_NS[ns]["binding"])
 
 
-@pytest.mark.parametrize("ns", ["eip155", "xrpl", "stellar"])
+@pytest.mark.parametrize("ns", ["eip155", "xrpl", "stellar", "solana"])
 def test_tampered_statement_fails(ns):
     b = _vec(ns)
     b["statement"]["issuedAt"] = "2026-10-01T00:00:00.001Z"
@@ -203,7 +210,7 @@ def test_tampered_statement_fails(ns):
     assert not res.ok and any("statement.did" in e for e in res.errors)
 
 
-@pytest.mark.parametrize("ns", ["eip155", "xrpl", "stellar"])
+@pytest.mark.parametrize("ns", ["eip155", "xrpl", "stellar", "solana"])
 def test_account_signature_over_tampered_statement_fails(ns):
     # Re-sign the did part so only the account proof is stale.
     b = _vec(ns)
@@ -347,7 +354,7 @@ def test_binding_members_exact_and_namespace_fail_closed():
     b["extra"] = 1
     assert not verify_binding(b).ok
     b = _vec("eip155")
-    b["statement"]["account"] = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:abc"
+    b["statement"]["account"] = "cosmos:cosmoshub-4:abc"
     b["didProof"] = sign_did(b["statement"])
     res = verify_binding(b)
     assert not res.ok and any("not supported" in e for e in res.errors)
@@ -370,7 +377,7 @@ def _signed(ns, **receipt_overrides):
     return {"receipt": receipt, "bindings": [b]}
 
 
-@pytest.mark.parametrize("ns", ["eip155", "xrpl", "stellar"])
+@pytest.mark.parametrize("ns", ["eip155", "xrpl", "stellar", "solana"])
 def test_covers(ns):
     res = check_payee_binding(_signed(ns), now=NOW)
     assert res.status == "pass", res.detail

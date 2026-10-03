@@ -481,8 +481,12 @@ def test_verify_reports_binding_level(live_doc, live_output):
     assert report.levels["signature"].status == "pass"
     assert report.levels["binding"].status == "fail"
     assert report.status == "NOT VERIFIED"
+    # A non-array `bindings` breaks the signed-receipt envelope (SPEC §4): level 2 fails.
     swapped["bindings"] = {"not": "an array"}
-    assert verify(swapped, live_output, offline=True).levels["binding"].status == "fail"
+    report = verify(swapped, live_output, offline=True)
+    assert report.levels["signature"].status == "fail"
+    assert "bindings must be an array" in report.levels["signature"].detail
+    assert report.status == "NOT VERIFIED"
 
 
 online = pytest.mark.skipif(os.environ.get("RECEPTUM_OFFLINE") == "1", reason="RECEPTUM_OFFLINE=1")

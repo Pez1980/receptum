@@ -83,5 +83,366 @@
         "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..IVW09yHXDJfG1tYVwkZVxHVXxi_aov1l8mVcE2vzvg1vhctmeS5y0dXPdr3OlDJ0J5xUDMs7cHo_GWVmftQHBw"
       }
     }
+  ],
+  "invalidNote": "Every `invalid` entry MUST be rejected: a `signedReceipt` fails level 2 (SPEC §2, §4); a `text` is not I-JSON and MUST be refused when parsed as a receipt file (SPEC §6.1).",
+  "invalid": [
+    {
+      "name": "JWS header with a duplicate member (alg none, then EdDSA), validly signed",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200
+          },
+          "deliveredAt": "2026-10-04T12:00:00.000Z",
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJub25lIiwiYWxnIjoiRWREU0EiLCJraWQiOiJkaWQ6a2V5Ono2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyN6Nk1rdHd1cGRtTFhWVnFUekN3NGk0NnI0dUd5b3NHWFJuUjNYak40WnE3b01Nc3ciLCJ0eXAiOiJyZWNlcHR1bStqd3MifQ.._wENIjebAUZypaVKRJVAQ0LKL4nsM_8G-esaBZGCeVoPWGkLJ0MiZvsRt2vef6zNAp8iWmqqvwuCwUv6pQaOCg"
+        }
+      }
+    },
+    {
+      "name": "Ed25519 signature with S + L (malleated, S >= L)",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200
+          },
+          "deliveredAt": "2026-10-04T12:00:00.000Z",
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..atx2o12Vi7Jmv3ABc6CG0A5iFfW-NNSlkCC52B6UBI7bX1LbuuI7DokoOoShy5uWBvQtSC7eBVjgE5MQwgO4Hw"
+        }
+      }
+    },
+    {
+      "name": "signed-receipt envelope with an extra member",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200
+          },
+          "deliveredAt": "2026-10-04T12:00:00.000Z",
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..atx2o12Vi7Jmv3ABc6CG0A5iFfW-NNSlkCC52B6UBI5ujwsC3hcqtrKLQuHC0byBBvQtSC7eBVjgE5MQwgO4Dw"
+        },
+        "note": "x"
+      }
+    },
+    {
+      "name": "bindings is not an array",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200
+          },
+          "deliveredAt": "2026-10-04T12:00:00.000Z",
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..atx2o12Vi7Jmv3ABc6CG0A5iFfW-NNSlkCC52B6UBI5ujwsC3hcqtrKLQuHC0byBBvQtSC7eBVjgE5MQwgO4Dw"
+        },
+        "bindings": {}
+      }
+    },
+    {
+      "name": "proof with an extra member",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200
+          },
+          "deliveredAt": "2026-10-04T12:00:00.000Z",
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..atx2o12Vi7Jmv3ABc6CG0A5iFfW-NNSlkCC52B6UBI5ujwsC3hcqtrKLQuHC0byBBvQtSC7eBVjgE5MQwgO4Dw",
+          "alg": "EdDSA"
+        }
+      }
+    },
+    {
+      "name": "acceptance.evaluator while mode is auto",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200,
+            "evaluator": "did:web:qa.example"
+          },
+          "deliveredAt": "2026-10-04T12:00:00.000Z",
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "4442e0a4ea32477cef069c79645815c66ef4e696caa7bd898334bd2511046c88",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..afk40k98wciGD77mMnbZGEA74ECk2gc7tUPJSjpee1w4Of8KoOKB3A4bon-Y9zDhbdmk1bHW7n_Fs_hf0jXFBw"
+        }
+      }
+    },
+    {
+      "name": "payment.payee is a DID, not a CAIP-10 account",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab",
+            "payee": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200
+          },
+          "deliveredAt": "2026-10-04T12:00:00.000Z",
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "596701a0c0ee45431afea2a947201bee79185bc4c162de7e6d4b5a33043de344",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..EQ1T7EipydVEErJlv_Vqzdu2i0wlP0Jiq4CeBqqF51neK6043GPYCXEXPcrcjSc1sJBv-8Vbj0NuUyeEmtzVCg"
+        }
+      }
+    },
+    {
+      "name": "deliveredAt with 10 fractional digits",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200
+          },
+          "deliveredAt": "2026-10-04T12:00:00.0000000000Z",
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "1d5b7d2ac2c7d03f49b5ee192b3a9aea6a5784faf2dfc286c39478f765c42de7",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..DkGb-C3YR96o6X6BSzZpqoEwBRTldAlbDY3knTKwLGBN-KL17r6plDAC5KlJ5EkP5jogAxbi9Abu9n301rxqAg"
+        }
+      }
+    },
+    {
+      "name": "remedy without kind",
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-7F3A-21C9",
+          "jobIdHash": "462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef",
+          "seller": {
+            "id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "name": "render.example"
+          },
+          "inputSha256": ["4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30"],
+          "outputSha256": "dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61",
+          "payment": {
+            "rail": "x402:exact",
+            "network": "eip155:84532",
+            "asset": "USDC",
+            "amount": "2500000",
+            "reference": "0xabababababababababababababababababababababababababababababababab"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 259200
+          },
+          "deliveredAt": "2026-10-04T12:00:00.000Z",
+          "remedy": {
+            "withinDays": 30
+          }
+        },
+        "receiptHash": "681ddb0a2dd888036360f7a35a77bd0bf4ff9145951d14e751fb469f54ee775d",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..1GZo1AyNZvyIoroI-FlMEacM_acBc7Yr90AHx5uQFf5aRndCN1yKV2T_iw7drszkODm9Bybrpj3XNofLEO2SAA"
+        }
+      }
+    },
+    {
+      "name": "receipt file with a duplicate member name (JSON.parse would keep the last amount)",
+      "text": "{\"receipt\":{\"version\":\"receptum/1\",\"receiptId\":\"RCPT-7F3A-21C9\",\"jobIdHash\":\"462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef\",\"seller\":{\"id\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"name\":\"render.example\"},\"inputSha256\":[\"4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30\"],\"outputSha256\":\"dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61\",\"payment\":{\"rail\":\"x402:exact\",\"network\":\"eip155:84532\",\"asset\":\"USDC\",\"amount\":\"1\",\"amount\":\"2500000\",\"reference\":\"0xabababababababababababababababababababababababababababababababab\"},\"acceptance\":{\"mode\":\"auto\",\"reviewWindowSeconds\":259200},\"deliveredAt\":\"2026-10-04T12:00:00.000Z\",\"remedy\":{\"kind\":\"rerender\",\"withinDays\":30}},\"receiptHash\":\"46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b\",\"proof\":{\"type\":\"jws\",\"kid\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"jws\":\"eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..atx2o12Vi7Jmv3ABc6CG0A5iFfW-NNSlkCC52B6UBI5ujwsC3hcqtrKLQuHC0byBBvQtSC7eBVjgE5MQwgO4Dw\"}}"
+    },
+    {
+      "name": "receipt file with a lone surrogate",
+      "text": "{\"receipt\":{\"version\":\"receptum/1\",\"receiptId\":\"RCPT-7F3A-21C9\",\"jobIdHash\":\"462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef\",\"seller\":{\"id\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"name\":\"render.example\\ud800\"},\"inputSha256\":[\"4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30\"],\"outputSha256\":\"dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61\",\"payment\":{\"rail\":\"x402:exact\",\"network\":\"eip155:84532\",\"asset\":\"USDC\",\"amount\":\"2500000\",\"reference\":\"0xabababababababababababababababababababababababababababababababab\"},\"acceptance\":{\"mode\":\"auto\",\"reviewWindowSeconds\":259200},\"deliveredAt\":\"2026-10-04T12:00:00.000Z\",\"remedy\":{\"kind\":\"rerender\",\"withinDays\":30}},\"receiptHash\":\"46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b\",\"proof\":{\"type\":\"jws\",\"kid\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"jws\":\"eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..atx2o12Vi7Jmv3ABc6CG0A5iFfW-NNSlkCC52B6UBI5ujwsC3hcqtrKLQuHC0byBBvQtSC7eBVjgE5MQwgO4Dw\"}}"
+    },
+    {
+      "name": "receipt file with a number outside the IEEE 754 double range",
+      "text": "{\"receipt\":{\"version\":\"receptum/1\",\"receiptId\":\"RCPT-7F3A-21C9\",\"jobIdHash\":\"462c22c8dabdacba3df2fbb9f3af81b142c87a5087333edc229a3b9cd03f2cef\",\"seller\":{\"id\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"name\":\"render.example\"},\"inputSha256\":[\"4ec36f0f1fdba9ab69183d80497e375a3314f5cb86f28bded0fe1d6cdedbca30\"],\"outputSha256\":\"dae52483c75909d1f80f22d94ffcb10016f916692c3142277af38644122b1e61\",\"payment\":{\"rail\":\"x402:exact\",\"network\":\"eip155:84532\",\"asset\":\"USDC\",\"amount\":\"2500000\",\"reference\":\"0xabababababababababababababababababababababababababababababababab\"},\"acceptance\":{\"mode\":\"auto\",\"reviewWindowSeconds\":1e400},\"deliveredAt\":\"2026-10-04T12:00:00.000Z\",\"remedy\":{\"kind\":\"rerender\",\"withinDays\":30}},\"receiptHash\":\"46802213f843fed95aa6c5023d5bf1440912c99d33398fffbad9b58c9046a42b\",\"proof\":{\"type\":\"jws\",\"kid\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"jws\":\"eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..atx2o12Vi7Jmv3ABc6CG0A5iFfW-NNSlkCC52B6UBI5ujwsC3hcqtrKLQuHC0byBBvQtSC7eBVjgE5MQwgO4Dw\"}}"
+    }
   ]
 }

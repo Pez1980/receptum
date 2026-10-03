@@ -25,7 +25,15 @@ describe("verify (offline)", () => {
   it("passes the genuine file and signature", async () => {
     const r = await verify(signed, { file, offline: true });
     expect(r.ok).toBe(true);
-    expect(r.checks.map((c) => c.status)).toEqual(["pass", "pass", "skipped"]);
+    // L1, L2, L2.5 (no payee), L3 payment (offline), L3 commitment (no anchor).
+    expect(r.checks.map((c) => c.status)).toEqual([
+      "pass",
+      "pass",
+      "skipped",
+      "skipped",
+      "skipped",
+    ]);
+    expect(r.verdict).toBe("PARTIALLY VERIFIED");
   });
 
   it("fails a different file", async () => {
@@ -123,6 +131,8 @@ describe("verify (Stellar, no network needed)", () => {
   it("refuses to fully verify a Stellar x402 payment that names no payee", async () => {
     const r = await verify(stellarReceipt({ rail: "x402:exact", reference: "ab".repeat(32) }));
     expect(r.complete).toBe(false);
-    expect(r.checks.at(-1)?.status).toBe("pending");
+    const payment = r.checks.find((c) => c.name.startsWith("Payment"));
+    expect(payment?.status).toBe("unavailable");
+    expect(r.verdict).toBe("PARTIALLY VERIFIED");
   });
 });

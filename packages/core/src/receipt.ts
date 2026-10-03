@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { canonicalJson } from "./canonical.js";
 import { isSha256Hex, sha256Hex, type Sha256Hex } from "./hash.js";
+import { publicKeyFromDidKey } from "./signing.js";
 
 export const RECEIPT_VERSION = "receptum/1" as const;
 
@@ -17,7 +18,10 @@ export interface DeliveryReceipt {
   receiptId: string;
   /** sha256 of the seller's internal job id, so the id itself is never published. */
   jobIdHash: Sha256Hex;
-  /** Who stands behind the delivery. `id` is a DID (did:key) or a CAIP-10 account. */
+  /**
+   * Who stands behind the delivery. `id` is an Ed25519 did:key (required for a JWS proof) or a
+   * CAIP-10 account.
+   */
   seller: { id: string; name?: string };
   /** Optional buyer identity (CAIP-10 account or DID). */
   buyer?: { id: string };
@@ -117,16 +121,40 @@ export function createReceipt(input: ReceiptInput): DeliveryReceipt {
   return receipt;
 }
 
-const CAIP2 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$/;
-const RECEIPT_ID = /^RCPT-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
-const AMOUNT = /^(0|[1-9][0-9]*)$/;
+// Identity syntax, pinned in SPEC §2.1. Both verifiers use exactly these expressions.
+/** CAIP-2 chain id. */
+export const CAIP2 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$/;
+/** CAIP-10 account id. A value beginning with "did:" is a DID, never a CAIP-10 account. */
 export const CAIP10 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}:[-.%a-zA-Z0-9]{1,128}$/;
-const DID = /^did:[a-z0-9]+:[A-Za-z0-9._%-]+(:[A-Za-z0-9._%-]+)*$/;
-const isIdentity = (v: string) => DID.test(v) || CAIP10.test(v);
+/** W3C DID Core §3.1 ABNF without path, query or fragment; pct-encoded is "%" HEXDIG HEXDIG. */
+export const DID =
+  /^did:[a-z0-9]+:(?:(?:[A-Za-z0-9._-]|%[0-9A-Fa-f]{2})*:)*(?:[A-Za-z0-9._-]|%[0-9A-Fa-f]{2})+$/;
+export const RECEIPT_ID = /^RCPT-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
+const AMOUNT = /^(0|[1-9][0-9]*)$/;
 
-/** Calendar-valid YYYY-MM-DDTHH:MM:SS(.f)Z without JavaScript date normalization. */
+export const isCaip2 = (v: unknown): v is string => typeof v === "string" && CAIP2.test(v);
+export const isCaip10 = (v: unknown): v is string =>
+  typeof v === "string" && CAIP10.test(v) && !v.startsWith("did:");
+export const isDid = (v: unknown): v is string => typeof v === "string" && DID.test(v);
+const isIdentity = (v: string) => isDid(v) || isCaip10(v);
+const isEd25519DidKey = (v: string) => {
+  try {
+    publicKeyFromDidKey(v);
+    return /^did:key:z[1-9A-HJ-NP-Za-km-z]+$/.test(v);
+  } catch {
+    return false;
+  }
+};
+
+const TIMESTAMP =
+  /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]{1,9})?Z$/;
+
+/**
+ * Calendar-valid YYYY-MM-DDTHH:MM:SS[.f]Z (1–9 fractional digits, years 0001–9999, seconds
+ * 00–59) without JavaScript date normalization (SPEC §2.2).
+ */
 export function isUtcTimestamp(v: string): boolean {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?Z$/.exec(v);
+  const m = typeof v === "string" ? TIMESTAMP.exec(v) : null;
   if (!m) return false;
   const [y, mo, d, h, mi, se] = m.slice(1, 7).map(Number) as [
     number,
@@ -150,7 +178,23 @@ export function isUtcTimestamp(v: string): boolean {
     30,
     31,
   ];
-  return mo >= 1 && mo <= 12 && d >= 1 && d <= days[mo - 1]! && h <= 23 && mi <= 59 && se <= 59;
+  return (
+    y >= 1 && mo >= 1 && mo <= 12 && d >= 1 && d <= days[mo - 1]! && h <= 23 && mi <= 59 && se <= 59
+  );
+}
+
+/**
+ * Compares two SPEC §2.2 timestamps exactly, at full fractional precision (no millisecond
+ * truncation as with `Date.parse`). Returns -1, 0 or 1. Throws on an invalid timestamp.
+ */
+export function compareTimestamps(a: string, b: string): -1 | 0 | 1 {
+  if (!isUtcTimestamp(a) || !isUtcTimestamp(b)) throw new TypeError("invalid timestamp");
+  // The first 19 characters are fixed-width, so they order lexicographically.
+  const [wa, wb] = [a.slice(0, 19), b.slice(0, 19)];
+  if (wa !== wb) return wa < wb ? -1 : 1;
+  const frac = (t: string) => (t.length > 20 ? t.slice(20, -1) : "").padEnd(9, "0");
+  const [fa, fb] = [frac(a), frac(b)];
+  return fa === fb ? 0 : fa < fb ? -1 : 1;
 }
 
 const ALLOWED: Record<string, readonly string[]> = {
@@ -211,8 +255,9 @@ export function assertValidReceipt(receipt: DeliveryReceipt): void {
   hash(r.jobIdHash, "jobIdHash");
 
   const seller = obj(r.seller, "seller", "seller");
-  if (!isIdentity(text(seller, "id", "seller")!))
-    fail("seller.id must be a DID or CAIP-10 account");
+  const sellerId = text(seller, "id", "seller")!;
+  if (!(isEd25519DidKey(sellerId) || isCaip10(sellerId)))
+    fail("seller.id must be an Ed25519 did:key or a CAIP-10 account");
   text(seller, "name", "seller", false);
   if (has(r, "buyer") && !isIdentity(text(obj(r.buyer, "buyer", "buyer"), "id", "buyer")!)) {
     fail("buyer.id must be a DID or CAIP-10 account");
@@ -242,16 +287,18 @@ export function assertValidReceipt(receipt: DeliveryReceipt): void {
   for (const k of ["rail", "network", "asset", "amount", "reference"]) text(p, k, "payment");
   for (const k of ["payer", "payee"]) {
     const v = text(p, k, "payment", false);
-    if (v !== undefined && !CAIP10.test(v)) fail(`payment.${k} must be a CAIP-10 account`);
+    if (v !== undefined && !isCaip10(v)) fail(`payment.${k} must be a CAIP-10 account`);
   }
   if (!AMOUNT.test(p.amount as string))
     fail("payment.amount must be a non-negative integer string");
-  if (!CAIP2.test(p.network as string)) fail("payment.network must be a CAIP-2 id");
+  if (!isCaip2(p.network)) fail("payment.network must be a CAIP-2 id");
 
   const a = obj(r.acceptance, "acceptance", "acceptance");
   if (!["buyer", "evaluator", "auto"].includes(a.mode as string)) fail("acceptance.mode");
   if (!Number.isSafeInteger(a.reviewWindowSeconds) || (a.reviewWindowSeconds as number) < 0)
     fail("acceptance.reviewWindowSeconds");
+  if (a.mode !== "evaluator" && has(a, "evaluator"))
+    fail('acceptance.evaluator is only allowed when mode is "evaluator"');
   const evaluator = text(a, "evaluator", "acceptance", a.mode === "evaluator");
   if (evaluator !== undefined && !isIdentity(evaluator))
     fail("acceptance.evaluator must be a DID or CAIP-10 account");
@@ -270,7 +317,7 @@ export function assertValidReceipt(receipt: DeliveryReceipt): void {
   if (has(r, "supersedes")) hash(r.supersedes, "supersedes");
   const at = text(r, "deliveredAt", "receipt")!;
   if (!isUtcTimestamp(at))
-    fail("deliveredAt must be a calendar-valid YYYY-MM-DDTHH:MM:SS[.fff]Z timestamp");
+    fail("deliveredAt must be a calendar-valid YYYY-MM-DDTHH:MM:SS[.f]Z timestamp");
 }
 
 /** JCS (RFC 8785) bytes of a receipt — what gets hashed and signed. */

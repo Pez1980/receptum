@@ -12,8 +12,8 @@ from conftest import EXAMPLES, load_json
 
 def test_live_receipt_offline(live_doc, live_output):
     # Expected values come from the example itself, so regenerating it needs no edit here.
-    signed, anchor = extract_signed_receipt(live_doc)
-    assert anchor and anchor.startswith("eip155:5042002:")
+    signed, anchors = extract_signed_receipt(live_doc)
+    assert len(anchors) == 1 and anchors[0].startswith("eip155:5042002:")
     report = verify(signed, live_output, offline=True)
     assert report.receipt_hash == signed["receiptHash"]
     assert report.seller == signed["receipt"]["seller"]["id"]
@@ -116,8 +116,8 @@ def test_live_receipt_online_without_anchor_is_partial(live_doc, live_output):
 def test_anchor_for_a_different_receipt_fails(live_doc, live_output):
     from receptum_verify.evm import check_evm_anchor
 
-    _, anchor = extract_signed_receipt(live_doc)
-    res = check_evm_anchor(anchor, "00" * 32)
+    _, anchors = extract_signed_receipt(live_doc)
+    res = check_evm_anchor(anchors[0], "00" * 32)
     if res.status == "unavailable":
         pytest.skip("RPC unavailable")
     assert res.status == "fail"

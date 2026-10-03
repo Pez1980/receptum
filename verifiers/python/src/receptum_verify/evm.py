@@ -9,6 +9,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from .receipt import is_caip2
+
 __all__ = [
     "ANCHOR_PREFIX",
     "DEFAULT_RPCS",
@@ -25,8 +27,8 @@ DEFAULT_RPCS: dict[str, str] = {
 ANCHOR_PREFIX = b"receptum/1"
 # keccak256("Transfer(address,address,uint256)")
 TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-_TX_HASH = re.compile(r"^0x[0-9a-fA-F]{64}$")
-_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
+_TX_HASH = re.compile(r"^0x[0-9a-fA-F]{64}\Z")
+_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}\Z")
 
 
 class RpcError(RuntimeError):
@@ -117,30 +119,32 @@ def check_x402_exact(receipt: dict, rpcs: dict[str, str] | None = None) -> Check
     chain_id = _chain_id(network)
     if chain_id is None:
         return CheckResult("unavailable", f"network {network} is not an EVM (eip155) chain")
-    rpc = _rpc_for(network, rpcs)
-    if rpc is None:
-        return CheckResult("unavailable", f"no RPC endpoint configured for {network}")
-    ref = pay["reference"]
-    if not _TX_HASH.match(ref):
-        return CheckResult("fail", "payment.reference is not an EVM transaction hash")
+    # Receipt-side MUSTs first (SPEC §7.3): these fail without asking the chain.
     asset = pay["asset"]
     if not _ADDRESS.match(asset):
         return CheckResult(
-            "unavailable",
-            f"payment.asset {asset!r} is not a token contract address; cannot check the transfer",
+            "fail", "payment.asset must be the token contract address for x402:exact on eip155"
         )
-    if "payee" not in pay:
-        return CheckResult(
-            "unavailable", "payment.payee is absent; cannot check where the funds went"
-        )
-    payee = _caip10_address(pay["payee"], network)
-    if payee is None:
-        return CheckResult("fail", f"payment.payee is not an EVM account on {network}")
+    ref = pay["reference"]
+    if not _TX_HASH.match(ref):
+        return CheckResult("fail", "payment.reference is not an EVM transaction hash")
+    payee = None
+    if "payee" in pay:
+        payee = _caip10_address(pay["payee"], network)
+        if payee is None:
+            return CheckResult("fail", f"payment.payee is not an EVM account on {network}")
     payer = None
     if "payer" in pay:
         payer = _caip10_address(pay["payer"], network)
         if payer is None:
             return CheckResult("fail", f"payment.payer is not an EVM account on {network}")
+    rpc = _rpc_for(network, rpcs)
+    if rpc is None:
+        return CheckResult("unavailable", f"no RPC endpoint configured for {network}")
+    if payee is None:
+        return CheckResult(
+            "unavailable", "payment.payee is absent; cannot check where the funds went"
+        )
     amount = int(pay["amount"])
 
     try:
@@ -184,11 +188,20 @@ def check_x402_exact(receipt: dict, rpcs: dict[str, str] | None = None) -> Check
 
 
 def parse_anchor(anchor: str) -> tuple[str, str]:
-    """Split ``caip2:txhash`` (e.g. eip155:5042002:0xabc…) into (caip2, txhash)."""
+    """Split ``caip2:txhash`` (e.g. eip155:5042002:0xabc…) into (caip2, txhash), SPEC §7.1."""
+    if not isinstance(anchor, str):
+        raise ValueError("anchor must be <caip2>:<transaction hash>")
     network, _, tx = anchor.rpartition(":")
-    if not network or not tx:
+    if not network or not tx or not is_caip2(network):
         raise ValueError("anchor must be <caip2>:<transaction hash>")
     return network, tx
+
+
+# Transaction-hash formats of the anchor networks this verifier recognises but cannot query.
+_OTHER_ANCHOR_TX = {
+    "xrpl:1": re.compile(r"^[0-9A-Fa-f]{64}\Z"),
+    "stellar:testnet": re.compile(r"^[0-9a-f]{64}\Z"),
+}
 
 
 def check_evm_anchor(
@@ -203,7 +216,12 @@ def check_evm_anchor(
         return CheckResult("fail", str(exc))
     chain_id = _chain_id(network)
     if chain_id is None:
-        return CheckResult("unavailable", f"anchor network {network} is not an EVM chain")
+        fmt = _OTHER_ANCHOR_TX.get(network)
+        if fmt is not None and not fmt.match(tx_hash):
+            return CheckResult("fail", "anchor transaction hash is malformed")
+        return CheckResult(
+            "unavailable", f"anchor network {network} is not supported by this verifier"
+        )
     if not _TX_HASH.match(tx_hash):
         return CheckResult("fail", "anchor transaction hash is malformed")
     rpc = _rpc_for(network, rpcs)

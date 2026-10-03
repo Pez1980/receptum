@@ -115,11 +115,14 @@ def test_rpc_error_is_unavailable(rpc):
     assert check_x402_exact(RECEIPT).status == "unavailable"
 
 
-def test_symbol_asset_and_missing_payee_are_unavailable(rpc):
+def test_symbol_asset_fails_and_missing_payee_is_unavailable(rpc):
     rpc(eth_getTransactionReceipt=settled())
     r = copy.deepcopy(RECEIPT)
+    # SPEC §7.3: payment.asset MUST be the token contract address for x402:exact on eip155.
     r["payment"]["asset"] = "USDC"
-    assert check_x402_exact(r).status == "unavailable"
+    res = check_x402_exact(r)
+    assert res.status == "fail"
+    assert "token contract address" in res.detail
     r = copy.deepcopy(RECEIPT)
     del r["payment"]["payee"]
     assert check_x402_exact(r).status == "unavailable"

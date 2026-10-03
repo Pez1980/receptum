@@ -132,8 +132,12 @@ try {
 
   const report = await verify(result.receipt, { file: result.body });
   for (const c of report.checks) console.log(`[${c.status}] L${c.level} ${c.name} — ${c.detail}`);
-  if (!report.complete) throw new Error("receipt did not fully verify");
-  console.log("VERIFIED");
+  // x402 cannot commit receiptHash on its rail, so without an anchor the best verdict is
+  // PARTIALLY VERIFIED (SPEC §6); everything else, including the settlement, must pass.
+  const payment = report.checks.find((c) => c.name.startsWith("Payment"));
+  if (!report.ok || payment?.status !== "pass" || report.missing.some((m) => !/committed/.test(m)))
+    throw new Error(`receipt did not verify: ${report.missing.join("; ")}`);
+  console.log(report.verdict);
 
   const hash = result.settlement.transaction;
   const record = {
@@ -143,7 +147,13 @@ try {
     settlementUrl: explorerTxUrl(hash),
     signedReceipt: result.receipt,
     check: result.check,
-    verify: { ok: report.ok, complete: report.complete, checks: report.checks },
+    verify: {
+      verdict: report.verdict,
+      ok: report.ok,
+      complete: report.complete,
+      missing: report.missing,
+      checks: report.checks,
+    },
   };
   const json = JSON.stringify(record, null, 2);
   if (/\bS[A-Z2-7]{55}\b/.test(json)) throw new Error("refusing to write a secret");
@@ -165,7 +175,7 @@ try {
       `| Payer → payee | \`${result.receipt.receipt.payment.payer}\` → \`${result.receipt.receipt.payment.payee}\` |`,
       `| receiptHash | \`${result.receipt.receiptHash}\` |`,
       `| Client check | ${result.check.ok ? "accepted" : "REJECTED"} (signature, output hash, settlement = receipt reference, seller allow-list, buyer expectations) |`,
-      `| \`receptum-verify\` | **VERIFIED** — ${report.checks.find((c) => c.level === 3).detail} |`,
+      `| \`receptum-verify\` | **${report.verdict}** — ${payment.detail}${report.missing.length ? ` (missing: ${report.missing.join("; ")})` : ""} |`,
       "",
       "Files: `examples/x402-stellar-testnet.json` (settlement + signed receipt), `examples/x402-stellar-testnet-output.svg` (the delivered bytes).",
     ].join("\n"),

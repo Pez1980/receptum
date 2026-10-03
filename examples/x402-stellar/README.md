@@ -4,7 +4,7 @@ One paid HTTP job over x402 `exact` on `stellar:testnet`, end to end, with a Rec
 
 - a local seller built on `@receptum/server` (`handlePaidJob`) prices a render at **$0.01 USDC** and settles through the public facilitator `https://x402.org/facilitator` (it advertises `exact` on `stellar:testnet` and sponsors the fees);
 - a buyer agent built on `@receptum/client` + `@x402/fetch` + `@x402/stellar` pays by signing a Soroban authorization for the USDC contract's `transfer`, and accepts the result only if the receipt, output hash, settlement and its own expectations (network, asset, max amount, payee, payer) all match;
-- `@receptum/verify` then confirms the settlement on chain: a USDC transfer of exactly the receipt's amount from the payer to `payment.payee`.
+- `@receptum/verify` then confirms the settlement on chain: a USDC transfer of exactly the receipt's amount from the payer to `payment.payee`. x402 cannot commit `receiptHash` on its rail, so without an anchor of the receipt the verdict is **PARTIALLY VERIFIED** (SPEC §6); the script requires every other level to pass. The published `x402-stellar-testnet.json` was not anchored.
 
 ```sh
 pnpm install && pnpm build

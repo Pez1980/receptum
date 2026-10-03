@@ -1,6 +1,6 @@
 import { createHash, sign, verify } from "node:crypto";
 import { canonicalJson } from "./canonical.js";
-import { CAIP10, isUtcTimestamp } from "./receipt.js";
+import { compareTimestamps, isCaip10, isUtcTimestamp } from "./receipt.js";
 import {
   ed25519PublicKeyFromRaw,
   sellerKeyFromSeed,
@@ -20,8 +20,8 @@ export const ACCOUNT_BINDING_TYPE = "receptum/account-binding/1" as const;
 export const BINDING_JWS_TYP = "receptum-binding+jws";
 /** Allowed clock skew for `issuedAt` in the future. */
 const MAX_FUTURE_SKEW_MS = 5 * 60_000;
-/** Bindings examined per receipt — a bound on work, not a protocol limit. */
-const MAX_BINDINGS = 16;
+/** Bindings examined per receipt — verifiers MAY stop after the first 16 (SPEC §4). */
+export const MAX_BINDINGS = 16;
 
 export interface AccountBindingStatement {
   type: typeof ACCOUNT_BINDING_TYPE;
@@ -69,12 +69,11 @@ export function assertValidBindingStatement(statement: AccountBindingStatement):
   }
   if (s.type !== ACCOUNT_BINDING_TYPE) fail("unknown statement type");
   if (!DID_KEY.test(s.did as string)) fail("did must be a did:key");
-  if (typeof s.account !== "string" || !CAIP10.test(s.account))
-    fail("account must be a CAIP-10 account");
+  if (!isCaip10(s.account)) fail("account must be a CAIP-10 account");
   if (typeof s.issuedAt !== "string" || !isUtcTimestamp(s.issuedAt)) fail("issuedAt");
   if (s.expiresAt !== undefined) {
     if (!isUtcTimestamp(s.expiresAt as string)) fail("expiresAt");
-    if (Date.parse(s.expiresAt as string) <= Date.parse(s.issuedAt as string))
+    if (compareTimestamps(s.expiresAt as string, s.issuedAt as string) <= 0)
       fail("expiresAt must be after issuedAt");
   }
 }
@@ -164,8 +163,11 @@ export async function createAccountBinding(options: {
 export interface BindingVerifyOptions {
   /** Verifiers to use before the process-wide registry. */
   verifiers?: readonly BindingVerifier[];
-  /** The binding must not have expired at this time. Default: now. */
-  at?: Date;
+  /**
+   * The binding must not have expired at this time. Default: now. A SPEC §2.2 timestamp string
+   * (e.g. a receipt's `deliveredAt`) is compared exactly, at full fractional precision.
+   */
+  at?: Date | string;
   /** Current time, for rejecting future-dated bindings. Default: now. */
   now?: Date;
 }
@@ -188,10 +190,12 @@ export function verifyAccountBinding(
     const { statement, didProof, accountProof } = binding;
     const bytes = bindingBytes(statement);
     const now = (options.now ?? new Date()).getTime();
-    const at = (options.at ?? new Date(now)).getTime();
-    if (Date.parse(statement.issuedAt) > now + MAX_FUTURE_SKEW_MS)
+    const latest = new Date(now + MAX_FUTURE_SKEW_MS).toISOString();
+    const at =
+      typeof options.at === "string" ? options.at : (options.at ?? new Date(now)).toISOString();
+    if (compareTimestamps(statement.issuedAt, latest) > 0)
       return { ok: false, reason: "binding is issued in the future" };
-    if (statement.expiresAt && at >= Date.parse(statement.expiresAt))
+    if (statement.expiresAt && compareTimestamps(at, statement.expiresAt) >= 0)
       return { ok: false, reason: `binding expired at ${statement.expiresAt}` };
     const jws = verifyDetachedJws(didProof, bytes, statement.did, BINDING_JWS_TYP);
     if (!jws.ok) return { ok: false, reason: `did signature: ${jws.reason}` };
@@ -231,7 +235,9 @@ export function checkPayeeBinding(
   if (!payee) return { ok: false, reason: "receipt names no payee" };
   const seller = signed.receipt.seller.id;
   const bindings = signed.bindings;
-  if (bindings === undefined) return { ok: false, reason: "receipt carries no account bindings" };
+  // null and [] are the same as no bindings at all (SPEC §4).
+  if (bindings === undefined || bindings === null || (Array.isArray(bindings) && !bindings.length))
+    return { ok: false, reason: "receipt carries no account bindings" };
   if (!Array.isArray(bindings)) return { ok: false, reason: "bindings must be an array" };
   if (!verifierFor(payee, options.verifiers))
     return { ok: false, reason: `no binding verifier for namespace ${namespaceOf(payee)}` };
@@ -246,7 +252,7 @@ export function checkPayeeBinding(
   if (!candidates.length) return { ok: false, reason: `no binding of ${seller} to ${payee}` };
   const reasons: string[] = [];
   for (const b of candidates) {
-    const res = verifyAccountBinding(b, { ...options, at: new Date(signed.receipt.deliveredAt) });
+    const res = verifyAccountBinding(b, { ...options, at: signed.receipt.deliveredAt });
     if (res.ok) return { ok: true, binding: b, detail: res.detail };
     reasons.push(res.reason);
   }

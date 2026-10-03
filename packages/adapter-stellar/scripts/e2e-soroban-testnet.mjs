@@ -258,11 +258,12 @@ async function main() {
       throw new Error(`${k}: expected ${expected[k]}, got ${f.final.status}`);
     if (f.signed) {
       f.report = await verify(f.signed);
+      // No delivered file is checked here, so the verdict is at best PARTIALLY VERIFIED (SPEC §6);
+      // what this run proves is the level-3 escrow settlement.
       const want = expected[k] === "released";
-      if (f.report.complete !== want)
-        throw new Error(
-          `${k}: verifier complete=${f.report.complete}: ${JSON.stringify(f.report.checks)}`,
-        );
+      const paid = f.report.checks.find((c) => c.name.startsWith("Payment"))?.status === "pass";
+      if (paid !== want)
+        throw new Error(`${k}: verifier settlement=${paid}: ${JSON.stringify(f.report.checks)}`);
     }
   }
 
@@ -344,7 +345,7 @@ function write({
       "",
       `- escrowId: \`${e.escrowId}\``,
       `- acceptance: \`${f.mode}\`, review window ${f.window}s from delivery${f.evaluator ? `, evaluator \`${f.evaluator}\`` : ""}`,
-      `- final status: **${e.status}**${f.report ? ` · \`receptum-verify\`: **${!f.report.ok ? "NOT VERIFIED" : f.report.complete ? "VERIFIED" : "PARTIALLY VERIFIED"}** — ${f.report.checks.find((c) => c.level === 3).detail}` : " (no receipt: nothing was delivered)"}`,
+      `- final status: **${e.status}**${f.report ? ` · \`receptum-verify\`: **${f.report.verdict}** — ${f.report.checks.find((c) => c.level === 3).detail}` : " (no receipt: nothing was delivered)"}`,
       "",
       table(f.txs),
       "",

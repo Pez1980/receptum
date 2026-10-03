@@ -49,6 +49,10 @@ def verify_signed_receipt(signed: Any) -> SignatureResult:
     missing = _SIGNED_MEMBERS - set(signed)
     if extra:
         err.append(f"signed receipt has unknown members: {sorted(extra)}")
+    # bindings: optional; null and [] count as absent; otherwise an array (SPEC §4).
+    bindings_ok = signed.get("bindings") is None or isinstance(signed.get("bindings"), list)
+    if not bindings_ok:
+        err.append("bindings must be an array")
     if missing:
         err.append(f"signed receipt is missing members: {sorted(missing)}")
         if "receipt" not in signed:
@@ -57,7 +61,7 @@ def verify_signed_receipt(signed: Any) -> SignatureResult:
     receipt = signed["receipt"]
     schema_errors = validate_receipt(receipt)
     err.extend(schema_errors)
-    res.schema_ok = not schema_errors and not extra and not missing
+    res.schema_ok = not schema_errors and not extra and not missing and bindings_ok
     if schema_errors:
         return res
     res.seller = receipt["seller"]["id"]

@@ -5,6 +5,7 @@
 > Payment receipts say you were served. Receptum says what you got.
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
+- **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec alone — check receipts without trusting the TypeScript code
 - **Status:** v0.1.0 on npm, working end to end on **testnets** (October 2026). Escrow contracts are **unaudited** — do not use with real funds.
 
 ## Install
@@ -86,7 +87,13 @@ Verify any receipt:
 
 ```sh
 node packages/verify/dist/cli.js examples/x402-base-sepolia.json examples/x402-base-sepolia-output.svg \
-  --anchor eip155:5042002:0x178192fa86acc85fb2b33189708703a96125feb5bef6c6817f8faedeefaa6103
+  --anchor eip155:5042002:0xe708fdb7858930c15e013e06133c1beddac5b3353723b3d5b1485f720e67e9f8
+```
+
+or, independently of the TypeScript code, with the [Python verifier](verifiers/python):
+
+```sh
+python -m receptum_verify examples/x402-base-sepolia.json examples/x402-base-sepolia-output.svg
 ```
 
 ## Run the examples

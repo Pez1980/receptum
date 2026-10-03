@@ -122,6 +122,13 @@ Rails enforce acceptance differently. Adapters SHOULD publish their `EscrowCapab
 
 `spec/vectors/rrf-v1.json` contains receipts, their JCS bytes, hashes and JWS proofs generated from the RFC 8032 §7.1 TEST 1 seed (public; testing only). Implementations SHOULD reproduce every vector byte for byte.
 
+### Implementations
+
+| Implementation                                      | Language   | Scope                                                                                               |
+| --------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| [`@receptum/core`, `@receptum/verify`](../packages) | TypeScript | Reference: create, sign and verify; all rails and anchors                                           |
+| [`receptum-verify`](../verifiers/python)            | Python     | Independent verifier written from this spec only: levels 1–2, `x402:exact` and `anchor:evm` level 3 |
+
 ## 9. Privacy
 
 Receipts are pseudonymous by design: parties are identified only by wallet accounts (CAIP-10) and the seller's public key (`did:key`) — never by name, email or other personal data. `seller.name` is an optional, non-empty display label. `payment.payee` and `payment.payer` are the same public addresses that already appear in the settlement on-chain.

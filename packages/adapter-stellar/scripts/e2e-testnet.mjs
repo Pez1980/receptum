@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* global console, fetch, process, setTimeout */
 // End-to-end run of @receptum/adapter-stellar on Stellar TESTNET (never mainnet).
 // Not part of CI. Usage:
 //   pnpm --filter @receptum/adapter-stellar build

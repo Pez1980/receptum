@@ -52,14 +52,55 @@ describe("x402:exact on xrpl:*", () => {
     expect(r.detail).toContain("10000 drops");
   });
 
-  it("never passes an issued-currency payment: RRF v1 has no amount unit for it", async () => {
-    const delivered = { currency: "USD", issuer: ISSUER, value: "1" };
-    const r = await run(
-      payment({ asset: `USD.${ISSUER}`, amount: "1" }),
-      txReply({ meta: { delivered_amount: delivered } }),
-    );
-    expect(r.status).toBe("unavailable");
-    expect(r.detail).toMatch(/RRF v1/);
+  describe("issued tokens: payment.amount in integer 10^-15 units (SPEC §7.3)", () => {
+    const RLUSD = "524C555344000000000000000000000000000000";
+    const issued = (value: string, currency = RLUSD, issuer = ISSUER) =>
+      txReply({ meta: { delivered_amount: { currency, issuer, value } } });
+    const p = (amount: string, asset = `${RLUSD}.${ISSUER}`) => payment({ asset, amount });
+
+    it("passes the exact delivered value at 10^-15 scale", async () => {
+      const r = await run(p("250000000000000"), issued("0.25"));
+      expect(r.status).toBe("pass");
+      expect(r.detail).toContain("0.25");
+      // rippled may write the same value in exponent form.
+      expect((await run(p("250000000000000"), issued("25e-2"))).status).toBe("pass");
+      expect((await run(p("10000000000000"), issued("1e-2"))).status).toBe("pass");
+      expect((await run(p("1"), issued("1e-15"))).status).toBe("pass");
+      // A 40-hex code compares by identity, hex case ignored.
+      expect((await run(p("1", `${RLUSD.toLowerCase()}.${ISSUER}`), issued("1e-15"))).status).toBe(
+        "pass",
+      );
+    });
+
+    it("fails any other amount, even one unit off", async () => {
+      for (const amount of ["249999999999999", "250000000000001", "25", "0"]) {
+        const r = await run(p(amount), issued("0.25"));
+        expect(r.status, amount).toBe("fail");
+      }
+    });
+
+    it("fails a delivered value finer than 10^-15 (no receipt amount can name it)", async () => {
+      const r = await run(p("0"), issued("1e-16"));
+      expect(r.status).toBe("fail");
+      expect(r.detail).toMatch(/10\^-15/);
+    });
+
+    it("fails a display-symbol asset (RLUSD is not an on-ledger code)", async () => {
+      expect((await run(p("250000000000000", `RLUSD.${ISSUER}`), issued("0.25"))).status).toBe(
+        "fail",
+      );
+    });
+
+    it("fails another currency or issuer before looking at the amount", async () => {
+      expect((await run(p("250000000000000"), issued("0.25", "USD"))).status).toBe("fail");
+      expect((await run(p("250000000000000"), issued("0.25", RLUSD, BUYER))).status).toBe("fail");
+      expect((await run(p("250000000000000"), txReply())).status).toBe("fail"); // XRP delivered
+    });
+
+    it("is unavailable, never pass, without delivered_amount", async () => {
+      const r = await run(p("1"), txReply({ meta: { delivered_amount: "unavailable" } }));
+      expect(r.status).toBe("unavailable");
+    });
   });
 
   it("compares 3-character currency codes case-sensitively (finding 1)", async () => {
@@ -83,9 +124,14 @@ describe("x402:exact on xrpl:*", () => {
       issuer: ISSUER,
       value: "1",
     };
-    expect((await run(p, txReply({ meta: { delivered_amount: standard } }))).status).toBe(
-      "unavailable",
-    );
+    expect(
+      (
+        await run(
+          payment({ asset: `USD.${ISSUER}`, amount: "1000000000000000" }),
+          txReply({ meta: { delivered_amount: standard } }),
+        )
+      ).status,
+    ).toBe("pass");
     const nonstandard = { ...standard, currency: "5553440000000000000000000000000000000000" };
     expect((await run(p, txReply({ meta: { delivered_amount: nonstandard } }))).status).toBe(
       "fail",

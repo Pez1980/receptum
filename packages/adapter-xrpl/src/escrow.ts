@@ -1,4 +1,5 @@
 import type {
+  EscrowCapabilities,
   EscrowHandle,
   EscrowRail,
   EscrowState,
@@ -53,8 +54,6 @@ export interface XrplEscrowRailOptions {
    * accepted delivery. Required to release.
    */
   fulfillment?: (escrowId: string) => string | undefined | Promise<string | undefined>;
-  /** Fractional digits that map issued-token values to integer amounts. Default 6. */
-  iouDecimals?: number;
   /** account_tx pages (200 txs each) scanned when looking for deliveries. Default 10. */
   maxHistoryPages?: number;
 }
@@ -62,9 +61,15 @@ export interface XrplEscrowRailOptions {
 export interface CreateEscrowParams {
   /** Seller's classic address (the escrow Destination). */
   seller: string;
-  /** Integer amount in the asset's smallest unit (drops for XRP). */
+  /**
+   * Integer amount: drops for XRP; for an issued token its value in 10^-15 units (SPEC §7.3),
+   * e.g. "250000000000000" for 0.25.
+   */
   amount: string;
-  /** "XRP" or "<currency>.<issuer>" (issued tokens need the TokenEscrow amendment). */
+  /**
+   * "XRP" or "<currency>.<issuer>", currency as on the ledger (3-character code or 40-hex).
+   * Issued tokens need the TokenEscrow amendment and an issuer with `asfAllowTrustLineLocking`.
+   */
   asset: string;
   /** Latest delivery time the buyer agreed to. */
   deliverBy: Date;
@@ -84,6 +89,8 @@ export interface XrplEscrowState extends EscrowState {
     currency: string;
     /** Issuer of an issued-token escrow. */
     issuer?: string;
+    /** The escrowed issued value exactly as on the ledger (`Amount.value`). */
+    value?: string;
     /** PREIMAGE-SHA-256 condition (hex), when the escrow is conditional. */
     condition?: string;
     /** Ripple-epoch seconds. */
@@ -91,8 +98,29 @@ export interface XrplEscrowState extends EscrowState {
     finishAfter?: number;
     /** Ripple-epoch close time of the ledger holding the delivery memo, when delivered. */
     deliveryCloseTime?: number;
+    /**
+     * `Account` of the EscrowFinish / EscrowCancel that removed the escrow — who submitted the
+     * release or refund. In evaluator mode the release is the evaluator's decision only when this
+     * is the evaluator's account (SPEC §7.3).
+     */
+    settledBy?: string;
+    /** Hash of that EscrowFinish / EscrowCancel. */
+    settlementTx?: string;
   };
 }
+
+/**
+ * What XRPL native Escrow enforces (SPEC §7.4). `buyer`: release needs the fulfillment of the
+ * buyer's condition. `evaluator`: the buyer gives the fulfillment to the evaluator, who submits
+ * the EscrowFinish itself — the ledger records its account as the finisher. No `auto`: a
+ * conditional escrow never releases on a timer. Refunds are possible after CancelAfter, also
+ * after a delivery (rejection = not finishing).
+ */
+export const XRPL_ESCROW_CAPABILITIES: EscrowCapabilities = {
+  acceptanceModes: ["buyer", "evaluator"],
+  reviewWindowFromDelivery: false,
+  refundAfterDelivery: true,
+};
 
 type EscrowFields = Pick<LedgerEntry.Escrow, "Account" | "Destination" | "CancelAfter"> & {
   Amount: XrplAmount;
@@ -101,6 +129,19 @@ type EscrowFields = Pick<LedgerEntry.Escrow, "Account" | "Destination" | "Cancel
   /** For an Escrow entry: the EscrowCreate that made it (escrows are never modified). */
   PreviousTxnID?: string;
 };
+
+/**
+ * The escrowed amount as a receipt would state it. An issued value with no exact 10^-15 integer
+ * form (SPEC §7.3) gets amount "" — no receipt amount can match it, so verification fails.
+ */
+function receiptAmount(amount: XrplAmount): { asset: string; amount: string } {
+  try {
+    return fromXrplAmount(amount);
+  } catch (err) {
+    if (typeof amount === "string" || !(err instanceof RangeError)) throw err;
+    return { asset: fromXrplAmount({ ...amount, value: "0" }).asset, amount: "" };
+  }
+}
 
 /** Ripple-epoch seconds of a validated transaction's ledger close, if known. */
 const rippleCloseTime = (t: LedgerTx): number | undefined =>
@@ -117,14 +158,13 @@ const rippleCloseTime = (t: LedgerTx): number | undefined =>
 export class XrplEscrowRail implements EscrowRail {
   readonly id = XRPL_ESCROW_RAIL;
   readonly network: string;
+  readonly capabilities = XRPL_ESCROW_CAPABILITIES;
   private readonly client: Client;
-  private readonly decimals: number;
   private readonly maxPages: number;
 
   constructor(private readonly opts: XrplEscrowRailOptions) {
     this.client = opts.client;
     this.network = opts.network ?? XRPL_TESTNET;
-    this.decimals = opts.iouDecimals ?? 6;
     this.maxPages = opts.maxHistoryPages ?? 10;
   }
 
@@ -140,7 +180,7 @@ export class XrplEscrowRail implements EscrowRail {
       TransactionType: "EscrowCreate",
       Account: wallet.address,
       Destination: params.seller,
-      Amount: toXrplAmount(params.asset, params.amount, this.decimals),
+      Amount: toXrplAmount(params.asset, params.amount),
       Condition: params.condition.toUpperCase(),
       CancelAfter: cancelAfter,
     });
@@ -150,7 +190,7 @@ export class XrplEscrowRail implements EscrowRail {
       ...this.handle(formatEscrowId(wallet.address, sequence), {
         Account: wallet.address,
         Destination: params.seller,
-        Amount: toXrplAmount(params.asset, params.amount, this.decimals),
+        Amount: toXrplAmount(params.asset, params.amount),
         CancelAfter: cancelAfter,
       }),
       reference: tx.hash,
@@ -179,6 +219,7 @@ export class XrplEscrowRail implements EscrowRail {
         : "open";
     const id = xrplAmountId(fields.Amount);
     if (!id) throw new Error(`escrow ${escrowId} holds an invalid currency`);
+    const value = typeof fields.Amount === "string" ? undefined : fields.Amount.value;
     const deliveryCloseTime = delivery ? rippleCloseTime(delivery.tx) : undefined;
     return {
       ...this.handle(escrowId, fields),
@@ -188,10 +229,12 @@ export class XrplEscrowRail implements EscrowRail {
       xrpl: {
         currency: id.currency,
         ...("issuer" in id ? { issuer: id.issuer } : {}),
+        ...(value !== undefined ? { value } : {}),
         ...(fields.Condition ? { condition: fields.Condition.toUpperCase() } : {}),
         ...(fields.CancelAfter ? { cancelAfter: fields.CancelAfter } : {}),
         ...(fields.FinishAfter ? { finishAfter: fields.FinishAfter } : {}),
         ...(deliveryCloseTime !== undefined ? { deliveryCloseTime } : {}),
+        ...(closed ? { settledBy: closed.tx.tx.Account, settlementTx: closed.tx.hash } : {}),
       },
     };
   }
@@ -215,6 +258,31 @@ export class XrplEscrowRail implements EscrowRail {
 
   /** EscrowFinish with the buyer's fulfillment. Anyone holding it may submit; funds go to the seller. */
   async release(escrowId: string): Promise<{ reference: string }> {
+    return this.finish(escrowId);
+  }
+
+  /**
+   * Accepts a delivery: EscrowFinish signed by this rail's wallet (the buyer, or the evaluator
+   * holding the fulfillment the buyer gave it). With `evaluator` (classic address or CAIP-10
+   * account) the wallet MUST be that account: in evaluator mode a release counts as the
+   * evaluator's decision only when the ledger shows the evaluator's account finished the escrow
+   * (SPEC §7.3). Rejecting is not finishing: the buyer refunds after CancelAfter.
+   */
+  async accept(
+    escrowId: string,
+    opts: { evaluator?: string } = {},
+  ): Promise<{ reference: string }> {
+    if (opts.evaluator !== undefined) {
+      const address = opts.evaluator.slice(opts.evaluator.lastIndexOf(":") + 1);
+      if (opts.evaluator.includes(":") && !opts.evaluator.startsWith(`${this.network}:`))
+        throw new Error(`evaluator ${opts.evaluator} is not an account on ${this.network}`);
+      if (this.wallet().address !== address)
+        throw new Error("only the evaluator's own account can accept in evaluator mode");
+    }
+    return this.finish(escrowId);
+  }
+
+  private async finish(escrowId: string): Promise<{ reference: string }> {
     const wallet = this.wallet();
     const entry = await this.requireOpen(escrowId);
     const { owner, sequence } = parseEscrowId(escrowId);
@@ -271,7 +339,7 @@ export class XrplEscrowRail implements EscrowRail {
   }
 
   private handle(escrowId: string, f: EscrowFields): EscrowHandle {
-    const { asset, amount } = fromXrplAmount(f.Amount, this.decimals);
+    const { asset, amount } = receiptAmount(f.Amount);
     return {
       rail: this.id,
       network: this.network,

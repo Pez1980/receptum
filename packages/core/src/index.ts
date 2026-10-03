@@ -82,3 +82,17 @@ export type {
   PaymentRail,
   Quote,
 } from "./rails.js";
+export {
+  isXrplClassicAddress,
+  parseXrplIssuedAsset,
+  XRPL_ISSUED_SCALE,
+  XRPL_MAX_EXPONENT,
+  XRPL_MAX_SIGNIFICANT_DIGITS,
+  XRPL_MIN_EXPONENT,
+  xrplCanonicalCurrency,
+  xrplCurrencyId,
+  xrplIssuedAsset,
+  xrplUnitsToValue,
+  xrplValueToUnits,
+  type XrplIssuedAssetId,
+} from "./xrpl.js";

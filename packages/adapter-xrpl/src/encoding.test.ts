@@ -75,43 +75,58 @@ describe("escrow ids", () => {
   });
 });
 
-describe("amounts", () => {
+describe("amounts (SPEC §7.3: issued tokens in integer 10^-15 units)", () => {
+  const RLUSD = "524C555344000000000000000000000000000000";
+
   it("passes XRP drops through", () => {
-    expect(toXrplAmount("XRP", "2000000", 6)).toBe("2000000");
-    expect(fromXrplAmount("2000000", 6)).toEqual({ asset: "XRP", amount: "2000000" });
+    expect(toXrplAmount("XRP", "2000000")).toBe("2000000");
+    expect(fromXrplAmount("2000000")).toEqual({ asset: "XRP", amount: "2000000" });
   });
 
-  it("scales issued tokens by decimals and encodes long currency codes", () => {
-    const amount = toXrplAmount(`RLUSD.${address}`, "1250000", 6);
-    expect(amount).toEqual({
-      currency: "524C555344000000000000000000000000000000",
-      issuer: address,
-      value: "1.25",
+  it("scales issued tokens by 10^15 and keeps the on-ledger currency", () => {
+    const amount = toXrplAmount(`${RLUSD}.${address}`, "1250000000000000");
+    expect(amount).toEqual({ currency: RLUSD, issuer: address, value: "1.25" });
+    expect(fromXrplAmount(amount)).toEqual({
+      asset: `${RLUSD}.${address}`,
+      amount: "1250000000000000",
     });
-    expect(fromXrplAmount(amount, 6)).toEqual({ asset: `RLUSD.${address}`, amount: "1250000" });
-    expect(toXrplAmount(`USD.${address}`, "7", 6)).toEqual({
+    expect(toXrplAmount(`USD.${address}`, "7")).toEqual({
       currency: "USD",
       issuer: address,
-      value: "0.000007",
+      value: "0.000000000000007",
+    });
+    // A standard-layout 40-hex code is written as rippled writes it: the 3-character code.
+    expect(
+      fromXrplAmount({
+        currency: "0000000000000000000000005553440000000000",
+        issuer: address,
+        value: "1",
+      }),
+    ).toEqual({
+      asset: `USD.${address}`,
+      amount: "1000000000000000",
     });
   });
 
   it("reads scientific notation from rippled", () => {
-    const v = (value: string) => fromXrplAmount({ currency: "USD", issuer: address, value }, 6);
-    expect(v("1e-6").amount).toBe("1");
-    expect(v("1.5e3").amount).toBe("1500000000");
-    expect(v("100").amount).toBe("100000000");
-    expect(() => v("1e-7")).toThrow(RangeError);
+    const v = (value: string) => fromXrplAmount({ currency: "USD", issuer: address, value });
+    expect(v("1e-15").amount).toBe("1");
+    expect(v("1e-2").amount).toBe("10000000000000");
+    expect(v("1.5e3").amount).toBe("1500000000000000000");
+    expect(v("100").amount).toBe("100000000000000000");
+    expect(() => v("1e-16")).toThrow(RangeError);
   });
 
   it("rejects bad input", () => {
-    expect(() => toXrplAmount("XRP", "1.5", 6)).toThrow(TypeError);
-    expect(() => toXrplAmount("USD", "1", 6)).toThrow(TypeError);
-    expect(() => toXrplAmount(`USD.${address}`, "1234567890123456", 0)).toThrow(RangeError);
+    expect(() => toXrplAmount("XRP", "1.5")).toThrow(TypeError);
+    expect(() => toXrplAmount("USD", "1")).toThrow(TypeError);
+    expect(() => toXrplAmount(`RLUSD.${address}`, "1")).toThrow(TypeError); // display symbol
+    expect(() => toXrplAmount(`USD.${address}`, "12345678901234567")).toThrow(RangeError);
   });
 
   it("maps currency codes both ways", () => {
     expect(currencyCode("USD")).toBe("USD");
+    expect(currencyCode("RLUSD")).toBe(RLUSD);
     expect(() => currencyCode("XRP")).toThrow(TypeError);
     expect(currencySymbol(currencyCode("RLUSD"))).toBe("RLUSD");
     const opaque = "01" + "00".repeat(19);
@@ -154,10 +169,12 @@ describe("currency identity (XRPL binary format)", () => {
       currency: currencyId("usd"),
       issuer: address,
     });
-    expect(parseXrplAsset(`RLUSD.${address}`)).toEqual({
+    expect(parseXrplAsset(`524C555344000000000000000000000000000000.${address}`)).toEqual({
       currency: "524C555344000000000000000000000000000000",
       issuer: address,
     });
+    // Display symbols are not on-ledger codes.
+    expect(() => parseXrplAsset(`RLUSD.${address}`)).toThrow(TypeError);
     expect(() => parseXrplAsset("USD")).toThrow(TypeError);
     expect(() => parseXrplAsset(`USD.notanaddress`)).toThrow(TypeError);
     expect(() => parseXrplAsset(`XRP.${address}`)).toThrow(TypeError);
@@ -167,9 +184,9 @@ describe("currency identity (XRPL binary format)", () => {
     expect(currencySymbol(USD_NONSTANDARD)).toBe(USD_NONSTANDARD);
     expect(currencySymbol(USD_STANDARD)).toBe("USD");
     expect(currencySymbol("usd")).toBe("usd");
-    expect(fromXrplAmount({ currency: USD_NONSTANDARD, issuer: address, value: "1" }, 0)).toEqual({
+    expect(fromXrplAmount({ currency: USD_NONSTANDARD, issuer: address, value: "1" })).toEqual({
       asset: `${USD_NONSTANDARD}.${address}`,
-      amount: "1",
+      amount: "1000000000000000",
     });
   });
 });

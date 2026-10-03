@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createReceipt, generateSellerKey, sha256Hex, signReceipt } from "@receptum/core";
 import { encodePaymentResponseHeader } from "@x402/core/http";
-import { checkDelivery, createReceptumFetch, ReceiptError } from "./index.js";
+import { checkDelivery, createReceptumFetch, ReceiptError, xrplValueToUnits } from "./index.js";
 
 const seller = generateSellerKey();
 const body = new TextEncoder().encode("final.mp4 bytes");
@@ -71,6 +71,55 @@ describe("checkDelivery", () => {
         expected: { inputSha256: [sha256Hex("other")] },
       }).reasons,
     ).toContain("receipt is for different inputs");
+  });
+});
+
+describe("checkDelivery: XRPL issued tokens (integer 10^-15 units)", () => {
+  const ISSUER = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV";
+  const RLUSD = "524C555344000000000000000000000000000000";
+  const xrpl = signReceipt(
+    createReceipt({
+      jobId: "j",
+      seller: { id: seller.did },
+      inputSha256: [sha256Hex("in")],
+      outputSha256: sha256Hex(body),
+      payment: {
+        rail: "x402:exact",
+        network: "xrpl:1",
+        asset: `${RLUSD}.${ISSUER}`,
+        amount: "250000000000000",
+        reference: "A".repeat(64),
+        payee: "xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+      },
+    }),
+    seller,
+  );
+  const settled = { success: true, transaction: "A".repeat(64), network: "xrpl:1" };
+  const reasons = (expected: object) =>
+    checkDelivery(body, xrpl, settled, undefined, { expected }).reasons;
+
+  it("compares maxAmount and amount on the integer form", () => {
+    expect(reasons({ maxAmount: xrplValueToUnits("0.25"), amount: "250000000000000" })).toEqual([]);
+    expect(reasons({ maxAmount: xrplValueToUnits("0.249999999999999") })).toContain(
+      "amount exceeds the maximum",
+    );
+    expect(reasons({ maxAmount: "0.25" })[0]).toMatch(/must be an integer/);
+    expect(reasons({ amount: "2.5e14" })[0]).toMatch(/must be an integer/);
+  });
+
+  it("compares the asset by currency identity and exact issuer", () => {
+    expect(reasons({ asset: `${RLUSD.toLowerCase()}.${ISSUER}` })).toEqual([]);
+    expect(reasons({ asset: `RLUSD.${ISSUER}` })).toContain("unexpected asset");
+    expect(reasons({ asset: `${RLUSD}.rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf` })).toContain(
+      "unexpected asset",
+    );
+    expect(reasons({ asset: "XRP" })).toContain("unexpected asset");
+  });
+
+  it("compares XRPL payees case-sensitively", () => {
+    expect(reasons({ payee: "xrpl:1:R9VBIDZUBWMRFL62JEGONNKSBVOFVWPG2S" })).toContain(
+      "unexpected payee",
+    );
   });
 });
 

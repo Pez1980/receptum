@@ -201,19 +201,71 @@ describe("handlePaidJob", () => {
     await first;
   });
 
-  it("refuses issued-token requirements before charging", async () => {
-    const issued = {
+  describe("XRPL issued tokens (SPEC §7.3: integer 10^-15 units)", () => {
+    const ISSUER = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV";
+    const BUYER = "rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf";
+    const SELLER = "r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s";
+    const RLUSD = "524C555344000000000000000000000000000000";
+    const issued = (over: Record<string, unknown> = {}) => ({
       ...req,
       network: "xrpl:1",
-      asset: "USD",
+      asset: RLUSD,
       amount: "0.25",
-      extra: { issuer: "rIssuer" },
-    };
-    const x402 = fakeX402({ findMatchingRequirements: vi.fn(() => issued) });
+      payTo: SELLER,
+      extra: { issuer: ISSUER, areFeesSponsored: false },
+      ...over,
+    });
+    const x402For = (requirement: object) =>
+      fakeX402({
+        findMatchingRequirements: vi.fn(() => requirement),
+        verifyPayment: vi.fn(async () => ({ isValid: true, payer: BUYER })),
+        settlePayment: vi.fn(async () => ({
+          success: true,
+          transaction: "A".repeat(64),
+          network: "xrpl:1",
+          payer: BUYER,
+        })),
+      });
     const paid = headers({ "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) });
-    await expect(handlePaidJob(paid, job, config(x402))).rejects.toThrow(/issued-token/);
-    expect(x402.verifyPayment).not.toHaveBeenCalled();
-    expect(x402.settlePayment).not.toHaveBeenCalled();
+
+    it("records `<currency>.<issuer>` and the value in 10^-15 units", async () => {
+      const res = await handlePaidJob(paid, job, config(x402For(issued())));
+      expect(res.status).toBe(200);
+      expect(res.receipt!.receipt.payment).toMatchObject({
+        rail: "x402:exact",
+        network: "xrpl:1",
+        asset: `${RLUSD}.${ISSUER}`,
+        amount: "250000000000000",
+        reference: "A".repeat(64),
+        payee: `xrpl:1:${SELLER}`,
+        payer: `xrpl:1:${BUYER}`,
+      });
+      expect(verifySignedReceipt(res.receipt!).ok).toBe(true);
+    });
+
+    it("writes the currency as on the ledger (standard-layout hex → 3-character code)", async () => {
+      const std = issued({ asset: "0000000000000000000000005553440000000000", amount: "1e-2" });
+      const res = await handlePaidJob(paid, job, config(x402For(std)));
+      expect(res.receipt!.receipt.payment).toMatchObject({
+        asset: `USD.${ISSUER}`,
+        amount: "10000000000000",
+      });
+    });
+
+    it.each([
+      ["a value finer than 10^-15", { amount: "0.0000000000000001" }],
+      ["more than 16 significant digits", { amount: "10000.000000000001" }],
+      ["a negative value", { amount: "-1" }],
+      ["a display symbol instead of the on-ledger code", { asset: "RLUSD" }],
+      ["XRP with an issuer", { asset: "XRP", amount: "10000" }],
+      ["an invalid issuer", { extra: { issuer: "rIssuer" } }],
+      ["an issuer on a non-XRPL network", { network: "eip155:84532", asset: "0xUSDC" }],
+    ])("refuses %s before charging", async (_, over) => {
+      const x402 = x402For(issued(over));
+      await expect(handlePaidJob(paid, job, config(x402))).rejects.toThrow(/issued-token/);
+      expect(x402.verifyPayment).not.toHaveBeenCalled();
+      expect(x402.settlePayment).not.toHaveBeenCalled();
+    });
   });
 
   it("checks the seller key before charging", async () => {

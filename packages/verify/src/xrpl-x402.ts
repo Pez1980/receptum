@@ -5,11 +5,13 @@
  * `payment.reference` is that transaction's hash. It is confirmed only from a validated ledger:
  * tesSUCCESS, TransactionType Payment, Account = payer, Destination = payee, and the
  * `delivered_amount` (never `Amount`: partial payments can deliver less) equal to
- * `payment.amount` XRP drops. Issued tokens are unsupported in RRF v1 (an integer
- * `payment.amount` has no defined unit for an XRPL issued value): a delivery in another currency
- * or from another issuer fails, a matching one is `unavailable`. Currencies compare by 160-bit
- * protocol identity (`currencyId`). Lookups that can't be completed are `unavailable`, never `pass`.
+ * `payment.amount`: XRP drops, or for an issued token (`payment.asset` = `<currency>.<issuer>`)
+ * the delivered value as an integer number of 10^-15 units, converted exactly (no floats). A
+ * delivered value that is not a whole number of 10^-15 units fails. Currencies compare by 160-bit
+ * protocol identity (`currencyId`) and issuers exactly. Lookups that can't be completed are
+ * `unavailable`, never `pass`.
  */
+import { xrplValueToUnits } from "@receptum/core";
 import { parseXrplAsset, xrplAmountId, type XrplAssetId } from "@receptum/adapter-xrpl";
 
 export type XrplX402Status = "pass" | "fail" | "unavailable";
@@ -105,7 +107,11 @@ export async function verifyXrplX402Payment(
   if (typeof asset === "string") return fail(asset);
   const xrp = asset.currency === "XRP";
   if (!/^(0|[1-9][0-9]*)$/.test(amount))
-    return fail("payment.amount must be an integer (XRP drops)");
+    return fail(
+      xrp
+        ? "payment.amount must be an integer (XRP drops)"
+        : "payment.amount must be an integer (10^-15 token units)",
+    );
 
   let rpc = options.rpc;
   if (!rpc) {
@@ -171,7 +177,21 @@ export async function verifyXrplX402Payment(
     return fail(
       `delivered issuer ${String(delivered.issuer)}, not ${String("issuer" in asset ? asset.issuer : "")}`,
     );
-  return unavailable(
-    `issued-token x402 is not supported in RRF v1: ${payment.asset} was delivered${ledger}, but an integer payment.amount has no defined unit for an XRPL issued value, so the amount can't be confirmed`,
-  );
+  if (typeof delivered.value !== "string") return fail("delivered_amount has no issued value");
+  let units: string;
+  try {
+    units = xrplValueToUnits(delivered.value);
+  } catch (err) {
+    return fail(
+      `delivered value ${JSON.stringify(delivered.value)} has no exact 10^-15 integer form (${errorText(err)})`,
+    );
+  }
+  if (units !== amount)
+    return fail(
+      `delivered ${delivered.value} (${units} × 10^-15) of ${payment.asset}, receipt says ${amount}`,
+    );
+  return {
+    status: "pass",
+    detail: `${delivered.value} ${payment.asset} (${amount} × 10^-15) delivered to ${payee}${ledger} (validated)`,
+  };
 }

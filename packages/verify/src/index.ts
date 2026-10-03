@@ -80,9 +80,28 @@ function evmClient(network: string) {
   return { net, client: createPublicClient({ chain: net.chain, transport: http() }) };
 }
 
-const bare = (caip10?: string) => caip10?.split(":").pop();
-const sameAddr = (a?: string, b?: string) => !!a && !!b && getAddress(a) === getAddress(b);
+/**
+ * Parses a CAIP-10 account and requires it to be on `network` (e.g. `eip155:84532:0xabc…`).
+ * Returns the bare account, or null when the account names another network.
+ */
+export function accountOn(network: string, caip10: string | undefined): string | null | undefined {
+  if (caip10 === undefined) return undefined;
+  const i = caip10.lastIndexOf(":");
+  if (i <= 0 || caip10.slice(0, i) !== network) return null;
+  return caip10.slice(i + 1);
+}
+const sameAddr = (a?: string | null, b?: string | null) =>
+  !!a && !!b && getAddress(a) === getAddress(b);
 const GENUINE_ESCROW_CODE = keccak256(receptumEscrowDeployedBytecode);
+
+/**
+ * ReceptumEscrow deployments published by the project (see packages/adapter-evm/E2E_RESULTS.md).
+ * Matching runtime code alone doesn't prove a contract wasn't deployed with forged storage, so only
+ * these — or deployments the caller explicitly trusts — can yield a complete verification.
+ */
+export const TRUSTED_ESCROWS: Record<string, readonly string[]> = {
+  "eip155:5042002": ["0x20d69c6c647559f48a7e6b0a3f922e99a4068f16"],
+};
 
 async function withXrpl<T>(fn: (client: Client) => Promise<T>): Promise<T> {
   const client = new Client(XRPL_TESTNET_WSS);
@@ -95,10 +114,16 @@ async function withXrpl<T>(fn: (client: Client) => Promise<T>): Promise<T> {
 }
 
 /** Level 3 for the payment rail named in the receipt. */
-async function verifyPayment(signed: SignedReceipt): Promise<Check> {
+async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = []): Promise<Check> {
   const { rail, network, reference, amount, asset, payer, payee } = signed.receipt.payment;
   const name = `Payment on ${network}`;
   const fail = (detail: string): Check => ({ level: 3, name, status: "fail", detail });
+  const pending = (detail: string): Check => ({ level: 3, name, status: "pending", detail });
+  const pass = (detail: string): Check => ({ level: 3, name, status: "pass", detail });
+  const payerAddr = accountOn(network, payer);
+  const payeeAddr = accountOn(network, payee);
+  if (payerAddr === null) return fail(`payment.payer is not an account on ${network}`);
+  if (payeeAddr === null) return fail(`payment.payee is not an account on ${network}`);
   try {
     if (rail === "escrow:receptum-evm") {
       const evm = evmClient(network);
@@ -109,8 +134,8 @@ async function verifyPayment(signed: SignedReceipt): Promise<Check> {
         return fail(`escrow reference is on ${ref.network}, receipt says ${network}`);
       const code = await evm.client.getCode({ address: ref.contract });
       if (!code || keccak256(code) !== GENUINE_ESCROW_CODE)
-        return fail("referenced contract is not a genuine ReceptumEscrow deployment");
-      const [buyer, seller, , token, escrowAmount, , , , status, committed] =
+        return fail("referenced contract is not ReceptumEscrow");
+      const [buyer, seller, evaluator, token, escrowAmount, , reviewWindow, , status, committed] =
         await evm.client.readContract({
           address: ref.contract,
           abi: receptumEscrowAbi,
@@ -118,38 +143,49 @@ async function verifyPayment(signed: SignedReceipt): Promise<Check> {
           args: [ref.id],
         });
       const statusName = ["none", "open", "delivered", "released", "refunded"][status] ?? "unknown";
+      const acc = signed.receipt.acceptance;
+      const noEvaluator = /^0x0{40}$/i.test(evaluator);
       const problems = [
         committed.slice(2).toLowerCase() !== signed.receiptHash && "committed receiptHash differs",
         escrowAmount.toString() !== amount && "amount differs",
         !sameAddr(token, asset) && "token differs from payment.asset",
-        payer && !sameAddr(buyer, bare(payer)) && "buyer differs from payment.payer",
-        payee && !sameAddr(seller, bare(payee)) && "seller differs from payment.payee",
+        payerAddr && !sameAddr(buyer, payerAddr) && "buyer differs from payment.payer",
+        payeeAddr && !sameAddr(seller, payeeAddr) && "seller differs from payment.payee",
+        BigInt(reviewWindow) !== BigInt(acc.reviewWindowSeconds) &&
+          "review window differs from acceptance.reviewWindowSeconds",
+        acc.mode === "evaluator" &&
+          (noEvaluator || !sameAddr(evaluator, accountOn(network, acc.evaluator))) &&
+          "evaluator differs from acceptance.evaluator",
+        acc.mode !== "evaluator" &&
+          !noEvaluator &&
+          "escrow has an evaluator the receipt doesn't declare",
       ].filter(Boolean);
       if (problems.length) return fail(`escrow ${statusName}: ${problems.join("; ")}`);
-      if (statusName === "released")
-        return {
-          level: 3,
-          name,
-          status: "pass",
-          detail: `escrow released to the seller; committed receiptHash matches`,
-        };
+      if (statusName !== "released" && statusName !== "delivered")
+        return fail(`escrow is ${statusName}, not released`);
+      const trusted = [...(TRUSTED_ESCROWS[network] ?? []), ...trustedEscrows].some((t) =>
+        sameAddr(t, ref.contract),
+      );
+      if (!trusted)
+        return pending(
+          "ReceptumEscrow code, but this deployment isn't in the trusted registry (pass --trust-escrow to accept it)",
+        );
+      if (!payeeAddr)
+        return pending("receipt does not name a payee, so the recipient can't be confirmed");
       if (statusName === "delivered")
-        return {
-          level: 3,
-          name,
-          status: "pending",
-          detail: "delivery committed; funds still held awaiting acceptance or the review window",
-        };
-      return fail(`escrow is ${statusName}, not released`);
+        return pending(
+          "delivery committed; funds still held awaiting acceptance or the review window",
+        );
+      return pass("escrow released to the payee; committed receiptHash and terms match");
     }
     if (rail.startsWith("x402:") && network.startsWith("eip155:")) {
       const evm = evmClient(network);
       if (!evm)
         return { level: 3, name, status: "skipped", detail: `unsupported network ${network}` };
-      if (!payee) return fail("receipt does not name a payee, so the recipient can't be checked");
+      if (!payeeAddr)
+        return pending("receipt does not name a payee, so the recipient can't be confirmed");
       const tx = await evm.client.getTransactionReceipt({ hash: reference as Hex });
       if (tx.status !== "success") return fail("settlement transaction reverted");
-      const from = bare(payer);
       const paid = tx.logs.some((log) => {
         if (!sameAddr(log.address, asset)) return false;
         try {
@@ -157,40 +193,35 @@ async function verifyPayment(signed: SignedReceipt): Promise<Check> {
           return (
             ev.eventName === "Transfer" &&
             ev.args.value.toString() === amount &&
-            sameAddr(ev.args.to, bare(payee)) &&
-            (!from || sameAddr(ev.args.from, from))
+            sameAddr(ev.args.to, payeeAddr) &&
+            (!payerAddr || sameAddr(ev.args.from, payerAddr))
           );
         } catch {
           return false;
         }
       });
       return paid
-        ? {
-            level: 3,
-            name,
-            status: "pass",
-            detail: `${amount} base units paid to ${bare(payee)} in block ${tx.blockNumber}`,
-          }
+        ? pass(`${amount} base units paid to ${payeeAddr} in block ${tx.blockNumber}`)
         : fail("no transfer of that amount to the payee in the settlement transaction");
     }
     if (rail === "escrow:xrpl" && network === "xrpl:1") {
       const state = await withXrpl((client) => new XrplEscrowRail({ client }).getEscrow(reference));
-      if (state.receiptHash !== signed.receiptHash)
-        return fail(`escrow ${state.status}; recorded delivery is for a different receipt`);
+      const problems = [
+        state.receiptHash !== signed.receiptHash && "recorded delivery is for a different receipt",
+        state.amount !== amount && "amount differs",
+        state.asset !== asset && "asset differs",
+        payerAddr && state.buyer !== payerAddr && "buyer differs from payment.payer",
+        payeeAddr && state.seller !== payeeAddr && "seller differs from payment.payee",
+      ].filter(Boolean);
+      if (problems.length) return fail(`escrow ${state.status}: ${problems.join("; ")}`);
+      if (!payerAddr || !payeeAddr)
+        return pending(
+          "receipt doesn't name both payer and payee, so the parties can't be confirmed",
+        );
       if (state.status === "released")
-        return {
-          level: 3,
-          name,
-          status: "pass",
-          detail: "escrow finished to the seller; delivery memo matches",
-        };
+        return pass("escrow finished to the payee; amount, asset, parties and delivery memo match");
       if (state.status === "delivered")
-        return {
-          level: 3,
-          name,
-          status: "pending",
-          detail: "delivered; awaiting the buyer's fulfillment",
-        };
+        return pending("delivered; awaiting the buyer's fulfillment");
       return fail(`escrow is ${state.status}`);
     }
     return {
@@ -272,6 +303,8 @@ export interface VerifyOptions {
   anchors?: string[];
   /** Skip all network checks. */
   offline?: boolean;
+  /** Extra ReceptumEscrow deployments to trust, in addition to TRUSTED_ESCROWS. */
+  trustedEscrows?: string[];
 }
 
 /** Runs every applicable check. `ok` is true when nothing failed. */
@@ -281,7 +314,7 @@ export async function verify(
 ): Promise<VerifyReport> {
   const checks = await verifyOffline(signed, options.file);
   if (!options.offline) {
-    checks.push(await verifyPayment(signed));
+    checks.push(await verifyPayment(signed, options.trustedEscrows));
     for (const a of options.anchors ?? []) checks.push(await verifyAnchor(signed, a));
   }
   const ok = checks.every((c) => c.status !== "fail");

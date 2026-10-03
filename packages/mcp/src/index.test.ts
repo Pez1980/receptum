@@ -82,6 +82,38 @@ describe("verifyToolResult", () => {
     expect(verifyToolResult(result).reasons).toContain("settlement did not succeed");
   });
 
+  it("hashes isError:false distinctly from an absent isError", async () => {
+    const { toolOutputSha256 } = await import("./index.js");
+    expect(toolOutputSha256({ content: [], isError: false })).not.toBe(
+      toolOutputSha256({ content: [] }),
+    );
+  });
+
+  it("enforces the caller's expectations", async () => {
+    const result = await withReceipts(paid({ [X402_SETTLEMENT_META_KEY]: settled }), {
+      ...opts,
+      price: { ...opts.price, payTo: "0xSeller" },
+    })({}, {});
+    expect(
+      verifyToolResult(result, undefined, {
+        expected: { network: "eip155:84532", payee: "eip155:84532:0xseller", maxAmount: "100000" },
+      }).ok,
+    ).toBe(true);
+    expect(
+      verifyToolResult(result, undefined, { expected: { payee: "eip155:84532:0xAttacker" } })
+        .reasons,
+    ).toContain("unexpected payee");
+    expect(verifyToolResult(result, undefined, { expected: { amount: "1" } }).reasons).toContain(
+      "unexpected amount",
+    );
+  });
+
+  it("returns a failed check for malformed receipts instead of throwing", () => {
+    expect(
+      verifyToolResult({ content: [], _meta: { [RECEIPT_META_KEY]: { receipt: {} } } }).ok,
+    ).toBe(false);
+  });
+
   it("reports missing receipts", () => {
     expect(verifyToolResult({ content: [] }).ok).toBe(false);
   });

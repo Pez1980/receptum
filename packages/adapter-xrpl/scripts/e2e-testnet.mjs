@@ -107,6 +107,7 @@ function makeReceipt(handle, jobId, reviewWindowSeconds) {
       amount: handle.amount,
       reference: handle.escrowId,
       payer: caip10(NETWORK, handle.buyer),
+      payee: caip10(NETWORK, handle.seller),
     },
     acceptance: { mode: "buyer", reviewWindowSeconds },
   });

@@ -48,9 +48,12 @@ describe("strict receipt validation", () => {
     expect(() => assertValidReceipt(mutate((r) => (r.receiptId = "RCPT-IIII-OOOO")))).toThrow(
       /receiptId/,
     );
-    expect(() => assertValidReceipt(mutate((r) => (r.deliveredAt = "2026-10-03")))).toThrow(
-      /RFC 3339/,
-    );
+    for (const bad of ["2026-10-03", "2026-02-30T00:00:00Z", "2026-10-03T24:00:00Z"]) {
+      expect(() => assertValidReceipt(mutate((r) => (r.deliveredAt = bad)))).toThrow(/timestamp/);
+    }
+    expect(() =>
+      assertValidReceipt(mutate((r) => (r.deliveredAt = "2028-02-29T12:00:00.5Z"))),
+    ).not.toThrow();
   });
   it("rejects non-integer remedy periods", () => {
     expect(() =>
@@ -60,6 +63,27 @@ describe("strict receipt validation", () => {
   it("rejects inherited (non-own) required properties", () => {
     const r = mutate((x) => (x.seller = Object.create({ id: key.did })));
     expect(() => assertValidReceipt(r)).toThrow(/plain object|seller\.id/);
+  });
+});
+
+describe("identity syntax and arrays", () => {
+  it("requires DID or CAIP-10 identities and CAIP-10 payment accounts", () => {
+    expect(() =>
+      assertValidReceipt(mutate((r) => ((r.seller as Record<string, unknown>).id = "bob"))),
+    ).toThrow(/seller.id/);
+    expect(() =>
+      assertValidReceipt(
+        mutate((r) => ((r.payment as Record<string, unknown>).payee = "0xSeller")),
+      ),
+    ).toThrow(/payee/);
+  });
+  it("rejects sparse input arrays", () => {
+    const r = mutate((x) => {
+      const a: unknown[] = [];
+      a[1] = sha256Hex("x");
+      x.inputSha256 = a;
+    });
+    expect(() => assertValidReceipt(r)).toThrow(/missing/);
   });
 });
 
@@ -85,6 +109,18 @@ describe("JWS envelope strictness", () => {
     s.proof.jws += ".ignored";
     expect(verifySignedReceipt(s)).toMatchObject({ ok: false, reason: "malformed detached JWS" });
   });
+  it("rejects extra kid fragments and non-canonical signature encodings", () => {
+    const s = signed();
+    const extra = { ...s, proof: { ...s.proof, kid: `${s.proof.kid}#junk` } };
+    expect(verifySignedReceipt(extra).ok).toBe(false);
+    const [h, , sig] = s.proof.jws.split(".");
+    const last = sig!.slice(-1);
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const flipped = alphabet[(alphabet.indexOf(last) ^ 1) % 64]!;
+    const t2 = { ...s, proof: { ...s.proof, jws: `${h}..${sig!.slice(0, -1)}${flipped}` } };
+    expect(verifySignedReceipt(t2).ok).toBe(false);
+  });
+
   it("rejects a wrong kid fragment", () => {
     const s = signed();
     s.proof.kid = `${key.did}#other`;

@@ -8,6 +8,7 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     anchor: { type: "string", multiple: true },
+    "trust-escrow": { type: "string", multiple: true },
     offline: { type: "boolean" },
     json: { type: "boolean" },
   },
@@ -16,7 +17,7 @@ const { values, positionals } = parseArgs({
 const [receiptPath, filePath] = positionals;
 if (!receiptPath) {
   console.error(
-    "usage: receptum-verify <receipt.json> [delivered-file] [--anchor <caip2>:<tx>]... [--offline] [--json]",
+    "usage: receptum-verify <receipt.json> [delivered-file] [--anchor <caip2>:<tx>]... [--trust-escrow <address>]... [--offline] [--json]",
   );
   process.exit(2);
 }
@@ -29,6 +30,7 @@ const report = await verify(signed, {
   ...(filePath ? { file: filePath } : {}),
   ...(values.anchor ? { anchors: values.anchor } : {}),
   ...(values.offline ? { offline: true } : {}),
+  ...(values["trust-escrow"] ? { trustedEscrows: values["trust-escrow"] } : {}),
 });
 
 if (values.json) {

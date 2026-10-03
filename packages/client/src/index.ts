@@ -60,9 +60,20 @@ export function checkDelivery(
   options: { expected?: Expected; requireSettlement?: boolean } = {},
 ): ReceiptCheck {
   const reasons: string[] = [];
-  const r = receipt.receipt;
   const sig = verifySignedReceipt(receipt);
-  if (!sig.ok) reasons.push(`signature: ${sig.reason}`);
+  if (!sig.ok) {
+    // A receipt that fails structural/signature checks can't be inspected further safely.
+    return {
+      ok: false,
+      signature: false,
+      outputMatches: false,
+      settlementMatches: false,
+      sellerAllowed: false,
+      expectationsMet: false,
+      reasons: [`signature: ${sig.reason}`],
+    };
+  }
+  const r = receipt.receipt;
   const outputMatches = sha256Hex(body) === r.outputSha256;
   if (!outputMatches) reasons.push("output hash does not match the receipt");
 

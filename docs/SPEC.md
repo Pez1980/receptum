@@ -15,32 +15,32 @@ A receipt proves **which** output was delivered for **which** payment, by **whom
 
 A receipt is a JSON object with these members:
 
-| Member                           | Type                              | Req.                     | Meaning                                                                             |
-| -------------------------------- | --------------------------------- | ------------------------ | ----------------------------------------------------------------------------------- |
-| `version`                        | string                            | MUST                     | `"receptum/1"`                                                                      |
-| `receiptId`                      | string                            | MUST                     | `RCPT-XXXX-XXXX`, Crockford base32 upper-case                                       |
-| `jobIdHash`                      | hex64                             | MUST                     | SHA-256 of the seller's internal job id (the id itself MUST NOT be published)       |
-| `seller.id`                      | string                            | MUST                     | `did:key` (Ed25519) of the signer, or a CAIP-10 account for chain-native proofs     |
-| `seller.name`                    | string                            | MAY                      | Display name                                                                        |
-| `buyer.id`                       | string                            | MAY                      | CAIP-10 account or DID                                                              |
-| `inputSha256`                    | hex64[]                           | MUST                     | One or more input hashes                                                            |
-| `outputSha256`                   | hex64                             | MUST                     | Hash of the delivered artifact                                                      |
-| `evidence`                       | {string: hex64}                   | MAY                      | Supporting evidence hashes, e.g. `qaReport`                                         |
-| `payment.rail`                   | string                            | MUST                     | e.g. `x402:exact`, `escrow:receptum-evm`, `escrow:xrpl`, `escrow:stellar-claimable` |
-| `payment.network`                | string                            | MUST                     | CAIP-2 id, e.g. `eip155:84532`, `stellar:testnet`, `xrpl:1`                         |
-| `payment.asset`                  | string                            | MUST                     | Symbol or asset identifier                                                          |
-| `payment.amount`                 | string                            | MUST                     | Non-negative integer in the asset's smallest unit                                   |
-| `payment.reference`              | string                            | MUST                     | Rail reference: tx hash, escrow id, or payment proof id                             |
-| `payment.payer`                  | string                            | MAY                      | CAIP-10 payer account                                                               |
-| `payment.payee`                  | string                            | SHOULD                   | CAIP-10 account that receives the funds; verifiers check the settlement went to it  |
-| `acceptance.mode`                | `buyer` \| `evaluator` \| `auto`  | MUST                     | How delivery is accepted                                                            |
-| `acceptance.reviewWindowSeconds` | integer ≥ 0                       | MUST                     | Window after delivery during which delivery can be rejected                         |
-| `acceptance.evaluator`           | string                            | MUST if mode = evaluator | Evaluator identity                                                                  |
-| `remedy.kind`                    | `rerender` \| `refund` \| `terms` | MAY                      | Seller's commitment for defects found after release                                 |
-| `remedy.withinDays`              | integer                           | MAY                      | Remedy period                                                                       |
-| `remedy.termsSha256`             | hex64                             | MUST if kind = terms     | Hash of the terms document                                                          |
-| `supersedes`                     | hex64                             | MAY                      | `receiptHash` of an earlier receipt this one replaces (e.g. a fixed re-render)      |
-| `deliveredAt`                    | string                            | MUST                     | RFC 3339 UTC timestamp                                                              |
+| Member                           | Type                              | Req.                     | Meaning                                                                                                                     |
+| -------------------------------- | --------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `version`                        | string                            | MUST                     | `"receptum/1"`                                                                                                              |
+| `receiptId`                      | string                            | MUST                     | `RCPT-XXXX-XXXX`, Crockford base32 upper-case                                                                               |
+| `jobIdHash`                      | hex64                             | MUST                     | SHA-256 of the seller's internal job id (the id itself MUST NOT be published)                                               |
+| `seller.id`                      | string                            | MUST                     | `did:key` (Ed25519) of the signer, or a CAIP-10 account for chain-native proofs                                             |
+| `seller.name`                    | string                            | MAY                      | Display name                                                                                                                |
+| `buyer.id`                       | string                            | MAY                      | CAIP-10 account or DID                                                                                                      |
+| `inputSha256`                    | hex64[]                           | MUST                     | One or more input hashes                                                                                                    |
+| `outputSha256`                   | hex64                             | MUST                     | Hash of the delivered artifact                                                                                              |
+| `evidence`                       | {string: hex64}                   | MAY                      | Supporting evidence hashes, e.g. `qaReport`                                                                                 |
+| `payment.rail`                   | string                            | MUST                     | e.g. `x402:exact`, `escrow:receptum-evm`, `escrow:xrpl`, `escrow:stellar-claimable`                                         |
+| `payment.network`                | string                            | MUST                     | CAIP-2 id, e.g. `eip155:84532`, `stellar:testnet`, `xrpl:1`                                                                 |
+| `payment.asset`                  | string                            | MUST                     | Symbol or asset identifier                                                                                                  |
+| `payment.amount`                 | string                            | MUST                     | Non-negative integer in the asset's smallest unit                                                                           |
+| `payment.reference`              | string                            | MUST                     | Rail reference: tx hash, escrow id, or payment proof id                                                                     |
+| `payment.payer`                  | string                            | MAY                      | CAIP-10 payer account                                                                                                       |
+| `payment.payee`                  | string                            | SHOULD                   | CAIP-10 account that receives the funds; verifiers check the settlement went to it                                          |
+| `acceptance.mode`                | `buyer` \| `evaluator` \| `auto`  | MUST                     | How delivery is accepted                                                                                                    |
+| `acceptance.reviewWindowSeconds` | integer ≥ 0                       | MUST                     | Window after delivery during which delivery can be rejected                                                                 |
+| `acceptance.evaluator`           | string                            | MUST if mode = evaluator | Evaluator identity                                                                                                          |
+| `remedy.kind`                    | `rerender` \| `refund` \| `terms` | MAY                      | Seller's commitment for defects found after release                                                                         |
+| `remedy.withinDays`              | integer                           | MAY                      | Remedy period                                                                                                               |
+| `remedy.termsSha256`             | hex64                             | MUST if kind = terms     | Hash of the terms document                                                                                                  |
+| `supersedes`                     | hex64                             | MAY                      | `receiptHash` of an earlier receipt this one replaces (e.g. a fixed re-render)                                              |
+| `deliveredAt`                    | string                            | MUST                     | UTC timestamp, exactly `YYYY-MM-DDTHH:MM:SS[.f…]Z` (a strict RFC 3339 profile; offsets and lower-case `t`/`z` are not used) |
 
 `hex64` is 64 lower-case hexadecimal characters. Members not listed MUST NOT be present in v1. Optional members that are absent MUST be omitted, not set to `null`.
 
@@ -106,17 +106,17 @@ Adapters anchor `receiptHash` as follows:
 ### 7.1 Outputs that are not files
 
 - **HTTP responses:** `outputSha256` is the SHA-256 of the response body bytes as delivered.
-- **MCP tool results:** `outputSha256` is the SHA-256 of `JCS({ content, structuredContent?, isError? })` (members present only when set); the receipt travels in `result._meta["receptum/receipt"]`.
+- **MCP tool results:** `outputSha256` is the SHA-256 of `JCS({ content, structuredContent?, isError? })`, where `structuredContent` and `isError` are included exactly when the result defines them (including `isError: false`); the receipt travels in `result._meta["receptum/receipt"]`.
 
 ### 7.2 Rail differences
 
 Rails enforce acceptance differently. Adapters SHOULD publish their `EscrowCapabilities`:
 
-| Rail                       | Acceptance modes enforced on-chain                                                                      | Review window starts                | Refund after delivery                                                                         |
-| -------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
-| `escrow:receptum-evm`      | one hybrid machine: buyer or evaluator may accept/reject within the window; anyone may release after it | at delivery                         | by buyer/evaluator rejection within the window, or voluntarily by the seller (`sellerRefund`) |
-| `escrow:xrpl`              | buyer, evaluator (holder of the fulfillment)                                                            | n/a (release needs the fulfillment) | yes, after `CancelAfter`                                                                      |
-| `escrow:stellar-claimable` | buyer, auto                                                                                             | at the delivery deadline            | yes, by the buyer within its claim window                                                     |
+| Rail                       | Acceptance modes enforced on-chain                                                                                                              | Review window starts                | Refund after delivery                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
+| `escrow:receptum-evm`      | one hybrid machine: after delivery the buyer or evaluator may accept at any time and reject only within the window; anyone may release after it | at delivery                         | by buyer/evaluator rejection within the window, or voluntarily by the seller (`sellerRefund`) |
+| `escrow:xrpl`              | buyer, evaluator (holder of the fulfillment)                                                                                                    | n/a (release needs the fulfillment) | yes, after `CancelAfter`                                                                      |
+| `escrow:stellar-claimable` | buyer, auto                                                                                                                                     | at the delivery deadline            | yes, by the buyer within its claim window                                                     |
 
 ## 8. Test vectors
 
@@ -124,6 +124,6 @@ Rails enforce acceptance differently. Adapters SHOULD publish their `EscrowCapab
 
 ## 9. Privacy
 
-Receipts are pseudonymous by design: parties are identified only by wallet accounts (CAIP-10) and the seller's public key (`did:key`) — never by name, email or other personal data. `seller.name` is an optional display label. `payment.payee` and `payment.payer` are the same public addresses that already appear in the settlement on-chain.
+Receipts are pseudonymous by design: parties are identified only by wallet accounts (CAIP-10) and the seller's public key (`did:key`) — never by name, email or other personal data. `seller.name` is an optional, non-empty display label. `payment.payee` and `payment.payer` are the same public addresses that already appear in the settlement on-chain.
 
 Receipts MUST NOT contain media, prompts, personal data or raw job ids. Because inputs are hashed, low-entropy inputs could be guessed by brute force; sellers SHOULD salt or avoid publishing hashes of guessable inputs.

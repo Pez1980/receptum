@@ -1,7 +1,9 @@
 import {
+  canonicalJson,
   createReceipt,
   sha256Hex,
   signReceipt,
+  verifySignedReceipt,
   type Anchor,
   type AnchorRecord,
   type DeliveryReceipt,
@@ -76,6 +78,24 @@ const json = (
 /** Payment authorizations currently being processed — a payload can back only one job at a time. */
 const inFlight = new Set<string>();
 
+/**
+ * Identity of a payment authorization, independent of how its header was encoded. For EVM
+ * `exact` payments that's the EIP-3009 (network, token, authorizer, nonce); otherwise the JCS hash
+ * of the scheme payload.
+ */
+function authorizationId(payload: unknown, req: { network: string; asset: string }): string {
+  const inner = (payload as { payload?: { authorization?: { from?: string; nonce?: string } } })
+    .payload;
+  const auth = inner?.authorization;
+  if (auth?.from && auth.nonce)
+    return `${req.network}|${req.asset}|${auth.from}|${auth.nonce}`.toLowerCase();
+  try {
+    return sha256Hex(canonicalJson(inner ?? payload));
+  } catch {
+    return sha256Hex(JSON.stringify(payload));
+  }
+}
+
 /** base64url(JSON) — compact enough for a response header. */
 export const encodeReceiptHeader = (signed: SignedReceipt) =>
   Buffer.from(JSON.stringify(signed)).toString("base64url");
@@ -117,7 +137,7 @@ export async function handlePaidJob(
   const matched = config.x402.findMatchingRequirements(requirements, payload);
   if (!matched) return paymentRequired("payment does not match any accepted option");
 
-  const lock = sha256Hex(signature);
+  const lock = authorizationId(payload, matched);
   if (inFlight.has(lock))
     return json(409, {}, { error: "this payment is already being used for another request" });
   inFlight.add(lock);
@@ -150,7 +170,9 @@ export async function handlePaidJob(
       });
     // Validate the job's receipt data before charging, so the buyer is never charged for a
     // result we then fail to deliver.
-    draft("pending", matched.amount, matched.network);
+    const preflight = signReceipt(draft("pending", matched.amount, matched.network), config.seller);
+    if (!verifySignedReceipt(preflight).ok)
+      throw new Error("seller key can't produce a valid receipt signature");
 
     const settled = await config.x402.settlePayment(payload, matched);
     if (!settled.success) {
@@ -171,8 +193,10 @@ export async function handlePaidJob(
       try {
         anchor = await config.anchor.anchor(signed.receiptHash);
       } catch (err) {
-        // The buyer has paid: deliver anyway and let the seller retry the anchor later.
-        anchorError = err instanceof Error ? err.message : String(err);
+        // The buyer has paid: deliver anyway and let the seller retry the anchor later. Only a
+        // fixed code goes into the header (arbitrary error text could make headers invalid).
+        anchorError = "anchor_failed";
+        console.error("receptum: anchoring failed after settlement", err);
       }
     }
 
@@ -183,7 +207,7 @@ export async function handlePaidJob(
         "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled),
         [RECEIPT_HEADER]: encodeReceiptHeader(signed),
         [RECEIPT_HASH_HEADER]: signed.receiptHash,
-        ...(anchorError ? { "Receptum-Anchor-Error": anchorError.slice(0, 200) } : {}),
+        ...(anchorError ? { "Receptum-Anchor-Error": anchorError } : {}),
         "Access-Control-Expose-Headers": `PAYMENT-RESPONSE, ${RECEIPT_HEADER}, ${RECEIPT_HASH_HEADER}`,
       },
       body: job.output,

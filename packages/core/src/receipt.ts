@@ -119,8 +119,39 @@ export function createReceipt(input: ReceiptInput): DeliveryReceipt {
 
 const CAIP2 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$/;
 const RECEIPT_ID = /^RCPT-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
-const RFC3339_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
 const AMOUNT = /^(0|[1-9][0-9]*)$/;
+const CAIP10 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}:[-.%a-zA-Z0-9]{1,128}$/;
+const DID = /^did:[a-z0-9]+:[A-Za-z0-9._%-]+(:[A-Za-z0-9._%-]+)*$/;
+const isIdentity = (v: string) => DID.test(v) || CAIP10.test(v);
+
+/** Calendar-valid YYYY-MM-DDTHH:MM:SS(.f)Z without JavaScript date normalization. */
+function isUtcTimestamp(v: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?Z$/.exec(v);
+  if (!m) return false;
+  const [y, mo, d, h, mi, se] = m.slice(1, 7).map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const days = [
+    31,
+    y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+  return mo >= 1 && mo <= 12 && d >= 1 && d <= days[mo - 1]! && h <= 23 && mi <= 59 && se <= 59;
+}
 
 const ALLOWED: Record<string, readonly string[]> = {
   receipt: [
@@ -180,13 +211,20 @@ export function assertValidReceipt(receipt: DeliveryReceipt): void {
   hash(r.jobIdHash, "jobIdHash");
 
   const seller = obj(r.seller, "seller", "seller");
-  text(seller, "id", "seller");
+  if (!isIdentity(text(seller, "id", "seller")!))
+    fail("seller.id must be a DID or CAIP-10 account");
   text(seller, "name", "seller", false);
-  if (has(r, "buyer")) text(obj(r.buyer, "buyer", "buyer"), "id", "buyer");
+  if (has(r, "buyer") && !isIdentity(text(obj(r.buyer, "buyer", "buyer"), "id", "buyer")!)) {
+    fail("buyer.id must be a DID or CAIP-10 account");
+  }
 
   if (!Array.isArray(r.inputSha256) || r.inputSha256.length === 0)
     fail("at least one input hash is required");
-  (r.inputSha256 as unknown[]).forEach((h, i) => hash(h, `inputSha256[${i}]`));
+  const inputs = r.inputSha256 as unknown[];
+  for (let i = 0; i < inputs.length; i++) {
+    if (!(i in inputs)) fail(`inputSha256[${i}] is missing`);
+    hash(inputs[i], `inputSha256[${i}]`);
+  }
   hash(r.outputSha256, "outputSha256");
   if (has(r, "evidence")) {
     const ev = r.evidence;
@@ -202,8 +240,10 @@ export function assertValidReceipt(receipt: DeliveryReceipt): void {
 
   const p = obj(r.payment, "payment", "payment");
   for (const k of ["rail", "network", "asset", "amount", "reference"]) text(p, k, "payment");
-  text(p, "payer", "payment", false);
-  text(p, "payee", "payment", false);
+  for (const k of ["payer", "payee"]) {
+    const v = text(p, k, "payment", false);
+    if (v !== undefined && !CAIP10.test(v)) fail(`payment.${k} must be a CAIP-10 account`);
+  }
   if (!AMOUNT.test(p.amount as string))
     fail("payment.amount must be a non-negative integer string");
   if (!CAIP2.test(p.network as string)) fail("payment.network must be a CAIP-2 id");
@@ -212,7 +252,9 @@ export function assertValidReceipt(receipt: DeliveryReceipt): void {
   if (!["buyer", "evaluator", "auto"].includes(a.mode as string)) fail("acceptance.mode");
   if (!Number.isSafeInteger(a.reviewWindowSeconds) || (a.reviewWindowSeconds as number) < 0)
     fail("acceptance.reviewWindowSeconds");
-  text(a, "evaluator", "acceptance", a.mode === "evaluator");
+  const evaluator = text(a, "evaluator", "acceptance", a.mode === "evaluator");
+  if (evaluator !== undefined && !isIdentity(evaluator))
+    fail("acceptance.evaluator must be a DID or CAIP-10 account");
 
   if (has(r, "remedy")) {
     const m = obj(r.remedy, "remedy", "remedy");
@@ -227,8 +269,8 @@ export function assertValidReceipt(receipt: DeliveryReceipt): void {
   }
   if (has(r, "supersedes")) hash(r.supersedes, "supersedes");
   const at = text(r, "deliveredAt", "receipt")!;
-  if (!RFC3339_UTC.test(at) || Number.isNaN(Date.parse(at)))
-    fail("deliveredAt must be an RFC 3339 UTC timestamp");
+  if (!isUtcTimestamp(at))
+    fail("deliveredAt must be a calendar-valid YYYY-MM-DDTHH:MM:SS[.fff]Z timestamp");
 }
 
 /** JCS (RFC 8785) bytes of a receipt — what gets hashed and signed. */

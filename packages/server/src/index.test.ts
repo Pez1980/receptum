@@ -150,7 +150,7 @@ describe("handlePaidJob", () => {
     );
     expect(res.status).toBe(200);
     expect(res.body).toBe(output);
-    expect(res.headers["Receptum-Anchor-Error"]).toBe("rpc down");
+    expect(res.headers["Receptum-Anchor-Error"]).toBe("anchor_failed");
   });
 
   it("refuses a payment that is already backing another request", async () => {
@@ -169,5 +169,43 @@ describe("handlePaidJob", () => {
     expect(second.status).toBe(409);
     release();
     expect((await first).status).toBe(200);
+  });
+
+  it("locks on the authorization, not the header encoding", async () => {
+    const authPayload = {
+      x402Version: 2,
+      accepted: req,
+      payload: { signature: "0xsig", authorization: { from: "0xBuyer", nonce: "0x01" } },
+    } as never;
+    let release!: () => void;
+    const slow = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<typeof job>>>((r) => {
+          release = () =>
+            r({ jobId: "j", inputSha256: [sha256Hex("in")], output, contentType: "video/mp4" });
+        }),
+    );
+    const compact = encodePaymentSignatureHeader(authPayload);
+    const spaced = Buffer.from(JSON.stringify(authPayload, null, 2)).toString("base64");
+    const first = handlePaidJob(headers({ "PAYMENT-SIGNATURE": compact }), slow, config());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(
+      (await handlePaidJob(headers({ "PAYMENT-SIGNATURE": spaced }), slow, config())).status,
+    ).toBe(409);
+    release();
+    await first;
+  });
+
+  it("checks the seller key before charging", async () => {
+    const x402 = fakeX402();
+    const broken = { ...config(x402), seller: { ...seller, did: generateSellerKey().did } };
+    await expect(
+      handlePaidJob(
+        headers({ "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) }),
+        job,
+        broken,
+      ),
+    ).rejects.toThrow();
+    expect(x402.settlePayment).not.toHaveBeenCalled();
   });
 });

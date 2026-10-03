@@ -124,7 +124,7 @@ Alternatives considered:
   possible with sequence-number tricks and `minSeqAge` preconditions, but delivery could not carry
   the receipt hash in a pre-authorised transaction, either party could grief by bumping the
   sequence, and per-job account setup costs more reserves and transactions. Rejected for v1.
-- _Soroban escrow contract_ (the long-term design, roadmap M3): the contract can condition refunds
+- _Soroban escrow contract_ (the long-term design, roadmap M6): the contract can condition refunds
   and release on `deliver(escrowId, receiptHash)` exactly like the EVM escrow, support evaluators,
   and emit a `Delivered` event. **Next step**: it needs the `wasm32v1-none` Rust target and
   `stellar-cli`; the local toolchain here is a Homebrew Rust without rustup, so this was deferred.

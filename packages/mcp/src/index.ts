@@ -34,7 +34,8 @@ interface Settlement {
 
 /**
  * The delivered output of a tool call: SHA-256 of the JCS of
- * `{ content, structuredContent?, isError? }` — everything a consumer may act on.
+ * `{ content, structuredContent?, isError? }` (each member present exactly when set) — everything
+ * a consumer may act on.
  */
 export function toolOutputSha256(
   result: Pick<ToolResult, "content" | "structuredContent" | "isError">,
@@ -45,7 +46,7 @@ export function toolOutputSha256(
       ...(result.structuredContent !== undefined
         ? { structuredContent: result.structuredContent }
         : {}),
-      ...(result.isError ? { isError: true } : {}),
+      ...(result.isError !== undefined ? { isError: result.isError } : {}),
     }),
   );
 }
@@ -108,43 +109,61 @@ export interface ToolResultCheck {
   reasons: string[];
 }
 
+export interface ToolExpectations {
+  network?: string;
+  asset?: string;
+  amount?: string;
+  maxAmount?: string;
+  /** CAIP-10 payee the caller intended to pay. */
+  payee?: string;
+  /** The caller's own account (bare or CAIP-10). */
+  payer?: string;
+  /** Expected input hashes (default for tools wrapped with defaults: JCS hash of the arguments). */
+  argsSha256?: Sha256Hex[];
+}
+
+const bare = (account?: string) => account?.split(":").pop()?.toLowerCase();
+
 /** Client side: checks a paid tool result against its receipt. Pure; no network. Fails closed. */
 export function verifyToolResult(
   result: ToolResult,
   allowedSellers?: readonly string[],
-  options: {
-    requireSettlement?: boolean;
-    expectedArgsSha256?: Sha256Hex[];
-    maxAmount?: string;
-  } = {},
+  options: { requireSettlement?: boolean; expected?: ToolExpectations } = {},
 ): ToolResultCheck {
   const signed = result._meta?.[RECEIPT_META_KEY] as SignedReceipt | undefined;
   if (!signed) return { ok: false, reasons: ["no Receptum receipt on the tool result"] };
-  const reasons: string[] = [];
   const sig = verifySignedReceipt(signed);
-  if (!sig.ok) reasons.push(`signature: ${sig.reason}`);
-  if (toolOutputSha256(result) !== signed.receipt.outputSha256)
+  if (!sig.ok) return { ok: false, receipt: signed, reasons: [`signature: ${sig.reason}`] };
+  const r = signed.receipt;
+  const reasons: string[] = [];
+  if (toolOutputSha256(result) !== r.outputSha256)
     reasons.push("tool result does not match the receipt");
   const settlement = result._meta?.[X402_SETTLEMENT_META_KEY] as Settlement | undefined;
   if (options.requireSettlement !== false) {
     if (!settlement) reasons.push("no settlement on the tool result");
     else {
       if (settlement.success !== true) reasons.push("settlement did not succeed");
-      if (settlement.transaction !== signed.receipt.payment.reference)
+      if (settlement.transaction !== r.payment.reference)
         reasons.push("receipt references a different settlement");
-      if (settlement.network !== signed.receipt.payment.network)
+      if (settlement.network !== r.payment.network)
         reasons.push("settlement is on a different network");
+      if (settlement.payer && r.payment.payer && bare(settlement.payer) !== bare(r.payment.payer))
+        reasons.push("receipt names a different payer");
     }
   }
-  if (
-    options.expectedArgsSha256 &&
-    JSON.stringify(options.expectedArgsSha256) !== JSON.stringify(signed.receipt.inputSha256)
-  ) {
-    reasons.push("receipt is for different arguments");
-  }
-  if (options.maxAmount && BigInt(signed.receipt.payment.amount) > BigInt(options.maxAmount))
+  const e = options.expected ?? {};
+  if (e.network && r.payment.network !== e.network) reasons.push("unexpected network");
+  if (e.asset && r.payment.asset.toLowerCase() !== e.asset.toLowerCase())
+    reasons.push("unexpected asset");
+  if (e.amount && r.payment.amount !== e.amount) reasons.push("unexpected amount");
+  if (e.maxAmount && BigInt(r.payment.amount) > BigInt(e.maxAmount))
     reasons.push("amount exceeds the maximum");
-  if (allowedSellers && !allowedSellers.includes(signed.receipt.seller.id))
+  if (e.payee && r.payment.payee?.toLowerCase() !== e.payee.toLowerCase())
+    reasons.push("unexpected payee");
+  if (e.payer && bare(r.payment.payer) !== bare(e.payer)) reasons.push("unexpected payer");
+  if (e.argsSha256 && JSON.stringify(e.argsSha256) !== JSON.stringify(r.inputSha256))
+    reasons.push("receipt is for different arguments");
+  if (allowedSellers && !allowedSellers.includes(r.seller.id))
     reasons.push("seller is not on the allow-list");
   return { ok: reasons.length === 0, receipt: signed, reasons };
 }

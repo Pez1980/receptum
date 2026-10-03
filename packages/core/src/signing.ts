@@ -169,9 +169,13 @@ export function verifySignedReceipt(signed: SignedReceipt): VerifyResult {
     if (h.alg !== "EdDSA") return { ok: false, reason: "unsupported alg" };
     if (h.typ !== "receptum+jws") return { ok: false, reason: "unexpected typ" };
     if (h.kid !== signed.proof.kid) return { ok: false, reason: "kid mismatch" };
-    const [did, fragment] = signed.proof.kid.split("#");
-    if (!did || fragment !== did.slice("did:key:".length))
+    const kidParts = signed.proof.kid.split("#");
+    const [did, fragment] = kidParts;
+    if (kidParts.length !== 2 || !did || fragment !== did.slice("did:key:".length))
       return { ok: false, reason: "kid must be <did>#<multibase key>" };
+    const sigBytes = Buffer.from(sig, "base64url");
+    if (sigBytes.length !== 64 || b64u(sigBytes) !== sig)
+      return { ok: false, reason: "non-canonical signature encoding" };
     if (did !== signed.receipt.seller.id)
       return { ok: false, reason: "signer is not the receipt's seller" };
     const payload = b64u(receiptBytes(signed.receipt));

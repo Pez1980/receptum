@@ -173,3 +173,35 @@ def test_anchor_malformed():
     assert check_evm_anchor("0xdeadbeef", RH).status == "fail"
     assert check_evm_anchor("eip155:5042002:0x12", RH).status == "fail"
     assert check_evm_anchor("xrpl:1:" + "AB" * 32, RH).status == "unavailable"
+
+
+# SPEC §7.3: exactly three topics (selector, from, to) and exactly 32 bytes of data.
+@pytest.mark.parametrize(
+    "data",
+    [
+        "0x" + f"{250000:x}",  # shorter than one word
+        "0x" + "00" * 32 + f"{250000:064x}",  # two words, value in the second
+        "0x" + f"{250000:064x}" + "00",  # one word plus a byte
+        "0x_" + f"{250000:064x}"[1:],  # Python int() accepts underscores
+        "0X" + f"{250000:064x}",
+    ],
+)
+def test_transfer_data_must_be_one_word(rpc, data):
+    log = transfer_log()
+    log["data"] = data
+    rpc(eth_getTransactionReceipt=settled([log]))
+    assert check_x402_exact(RECEIPT).status == "fail"
+
+
+def test_transfer_with_four_topics_fails(rpc):
+    log = transfer_log()
+    log["topics"] = log["topics"] + ["0x" + f"{250000:064x}"]
+    rpc(eth_getTransactionReceipt=settled([log]))
+    assert check_x402_exact(RECEIPT).status == "fail"
+
+
+def test_transfer_address_topic_with_dirty_upper_bytes_fails(rpc):
+    log = transfer_log()
+    log["topics"][2] = "0x" + "0" * 23 + "1" + PAYEE[2:].lower()
+    rpc(eth_getTransactionReceipt=settled([log]))
+    assert check_x402_exact(RECEIPT).status == "fail"

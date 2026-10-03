@@ -1,10 +1,12 @@
 """Level 3 on XRPL over plain rippled JSON-RPC (urllib): ``x402:exact`` settlements and
-``anchor:xrpl`` memos. Rule text: docs/rails/x402-xrpl.md.
+``anchor:xrpl`` memos. Rule text: SPEC §7.3 ("x402:exact on xrpl:*") and §7.1.
 
 A settlement passes only from a validated ledger: tesSUCCESS, TransactionType Payment,
 Account = payer, Destination = payee, and ``meta.delivered_amount`` (never ``Amount`` —
-partial payments can deliver less) equal to ``payment.amount`` in ``payment.asset``.
-Lookups that can't be completed are ``unavailable``, never ``pass``.
+partial payments can deliver less) equal to ``payment.amount`` XRP drops. Issued tokens are
+unsupported in RRF v1: a delivery in another currency (compared by 160-bit protocol identity;
+3-character codes are case-sensitive) or from another issuer fails, a matching one is
+``unavailable``. Lookups that can't be completed are ``unavailable``, never ``pass``.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable
 
+from .binding import is_classic_address
 from .evm import CheckResult
 
 __all__ = [
@@ -33,7 +36,6 @@ RECEIPT_MEMO_TYPE = b"receptum/1".hex().upper()
 _HASH = re.compile(r"^[0-9A-Fa-f]{64}$")
 _NETWORK = re.compile(r"^xrpl:(0|[1-9][0-9]{0,9})$")
 _DROPS = re.compile(r"^(0|[1-9][0-9]*)$")
-_DECIMAL = re.compile(r"^([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$")
 _HEX40 = re.compile(r"^[0-9A-Fa-f]{40}$")
 
 Rpc = Callable[[str, dict], Any]
@@ -66,30 +68,45 @@ def xrpl_json_rpc(url: str, timeout: float = 20.0) -> Rpc:
     return call
 
 
-def _decimal_key(value: str) -> str | None:
-    """Canonical digits/exponent of a non-negative decimal (accepts rippled's ``1e-7``)."""
-    m = _DECIMAL.match(value)
-    if not m:
-        return None
-    frac = m.group(2) or ""
-    digits = (m.group(1) + frac).lstrip("0")
-    exp = int(m.group(3) or 0) - len(frac)
-    if not digits:
-        return "0"
-    stripped = digits.rstrip("0")
-    exp += len(digits) - len(stripped)
-    return f"{stripped}e{exp}"
+# Characters XRPL allows in a 3-character (standard) currency code; case-sensitive.
+_STANDARD_CODE = re.compile(r"^[A-Za-z0-9?!@#$%^&*<>(){}\[\]|]{3}\Z")
+# 160-bit standard layout: 12 zero bytes, the 3 code bytes, 5 zero bytes.
+_STANDARD_LAYOUT = re.compile(r"^0{24}([0-9A-F]{6})0{10}\Z")
 
 
-def _currency_code(symbol: str) -> str | None:
-    if _HEX40.match(symbol):
-        return symbol.upper()
-    if symbol.upper() == "XRP":
+def _currency_id(code: Any) -> str | None:
+    """160-bit protocol identity (40 upper-case hex) of a wire currency code, or None.
+
+    A 3-character code is encoded byte for byte into the standard layout (``usd`` != ``USD``);
+    a 40-hex code is its own identity (only the hex spelling is normalized), so a standard-layout
+    40-hex code equals its 3-character code while a nonstandard code that spells ``USD`` does not.
+    ``XRP``, characters outside the standard set and 0x00-prefixed codes not in the standard
+    layout are invalid.
+    """
+    if not isinstance(code, str):
         return None
-    if len(symbol) == 3:
-        return symbol.upper()
+    if _HEX40.match(code) and len(code) == 40:
+        ident = code.upper()
+    elif _STANDARD_CODE.match(code):
+        ident = "00" * 12 + code.encode("ascii").hex().upper() + "00" * 5
+    else:
+        return None
+    if ident.startswith("00"):
+        m = _STANDARD_LAYOUT.match(ident)
+        text = bytes.fromhex(m.group(1)).decode("latin-1") if m else ""
+        if not m or not _STANDARD_CODE.match(text) or text == "XRP":
+            return None
+    return ident
+
+
+def _asset_currency_id(symbol: str) -> str | None:
+    """Identity of a receipt's ``<currency>``: 3-character code, 40-hex, or a 4-20 char symbol."""
+    if symbol == "XRP":
+        return None
+    if _HEX40.match(symbol) or len(symbol) == 3:
+        return _currency_id(symbol)
     if 3 < len(symbol) <= 20:
-        return symbol.encode().hex().upper().ljust(40, "0")
+        return _currency_id(symbol.encode().hex().upper().ljust(40, "0"))
     return None
 
 
@@ -167,19 +184,18 @@ def check_xrpl_x402_exact(
     if not isinstance(amount, str) or not isinstance(asset, str):
         return CheckResult("fail", "payment.amount and payment.asset must be strings")
     issued: tuple[str, str] | None = None
-    if asset == "XRP":
-        if not _DROPS.match(amount):
-            return CheckResult("fail", "XRP amount must be an integer number of drops")
-    else:
+    if asset != "XRP":
         symbol, dot, issuer = asset.rpartition(".")
-        code = _currency_code(symbol) if dot and symbol and issuer else None
-        if code is None:
+        code = _asset_currency_id(symbol) if dot and symbol else None
+        if code is None or not is_classic_address(issuer):
             return CheckResult(
-                "fail", f'issued-currency asset must be "<currency>.<issuer>", got "{asset}"'
+                "fail",
+                f'payment.asset must be "XRP" or "<currency>.<issuer>" with a valid XRPL '
+                f'currency code and issuer address, got "{asset}"',
             )
-        if _decimal_key(amount) is None:
-            return CheckResult("fail", "issued-currency amount must be a decimal value")
         issued = (code, issuer)
+    if not _DROPS.match(amount):
+        return CheckResult("fail", "payment.amount must be an integer (XRP drops)")
 
     client = _rpc(network, rpcs, rpc)
     if client is None:
@@ -218,15 +234,22 @@ def check_xrpl_x402_exact(
         if delivered != amount:
             return CheckResult("fail", f"delivered {delivered} drops, receipt says {amount}")
         return CheckResult("pass", f"tx {ref}: {amount} drops delivered to {payee}{where} (validated)")
-    if not isinstance(delivered, dict) or not isinstance(delivered.get("value"), str):
+    if not isinstance(delivered, dict) or not isinstance(delivered.get("currency"), str):
         return CheckResult("fail", "delivered XRP, not an issued currency")
-    if str(delivered.get("currency", "")).upper() != issued[0]:
-        return CheckResult("fail", f"delivered currency {delivered.get('currency')}, not {asset}")
+    if _currency_id(delivered["currency"]) != issued[0]:
+        return CheckResult(
+            "fail",
+            f"delivered currency {delivered['currency']}, not the currency of {asset} "
+            "(compared by protocol bytes; 3-character codes are case-sensitive)",
+        )
     if delivered.get("issuer") != issued[1]:
         return CheckResult("fail", f"delivered issuer {delivered.get('issuer')}, not {issued[1]}")
-    if _decimal_key(delivered["value"]) != _decimal_key(amount):
-        return CheckResult("fail", f"delivered {delivered['value']}, receipt says {amount}")
-    return CheckResult("pass", f"tx {ref}: {amount} {asset} delivered to {payee}{where} (validated)")
+    return CheckResult(
+        "unavailable",
+        f"issued-token x402 is not supported in RRF v1: {asset} was delivered{where}, but an "
+        "integer payment.amount has no defined unit for an XRPL issued value, so the amount "
+        "can't be confirmed",
+    )
 
 
 def check_xrpl_anchor(

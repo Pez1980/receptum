@@ -56,7 +56,7 @@ VERIFIED
   L3 anchor      PASS  xrpl:1 tx C731592F3059… commits receiptHash in a receptum/1 memo (2026-10-03T17:58:20Z)
 ```
 
-Level 3 uses `delivered_amount`, never `Amount`, so partial payments can't pass. The rule is in [docs/rails/x402-xrpl.md](../docs/rails/x402-xrpl.md). Files: `x402-xrpl-testnet.json`, `x402-xrpl-testnet-output.svg`.
+Level 3 uses `delivered_amount`, never `Amount`, so partial payments can't pass. The rule is in [SPEC §7.3](../docs/SPEC.md#73-settlement-level-3). Files: `x402-xrpl-testnet.json`, `x402-xrpl-testnet-output.svg`.
 
 ## Bindings attached to earlier escrow receipts
 

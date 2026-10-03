@@ -4,11 +4,13 @@ import { Wallet } from "xrpl";
 import {
   caip10,
   currencyCode,
+  currencyId,
   currencySymbol,
   ESCROW_MEMO_TYPE,
   formatEscrowId,
   fromXrplAmount,
   parseEscrowId,
+  parseXrplAsset,
   parseReceiptMemos,
   RECEIPT_MEMO_TYPE,
   receiptMemos,
@@ -114,5 +116,72 @@ describe("amounts", () => {
     expect(currencySymbol(currencyCode("RLUSD"))).toBe("RLUSD");
     const opaque = "01" + "00".repeat(19);
     expect(currencySymbol(opaque)).toBe(opaque);
+  });
+});
+
+describe("currency identity (XRPL binary format)", () => {
+  const USD_STANDARD = "0000000000000000000000005553440000000000";
+  const USD_NONSTANDARD = "5553440000000000000000000000000000000000";
+
+  it("encodes 3-character codes case-sensitively into the standard 160-bit layout", () => {
+    expect(currencyId("USD")).toBe(USD_STANDARD);
+    expect(currencyId("usd")).toBe("0000000000000000000000007573640000000000");
+    expect(currencyId("usd")).not.toBe(currencyId("USD"));
+    expect(currencyId("U$D")).toBe("000000000000000000000000552444" + "00".repeat(5));
+  });
+
+  it("normalizes only the hex spelling of 40-hex codes", () => {
+    expect(currencyId(USD_STANDARD.toLowerCase())).toBe(USD_STANDARD);
+    // A 40-hex code with the standard layout IS that standard code on the ledger.
+    expect(currencyId(USD_STANDARD)).toBe(currencyId("USD"));
+    // A nonstandard code whose bytes spell "USD" is a different currency.
+    expect(currencyId(USD_NONSTANDARD)).toBe(USD_NONSTANDARD);
+    expect(currencyId(USD_NONSTANDARD)).not.toBe(currencyId("USD"));
+  });
+
+  it("rejects XRP, characters outside the standard set and malformed 0x00-prefixed codes", () => {
+    expect(() => currencyId("XRP")).toThrow(TypeError);
+    expect(() => currencyId("000000000000000000000000585250" + "00".repeat(5))).toThrow(TypeError);
+    expect(() => currencyId("00".repeat(20))).toThrow(TypeError);
+    expect(() => currencyId("U D")).toThrow(TypeError);
+    expect(() => currencyId("0001" + "00".repeat(18))).toThrow(TypeError);
+    expect(() => currencyId("USDC")).toThrow(TypeError);
+  });
+
+  it("parses receipt assets into protocol identities", () => {
+    expect(parseXrplAsset("XRP")).toEqual({ currency: "XRP" });
+    expect(parseXrplAsset(`usd.${address}`)).toEqual({
+      currency: currencyId("usd"),
+      issuer: address,
+    });
+    expect(parseXrplAsset(`RLUSD.${address}`)).toEqual({
+      currency: "524C555344000000000000000000000000000000",
+      issuer: address,
+    });
+    expect(() => parseXrplAsset("USD")).toThrow(TypeError);
+    expect(() => parseXrplAsset(`USD.notanaddress`)).toThrow(TypeError);
+    expect(() => parseXrplAsset(`XRP.${address}`)).toThrow(TypeError);
+  });
+
+  it("never displays a nonstandard code as the standard symbol it spells", () => {
+    expect(currencySymbol(USD_NONSTANDARD)).toBe(USD_NONSTANDARD);
+    expect(currencySymbol(USD_STANDARD)).toBe("USD");
+    expect(currencySymbol("usd")).toBe("usd");
+    expect(fromXrplAmount({ currency: USD_NONSTANDARD, issuer: address, value: "1" }, 0)).toEqual({
+      asset: `${USD_NONSTANDARD}.${address}`,
+      amount: "1",
+    });
+  });
+});
+
+describe("spec/vectors/xrpl-currency-v1.json", async () => {
+  const { readFileSync } = await import("node:fs");
+  const doc = JSON.parse(
+    readFileSync(new URL("../../../spec/vectors/xrpl-currency-v1.json", import.meta.url), "utf8"),
+  ) as { codes: { code: string; id: string | null }[] };
+  it.each(doc.codes)("$code → $id", ({ code, id }) => {
+    const asset = `${code}.${address}`;
+    if (id === null) expect(() => parseXrplAsset(asset)).toThrow(TypeError);
+    else expect(parseXrplAsset(asset)).toEqual({ currency: id, issuer: address });
   });
 });

@@ -1,13 +1,16 @@
 /**
- * Level 3 for `x402:exact` receipts on XRPL (`xrpl:<NetworkID>`), see docs/rails/x402-xrpl.md.
+ * Level 3 for `x402:exact` receipts on XRPL (`xrpl:<NetworkID>`), SPEC §7.3.
  *
  * The x402 `exact` scheme on XRPL settles one payer-signed `Payment`. The receipt's
  * `payment.reference` is that transaction's hash. It is confirmed only from a validated ledger:
  * tesSUCCESS, TransactionType Payment, Account = payer, Destination = payee, and the
  * `delivered_amount` (never `Amount`: partial payments can deliver less) equal to
- * `payment.amount` in `payment.asset`. Lookups that can't be completed are `unavailable`, never `pass`.
+ * `payment.amount` XRP drops. Issued tokens are unsupported in RRF v1 (an integer
+ * `payment.amount` has no defined unit for an XRPL issued value): a delivery in another currency
+ * or from another issuer fails, a matching one is `unavailable`. Currencies compare by 160-bit
+ * protocol identity (`currencyId`). Lookups that can't be completed are `unavailable`, never `pass`.
  */
-import { currencyCode } from "@receptum/adapter-xrpl";
+import { parseXrplAsset, xrplAmountId, type XrplAssetId } from "@receptum/adapter-xrpl";
 
 export type XrplX402Status = "pass" | "fail" | "unavailable";
 
@@ -61,33 +64,12 @@ const NETWORK = /^xrpl:(0|[1-9][0-9]{0,9})$/;
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** Canonical (digits, exponent) of a non-negative decimal, accepting rippled's `1e-7` form. */
-function decimalKey(value: string): string | null {
-  const m = /^([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/.exec(value);
-  if (!m) return null;
-  const frac = m[2] ?? "";
-  let digits = ((m[1] ?? "0") + frac).replace(/^0+/, "");
-  let exp = Number(m[3] ?? 0) - frac.length;
-  if (!digits) return "0";
-  while (digits.endsWith("0")) {
-    digits = digits.slice(0, -1);
-    exp++;
-  }
-  return `${digits}e${exp}`;
-}
-
-/** Parses `payment.asset`: "XRP" (drops) or "<currency>.<issuer>" (issued value). */
-function parseAsset(asset: string): { xrp: true } | { currency: string; issuer: string } | string {
-  if (asset === "XRP") return { xrp: true };
-  const dot = asset.lastIndexOf(".");
-  if (dot <= 0) return `issued-currency asset must be "<currency>.<issuer>", got "${asset}"`;
+/** Parses `payment.asset` into its protocol identity, or an error message. */
+function parseAsset(asset: string): XrplAssetId | string {
   try {
-    return {
-      currency: currencyCode(asset.slice(0, dot)).toUpperCase(),
-      issuer: asset.slice(dot + 1),
-    };
-  } catch {
-    return `bad currency in asset "${asset}"`;
+    return parseXrplAsset(asset);
+  } catch (err) {
+    return `payment.asset must be "XRP" or "<currency>.<issuer>" with a valid XRPL currency code and issuer address (${err instanceof Error ? err.message : String(err)})`;
   }
 }
 
@@ -121,10 +103,9 @@ export async function verifyXrplX402Payment(
   if (!payer) return unavailable("receipt does not name a payer, so the sender can't be confirmed");
   const asset = parseAsset(payment.asset);
   if (typeof asset === "string") return fail(asset);
-  if ("xrp" in asset && !/^(0|[1-9][0-9]*)$/.test(amount))
-    return fail("XRP amount must be an integer number of drops");
-  if (!("xrp" in asset) && !decimalKey(amount))
-    return fail("issued-currency amount must be a decimal value");
+  const xrp = asset.currency === "XRP";
+  if (!/^(0|[1-9][0-9]*)$/.test(amount))
+    return fail("payment.amount must be an integer (XRP drops)");
 
   let rpc = options.rpc;
   if (!rpc) {
@@ -174,21 +155,23 @@ export async function verifyXrplX402Payment(
   if (delivered === undefined || delivered === "unavailable")
     return unavailable("the server does not report delivered_amount for this transaction");
   const ledger = typeof result.ledger_index === "number" ? ` in ledger ${result.ledger_index}` : "";
-  if ("xrp" in asset) {
+  if (xrp) {
     if (typeof delivered !== "string") return fail("delivered an issued currency, not XRP");
     if (delivered !== amount) return fail(`delivered ${delivered} drops, receipt says ${amount}`);
     return { status: "pass", detail: `${amount} drops delivered to ${payee}${ledger} (validated)` };
   }
-  if (!isRecord(delivered) || typeof delivered.value !== "string")
+  if (!isRecord(delivered) || typeof delivered.currency !== "string")
     return fail("delivered XRP, not an issued currency");
-  if (String(delivered.currency).toUpperCase() !== asset.currency)
-    return fail(`delivered currency ${String(delivered.currency)}, not ${payment.asset}`);
-  if (delivered.issuer !== asset.issuer)
-    return fail(`delivered issuer ${String(delivered.issuer)}, not ${asset.issuer}`);
-  if (decimalKey(delivered.value) !== decimalKey(amount))
-    return fail(`delivered ${delivered.value}, receipt says ${amount}`);
-  return {
-    status: "pass",
-    detail: `${amount} ${payment.asset} delivered to ${payee}${ledger} (validated)`,
-  };
+  const got = xrplAmountId(delivered as { currency: string; issuer: string; value: string });
+  if (!got || got.currency !== asset.currency)
+    return fail(
+      `delivered currency ${String(delivered.currency)}, not the currency of ${payment.asset} (compared by protocol bytes; 3-character codes are case-sensitive)`,
+    );
+  if (!("issuer" in got) || !("issuer" in asset) || got.issuer !== asset.issuer)
+    return fail(
+      `delivered issuer ${String(delivered.issuer)}, not ${String("issuer" in asset ? asset.issuer : "")}`,
+    );
+  return unavailable(
+    `issued-token x402 is not supported in RRF v1: ${payment.asset} was delivered${ledger}, but an integer payment.amount has no defined unit for an XRPL issued value, so the amount can't be confirmed`,
+  );
 }

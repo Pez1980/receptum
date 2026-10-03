@@ -1,0 +1,81 @@
+{
+  "network": "stellar:testnet",
+  "facilitator": "https://x402.org/facilitator",
+  "settlement": {
+    "success": true,
+    "payer": "GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI",
+    "transaction": "198c86d8d96e2a16eefbae190d5af82c7aba3b88dcb7a059df60b84260637401",
+    "network": "stellar:testnet"
+  },
+  "settlementUrl": "https://stellar.expert/explorer/testnet/tx/198c86d8d96e2a16eefbae190d5af82c7aba3b88dcb7a059df60b84260637401",
+  "signedReceipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-E325-XS4X",
+      "jobIdHash": "fe12e82f17e674c2e2071c24268a3587da30dd923c1759512454d2458892ca65",
+      "seller": {
+        "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "name": "render.example (stellar)"
+      },
+      "inputSha256": ["08ab548fb172f98eedeb98d14f43507bc2be368d9a98381973cae463dd2eb5e9"],
+      "outputSha256": "d185f4b914389a42485c9a560f8ecc89b31654e771112170f695de34a01c706d",
+      "payment": {
+        "rail": "x402:exact",
+        "network": "stellar:testnet",
+        "asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+        "amount": "100000",
+        "reference": "198c86d8d96e2a16eefbae190d5af82c7aba3b88dcb7a059df60b84260637401",
+        "payee": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT",
+        "payer": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI"
+      },
+      "acceptance": {
+        "mode": "auto",
+        "reviewWindowSeconds": 0
+      },
+      "deliveredAt": "2026-10-03T17:37:22.566Z",
+      "remedy": {
+        "kind": "rerender",
+        "withinDays": 30
+      }
+    },
+    "receiptHash": "641299064106f882973126a86113c3059224a22462592c17099be9c0b42b0ada",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..uZMuMzZ5G-WbqRdWo6i0P6jd9CKS-JCGvQw6OPJb_n57j1kQc6VkAssSF_qFlafDj-JaKDZ4horMSKbODPJTAA"
+    }
+  },
+  "check": {
+    "ok": true,
+    "signature": true,
+    "outputMatches": true,
+    "settlementMatches": true,
+    "sellerAllowed": true,
+    "expectationsMet": true,
+    "reasons": []
+  },
+  "verify": {
+    "ok": true,
+    "complete": true,
+    "checks": [
+      {
+        "level": 1,
+        "name": "File matches receipt",
+        "status": "pass",
+        "detail": "SHA-256 d185f4b914389a42485c9a560f8ecc89b31654e771112170f695de34a01c706d = outputSha256"
+      },
+      {
+        "level": 2,
+        "name": "Seller signature",
+        "status": "pass",
+        "detail": "signed by did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t"
+      },
+      {
+        "level": 3,
+        "name": "Payment on stellar:testnet",
+        "status": "pass",
+        "detail": "100000 base units paid to GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT in ledger 5005091"
+      }
+    ]
+  }
+}

@@ -1,0 +1,321 @@
+{
+  "network": "stellar:testnet",
+  "contractId": "CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG",
+  "flows": {
+    "A": {
+      "label": "A buyer accepts",
+      "escrowId": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:7",
+      "status": "released",
+      "txs": [
+        {
+          "step": "buyer opens (USDC into the contract)",
+          "hash": "3e2d9e9ab809c812da99823456616310c3d5616eb94d6a0abffc1258fa977d9f"
+        },
+        {
+          "step": "seller delivers (commits receiptHash)",
+          "hash": "39abd30a2030f0ee1e7bf2a9ccd6c697fa3f8ba3d2e80bb67f218bdedcf7944e"
+        },
+        {
+          "step": "buyer accepts → released to seller",
+          "hash": "d43dc919193a99a56074276a0af60a4e0fb22b61a4a14aed4ddb01e0660e0a6e"
+        }
+      ],
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-EKP9-Q1SS",
+          "jobIdHash": "64d962d8f9ac512ac07052c2440af65bd983f23421b50bdc8505091da4795568",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "receptum e2e seller"
+          },
+          "inputSha256": ["e9d6657adadea92e2dbe15d91bc4c1b9a3536c164b9fa15eb8d3ae71b3f1390f"],
+          "outputSha256": "74d01e0a1296e2897291a7f2a66ec6d0eaa22ad52d6370264474f1fa478f4c88",
+          "payment": {
+            "rail": "escrow:receptum-soroban",
+            "network": "stellar:testnet",
+            "asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+            "amount": "1000000",
+            "reference": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:7",
+            "payer": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI",
+            "payee": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT"
+          },
+          "acceptance": {
+            "mode": "buyer",
+            "reviewWindowSeconds": 600
+          },
+          "deliveredAt": "2026-10-03T17:31:09.559Z",
+          "buyer": {
+            "id": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 7
+          }
+        },
+        "receiptHash": "0dc23e0fc897520c25438afef1e292a200356355c650793cb297b1458b74a2e4",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..zjpu-TE5LUycYU-qGL_w36Qwr2IExcJ80VDxXaQ_GB_so0pwaisRVt3-3HuXYP6wd6WZg053W9Ga0lQ5rhs-Dw"
+        }
+      }
+    },
+    "B": {
+      "label": "B auto-release after the window",
+      "escrowId": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:8",
+      "status": "released",
+      "txs": [
+        {
+          "step": "buyer opens (USDC into the contract)",
+          "hash": "562c0cbed0dbe7339d50b4cd4ff270849d56af91926695cc55991e8e67d9b921"
+        },
+        {
+          "step": "seller delivers (commits receiptHash)",
+          "hash": "4e9464e266cdfa3aba134f1839b0c8806623873dd121b806e23997e73d51c00f"
+        },
+        {
+          "step": "third party releases after the window → released to seller",
+          "hash": "180c90cb75dc1a833126e4f7ee8744eec75ffb2574a9a6f7343b09aedfad9355"
+        }
+      ],
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-T54C-AQHP",
+          "jobIdHash": "e0585eec93e618a428a0d75d0b51f17eb365b185164efd5d97ed9f6ecfaf2791",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "receptum e2e seller"
+          },
+          "inputSha256": ["548cf77f8386c318972be5ca9b1c0cbb70eefbd16fcd3a17629bbd0c69c2d3cd"],
+          "outputSha256": "fefde63b930e10f718637245dfd6e2b0849b0e1749ae70e337a522256b87bf99",
+          "payment": {
+            "rail": "escrow:receptum-soroban",
+            "network": "stellar:testnet",
+            "asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+            "amount": "1000000",
+            "reference": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:8",
+            "payer": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI",
+            "payee": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT"
+          },
+          "acceptance": {
+            "mode": "auto",
+            "reviewWindowSeconds": 45
+          },
+          "deliveredAt": "2026-10-03T17:31:12.284Z",
+          "buyer": {
+            "id": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 7
+          }
+        },
+        "receiptHash": "92e497509a6afb5ff99c90169f250c3c00bee6616384fe62928b1e163d305714",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..LldHZs4wdgVs4BeeDzIIg8sN8z3hbB-9cum-AFLSCOMpKVptthmsgfUatsH-lw0UG_zhli-yQVPm7PoW7w8qBw"
+        }
+      }
+    },
+    "C": {
+      "label": "C refund after a missed deadline",
+      "escrowId": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:9",
+      "status": "refunded",
+      "txs": [
+        {
+          "step": "buyer opens (USDC into the contract)",
+          "hash": "8fcd3de01fdbbeaf862402e514f8939aed545165feed0b568447378f9078d957"
+        },
+        {
+          "step": "third party refunds after the missed deadline → refunded to buyer",
+          "hash": "05fd097c9245d66f1e9cc1a459fdaef941dc2dbba50de2e3c8dd4ddd1b98d69e"
+        }
+      ]
+    },
+    "D": {
+      "label": "D evaluator rejects within the window",
+      "escrowId": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:10",
+      "status": "refunded",
+      "txs": [
+        {
+          "step": "buyer opens (USDC into the contract)",
+          "hash": "41a72411c4fefab4dc24f8622669ea475a7d871001972025edee02917831e216"
+        },
+        {
+          "step": "seller delivers (commits receiptHash)",
+          "hash": "0360e614420950aba0df34a621c673924c11fe51f118126b4d25e9be2561b573"
+        },
+        {
+          "step": "evaluator rejects within the window → refunded to buyer",
+          "hash": "7e6cacc7bbfcfe94b573bf4b5f54514638bc540620ff38765f5fed0332ea02ee"
+        }
+      ],
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-C8QP-RHEY",
+          "jobIdHash": "10ad96b9b4d2a9dbab6d67b3e6b29765c48fe7f71660cdd3d24fcbdcb88040f1",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "receptum e2e seller"
+          },
+          "inputSha256": ["126ed9de8be84c8e3ba90d74be9c259e1f0531867db4b808156c8a2f4339f06c"],
+          "outputSha256": "b563c5c4db3056c0386dfd6579416399441263c5b5969b85a6df4cb2dfc66714",
+          "payment": {
+            "rail": "escrow:receptum-soroban",
+            "network": "stellar:testnet",
+            "asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+            "amount": "1000000",
+            "reference": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:10",
+            "payer": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI",
+            "payee": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT"
+          },
+          "acceptance": {
+            "mode": "evaluator",
+            "reviewWindowSeconds": 600,
+            "evaluator": "stellar:testnet:GDRRAY37TFOYGILUQKM4S2ELADCVBOLWUVRDAWCPTS4UOVNVHJX2KQAY"
+          },
+          "deliveredAt": "2026-10-03T17:31:17.130Z",
+          "buyer": {
+            "id": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 7
+          }
+        },
+        "receiptHash": "c475b174af3635bac98e041e000c0cc6ec0cfc1ababba58c59f6743d75949012",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..RUbDRHyIWUr2c2WnP9eE9GVNDQJL6vlrYceCFhACRi8FpEJcY1CMQAUHXdMuexhwBPnE4Y7Q28A-6g1pbfwICA"
+        }
+      }
+    },
+    "E": {
+      "label": "E seller refunds voluntarily",
+      "escrowId": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:11",
+      "status": "refunded",
+      "txs": [
+        {
+          "step": "buyer opens (USDC into the contract)",
+          "hash": "58ef6ff3063bda6a1d42b8358e95627fa8f453e053c57b726f49c470fe1f2fef"
+        },
+        {
+          "step": "seller delivers (commits receiptHash)",
+          "hash": "a365201c880cc1ba2bbd92932bf1992a8d4825c40200836d6b4107480cc1e030"
+        },
+        {
+          "step": "seller refunds voluntarily → refunded to buyer",
+          "hash": "aef202b62deffceea1ca80c243cc42e2d715c1885fb11f56c8507f9a6a36a2e3"
+        }
+      ],
+      "signedReceipt": {
+        "receipt": {
+          "version": "receptum/1",
+          "receiptId": "RCPT-C6VX-B30Z",
+          "jobIdHash": "9fe26cd15d52326efa1fd6c3532c4419087de54e1b57d4bb7897fd96d7abd53c",
+          "seller": {
+            "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+            "name": "receptum e2e seller"
+          },
+          "inputSha256": ["a401a22f61a946b0607932682cd82881432aa5af896a4902557998b94712b4c6"],
+          "outputSha256": "db61299cb909d318e697fd884fedfd039f8aef06fc69fc7595acf52646d2c38f",
+          "payment": {
+            "rail": "escrow:receptum-soroban",
+            "network": "stellar:testnet",
+            "asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+            "amount": "1000000",
+            "reference": "stellar:testnet:CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG:11",
+            "payer": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI",
+            "payee": "stellar:testnet:GCKJSBZNHSKEPM7VEM6CQ6RGP2HNNMJOUIEXGYABRSRJVI73K6YDSRIT"
+          },
+          "acceptance": {
+            "mode": "buyer",
+            "reviewWindowSeconds": 600
+          },
+          "deliveredAt": "2026-10-03T17:31:23.060Z",
+          "buyer": {
+            "id": "stellar:testnet:GAJGU63DDMPR6DU2LVMMFOV5DUSPTHG6PSGV7N3E72TXWMK74ZEOCNWI"
+          },
+          "remedy": {
+            "kind": "rerender",
+            "withinDays": 7
+          }
+        },
+        "receiptHash": "f80fabbd8a300fe0b7a66f27568d396250e56687512928dafcdcec170e98bf5a",
+        "proof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..fhdLWKXKOM0WnM_pAoVD98P06yY8Gs14jyRvalsrTLvX5FfGo9lY-GPy4QKpjbSNLDz9s2IIXlTL9RrcEqKyDg"
+        }
+      }
+    }
+  },
+  "negatives": [
+    {
+      "check": "refund before the deadline",
+      "message": "ReceptumEscrow rejected the call: TooEarly"
+    },
+    {
+      "check": "release before any delivery",
+      "message": "ReceptumEscrow rejected the call: BadState"
+    },
+    {
+      "check": "buyer accepts before any delivery",
+      "message": "ReceptumEscrow rejected the call: BadState"
+    },
+    {
+      "check": "redelivery with a different receipt hash",
+      "message": "ReceptumEscrow rejected the call: BadState"
+    },
+    {
+      "check": "release during the review window",
+      "message": "ReceptumEscrow rejected the call: TooEarly"
+    },
+    {
+      "check": "refund of a delivered escrow",
+      "message": "ReceptumEscrow rejected the call: BadState"
+    },
+    {
+      "check": "the seller accepts its own delivery",
+      "message": "ReceptumEscrow rejected the call: NotAllowed"
+    },
+    {
+      "check": "a stranger accepts (not buyer or evaluator)",
+      "message": "ReceptumEscrow rejected the call: NotAllowed"
+    },
+    {
+      "check": "a stranger rejects (the escrow has no evaluator)",
+      "message": "ReceptumEscrow rejected the call: NotAllowed"
+    },
+    {
+      "check": "a stranger calls sellerRefund (needs the seller's signature)",
+      "message": "Soroban transaction 7723da2a761eee3c3443907cb2e520ad3105cd2509943c9ae53069a8bb404b2b FAILED",
+      "hash": "7723da2a761eee3c3443907cb2e520ad3105cd2509943c9ae53069a8bb404b2b"
+    },
+    {
+      "check": "reject after acceptance",
+      "message": "ReceptumEscrow rejected the call: BadState"
+    },
+    {
+      "check": "release after a rejection",
+      "message": "ReceptumEscrow rejected the call: BadState"
+    },
+    {
+      "check": "second release (double spend)",
+      "message": "ReceptumEscrow rejected the call: BadState"
+    },
+    {
+      "check": "late delivery after the deadline",
+      "message": "ReceptumEscrow rejected the call: TooLate"
+    },
+    {
+      "check": "second refund (double spend)",
+      "message": "ReceptumEscrow rejected the call: BadState"
+    }
+  ]
+}

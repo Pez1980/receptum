@@ -42,6 +42,8 @@ import {
   explorerTxUrl,
   keypairSigner,
 } from "../dist/index.js";
+import { verify } from "../../verify/dist/index.js";
+import { writeSection } from "./testnet-common.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const walletsDir = process.env.RECEPTUM_WALLETS_DIR ?? join(homedir(), ".config/receptum/wallets");
@@ -171,6 +173,7 @@ function buildSignedReceipt(sellerKey, escrow, mode, label) {
       amount: escrow.amount,
       reference: escrow.escrowId,
       payer: caip10(escrow.buyer),
+      payee: caip10(escrow.seller),
     },
     acceptance: { mode, reviewWindowSeconds: escrow.reviewWindowSeconds },
     remedy: { kind: "rerender", withinDays: 7 },
@@ -354,6 +357,7 @@ async function main() {
       if (!r.offline.ok || !r.foundByReference || !r.foundByScan) {
         throw new Error(`${r.scenario.label}: verification failed`);
       }
+      r.report = await verify(r.signed);
     }
     log(`${r.scenario.label}: final status ${r.final.status}`);
   }
@@ -366,6 +370,10 @@ async function main() {
   for (const [label, status] of Object.entries(expected)) {
     if (results[label].final.status !== status) {
       throw new Error(`${label}: expected ${status}, got ${results[label].final.status}`);
+    }
+    const report = results[label].report;
+    if (report && report.complete !== (status === "released")) {
+      throw new Error(`${label}: verifier says complete=${report.complete}`);
     }
   }
 
@@ -403,16 +411,16 @@ function writeResults({
     `| Asset | ${assetNote} |`,
     "",
   ];
-  if (setupTxs.length) out.push("## Setup", "", txTable(setupTxs), "");
+  if (setupTxs.length) out.push("### Setup", "", txTable(setupTxs), "");
   for (const r of Object.values(results)) {
     const e = r.escrow;
     out.push(
-      `## Escrow: ${r.scenario.label}`,
+      `### Escrow: ${r.scenario.label}`,
       "",
       `- escrowId: \`${e.escrowId}\` (strkey \`${escrowIdToStrKey(e.escrowId)}\`)`,
       `- amount: ${e.amount} (smallest units) of \`${e.asset}\`; review window ${r.scenario.reviewWindowSeconds}s`,
       `- buyer window (refund / reject / accept): from ${e.refundableAfter} until ${e.releasableAfter}; seller window: from ${e.releasableAfter}`,
-      `- final status: **${r.final.status}**${r.final.releasedBy ? ` (${r.final.releasedBy})` : ""}`,
+      `- final status: **${r.final.status}**${r.final.releasedBy ? ` (${r.final.releasedBy})` : ""}${r.report ? ` · \`receptum-verify\`: **${!r.report.ok ? "NOT VERIFIED" : r.report.complete ? "VERIFIED" : "PARTIALLY VERIFIED"}** — ${r.report.checks.find((c) => c.level === 3).detail}` : ""}`,
       "",
       txTable(r.txs),
       "",
@@ -433,7 +441,7 @@ function writeResults({
     }
   }
   out.push(
-    "## Negative checks",
+    "### Negative checks",
     "",
     "| Check | Result |",
     "| --- | --- |",
@@ -443,12 +451,7 @@ function writeResults({
     ),
     "",
   );
-  writeFileSync(join(here, "..", "E2E_RESULTS.md"), out.join("\n"));
-  // Sanity: the results file must never contain a secret seed.
-  const text = readFileSync(join(here, "..", "E2E_RESULTS.md"), "utf8");
-  if (/\bS[A-Z2-7]{55}\b/.test(text) || text.includes("PRIVATE KEY")) {
-    throw new Error("refusing to keep E2E_RESULTS.md: it looks like it contains a secret");
-  }
+  writeSection(join(here, "..", "E2E_RESULTS.md"), "claimable", out.join("\n"));
 }
 
 main().catch((err) => {

@@ -26,7 +26,7 @@ A receipt is a JSON object with these members:
 | `inputSha256`                    | hex64[]                           | MUST                     | One or more input hashes                                                                                                    |
 | `outputSha256`                   | hex64                             | MUST                     | Hash of the delivered artifact                                                                                              |
 | `evidence`                       | {string: hex64}                   | MAY                      | Supporting evidence hashes, e.g. `qaReport`                                                                                 |
-| `payment.rail`                   | string                            | MUST                     | e.g. `x402:exact`, `escrow:receptum-evm`, `escrow:xrpl`, `escrow:stellar-claimable`                                         |
+| `payment.rail`                   | string                            | MUST                     | e.g. `x402:exact`, `escrow:receptum-evm`, `escrow:receptum-soroban`, `escrow:xrpl`, `escrow:stellar-claimable`              |
 | `payment.network`                | string                            | MUST                     | CAIP-2 id, e.g. `eip155:84532`, `stellar:testnet`, `xrpl:1`                                                                 |
 | `payment.asset`                  | string                            | MUST                     | Symbol or asset identifier                                                                                                  |
 | `payment.amount`                 | string                            | MUST                     | Non-negative integer in the asset's smallest unit                                                                           |
@@ -96,12 +96,15 @@ Verifiers MUST NOT report a receipt as fully verified unless level 3 confirms th
 
 Adapters anchor `receiptHash` as follows:
 
-| Rail                                          | Anchor                                                                   |
-| --------------------------------------------- | ------------------------------------------------------------------------ |
-| `escrow:receptum-evm`                         | `Delivered(escrowId, receiptHash)` event of the Receptum escrow contract |
-| `anchor:evm`                                  | calldata / event of a zero-value transaction                             |
-| `escrow:xrpl` / `anchor:xrpl`                 | Memo `MemoType = hex("receptum/1")`, `MemoData = receiptHash`            |
-| `escrow:stellar-claimable` / `anchor:stellar` | `MEMO_HASH = receiptHash`                                                |
+| Rail                                          | Anchor                                                                                                                                              |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `escrow:receptum-evm`                         | `Delivered(escrowId, receiptHash)` event of the Receptum escrow contract                                                                            |
+| `escrow:receptum-soroban`                     | `receipt_hash` committed by `deliver` in the Soroban escrow's storage, and its `delivered` event (topic: escrow id)                                 |
+| `anchor:evm`                                  | calldata / event of a zero-value transaction                                                                                                        |
+| `escrow:xrpl` / `anchor:xrpl`                 | Memo `MemoType = hex("receptum/1")`, `MemoData = receiptHash`                                                                                       |
+| `escrow:stellar-claimable` / `anchor:stellar` | `MEMO_HASH = receiptHash`; for the escrow, the first such seller transaction before the deadline that also writes the balance's delivery data entry |
+
+`x402:exact` payments are not anchored by the rail itself: `payment.reference` is the settlement transaction (on `stellar:testnet`, a Stellar Asset Contract `transfer` to `payment.payee`), and sellers MAY add an anchor.
 
 ### 7.1 Outputs that are not files
 
@@ -112,11 +115,12 @@ Adapters anchor `receiptHash` as follows:
 
 Rails enforce acceptance differently. Adapters SHOULD publish their `EscrowCapabilities`:
 
-| Rail                       | Acceptance modes enforced on-chain                                                                                                              | Review window starts                | Refund after delivery                                                                         |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
-| `escrow:receptum-evm`      | one hybrid machine: after delivery the buyer or evaluator may accept at any time and reject only within the window; anyone may release after it | at delivery                         | by buyer/evaluator rejection within the window, or voluntarily by the seller (`sellerRefund`) |
-| `escrow:xrpl`              | buyer, evaluator (holder of the fulfillment)                                                                                                    | n/a (release needs the fulfillment) | yes, after `CancelAfter`                                                                      |
-| `escrow:stellar-claimable` | buyer, auto                                                                                                                                     | at the delivery deadline            | yes, by the buyer within its claim window                                                     |
+| Rail                       | Acceptance modes enforced on-chain                                                                                                              | Review window starts                | Refund after delivery                                                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `escrow:receptum-evm`      | one hybrid machine: after delivery the buyer or evaluator may accept at any time and reject only within the window; anyone may release after it | at delivery                         | by buyer/evaluator rejection within the window, or voluntarily by the seller (`sellerRefund`)                                                                   |
+| `escrow:receptum-soroban`  | the same hybrid machine as `escrow:receptum-evm` (buyer, evaluator, auto)                                                                       | at delivery                         | by buyer/evaluator rejection within the window, or voluntarily by the seller (`seller_refund`); undelivered escrows are refundable by anyone after the deadline |
+| `escrow:xrpl`              | buyer, evaluator (holder of the fulfillment)                                                                                                    | n/a (release needs the fulfillment) | yes, after `CancelAfter`                                                                                                                                        |
+| `escrow:stellar-claimable` | buyer, auto                                                                                                                                     | at the delivery deadline            | yes, by the buyer within its claim window — which also bounds the buyer's refund right when nothing was delivered                                               |
 
 ## 8. Test vectors
 

@@ -17,7 +17,7 @@ const { values, positionals } = parseArgs({
 const [receiptPath, filePath] = positionals;
 if (!receiptPath) {
   console.error(
-    "usage: receptum-verify <receipt.json> [delivered-file] [--anchor <caip2>:<tx>]... [--trust-escrow <address>]... [--offline] [--json]",
+    "usage: receptum-verify <receipt.json> [delivered-file] [--anchor <caip2>:<tx>]... [--trust-escrow <address|contract-id>]... [--offline] [--json]",
   );
   process.exit(2);
 }

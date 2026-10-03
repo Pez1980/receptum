@@ -26,27 +26,29 @@ All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0
 
 ## Packages
 
-| Package                                                 | What it does                                                                                      |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [`@receptum/core`](packages/core)                       | RRF v1 receipts, JCS (RFC 8785) hashing, Ed25519 `did:key` signatures, lifecycle, rail interfaces |
-| [`@receptum/server`](packages/server)                   | Sell a job over x402: verify → work → settle → return the output with a signed receipt            |
-| [`@receptum/client`](packages/client)                   | Pay over x402 and reject results whose receipt, output hash or settlement don't match             |
-| [`@receptum/mcp`](packages/mcp)                         | Signed receipts for x402-paid MCP tools (`@x402/mcp`)                                             |
-| [`@receptum/verify`](packages/verify)                   | Library + `receptum-verify` CLI: file, signature, settlement and anchor checks                    |
-| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet and Base Sepolia                            |
-| [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRPL native Escrow with crypto-conditions + memo anchors                                          |
-| [`@receptum/adapter-stellar`](packages/adapter-stellar) | Stellar claimable-balance escrow (USDC) + `MEMO_HASH` anchors                                     |
+| Package                                                 | What it does                                                                                                           |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| [`@receptum/core`](packages/core)                       | RRF v1 receipts, JCS (RFC 8785) hashing, Ed25519 `did:key` signatures, lifecycle, rail interfaces                      |
+| [`@receptum/server`](packages/server)                   | Sell a job over x402: verify → work → settle → return the output with a signed receipt                                 |
+| [`@receptum/client`](packages/client)                   | Pay over x402 and reject results whose receipt, output hash or settlement don't match                                  |
+| [`@receptum/mcp`](packages/mcp)                         | Signed receipts for x402-paid MCP tools (`@x402/mcp`)                                                                  |
+| [`@receptum/verify`](packages/verify)                   | Library + `receptum-verify` CLI: file, signature, settlement and anchor checks                                         |
+| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet and Base Sepolia                                                 |
+| [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRPL native Escrow with crypto-conditions + memo anchors                                                               |
+| [`@receptum/adapter-stellar`](packages/adapter-stellar) | Soroban `ReceptumEscrow` contract + rail, claimable-balance escrow (USDC), `MEMO_HASH` anchors, x402 settlement checks |
 
 ## Live on testnets
 
-| What                                                         | Network                    | Evidence                                                                           |
-| ------------------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------- |
-| x402 render sold for 0.25 USDC, receipt anchored cross-chain | Base Sepolia → Arc testnet | [examples/E2E_RESULTS.md](examples/E2E_RESULTS.md)                                 |
-| Paid MCP tool call with receipt                              | Base Sepolia               | [packages/mcp/E2E_RESULTS.md](packages/mcp/E2E_RESULTS.md)                         |
-| Escrow: accept, auto-release, refund, anchor                 | Arc testnet                | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)         |
-| Escrow: release, refund, issued-token escrow                 | XRPL testnet               | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md)       |
-| Escrow (USDC): auto-release, accept, refund, reject          | Stellar testnet            | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md) |
-| Independent verification of all of the above                 | all four                   | [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md)                   |
+| What                                                                                 | Network                    | Evidence                                                                                                         |
+| ------------------------------------------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| x402 render sold for 0.25 USDC, receipt anchored cross-chain                         | Base Sepolia → Arc testnet | [examples/E2E_RESULTS.md](examples/E2E_RESULTS.md)                                                               |
+| Paid MCP tool call with receipt                                                      | Base Sepolia               | [packages/mcp/E2E_RESULTS.md](packages/mcp/E2E_RESULTS.md)                                                       |
+| Escrow: accept, auto-release, refund, anchor                                         | Arc testnet                | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)                                       |
+| Escrow: release, refund, issued-token escrow                                         | XRPL testnet               | [packages/adapter-xrpl/E2E_RESULTS.md](packages/adapter-xrpl/E2E_RESULTS.md)                                     |
+| Soroban escrow (USDC): accept, auto-release, refund, evaluator reject, seller refund | Stellar testnet            | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
+| x402 render sold for 0.01 USDC with receipt                                          | Stellar testnet            | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md#x402-exact-on-stellar-testnet) |
+| Claimable-balance escrow (USDC): auto-release, accept, refund, reject                | Stellar testnet            | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                               |
+| Independent verification of all of the above                                         | all four                   | [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md)                                                 |
 
 ## Quick look
 
@@ -101,12 +103,13 @@ Testnet wallets are read from `~/.config/receptum/wallets` (override with `RECEP
 
 ## Development
 
-Node 22, pnpm 9, Foundry for the contracts.
+Node 22, pnpm 9, Foundry for the EVM contract, Rust (`rustup`, pinned by `rust-toolchain.toml`) and `stellar-cli` for the Soroban contract.
 
 ```sh
 pnpm install
 pnpm check                                   # format, lint, build, typecheck, tests (incl. anvil)
 (cd packages/adapter-evm && forge test)      # Solidity tests incl. fuzzing
+(cd packages/adapter-stellar/contracts/receptum-escrow && cargo test)   # Soroban contract tests
 git config core.hooksPath .githooks          # secret scan on commit, full check on push
 ```
 

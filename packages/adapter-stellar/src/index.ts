@@ -21,6 +21,7 @@ export {
 export {
   CLAIMABLE_ESCROW_CAPABILITIES,
   StellarClaimableEscrowRail,
+  toDeliveryTx,
   type OpenEscrowParams,
   type OpenedEscrow,
   type StellarEscrowOptions,
@@ -67,4 +68,20 @@ export {
   type SorobanEscrowState,
   type SorobanRpcOptions,
 } from "./soroban.js";
-export { deriveEscrowState, type EscrowHistory, type StellarEscrowState } from "./state.js";
+export {
+  allocateClaimPayments,
+  deriveEscrowState,
+  findDelivery,
+  type BatchClaim,
+  type ClaimPayment,
+  type DeliveryAnchor,
+  type DeliveryTxLike,
+  type EscrowHistory,
+  type StellarEscrowState,
+} from "./state.js";
+export {
+  findSacTransfer,
+  matchSacTransfer,
+  type AssetBalanceChange,
+  type TransferExpectation,
+} from "./transfer.js";

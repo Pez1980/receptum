@@ -25,6 +25,38 @@ VERIFIED
 - `x402-base-sepolia-tampered.json` is the same file with `payment.amount` edited to `"1"`: `NOT VERIFIED` (receiptHash mismatch; the binding check is skipped once the signature fails).
 - Earlier runs: [`0x90a09ae1…4ff454f`](https://sepolia.basescan.org/tx/0x90a09ae1de82b87162cb03be1d7828df5af491ba695e930c1f984a0654ff454f) (after the review fixes, no binding — today `PARTIALLY VERIFIED`, or `VERIFIED` with `--allow-unbound`) and [`0x83359ec2…dfeface`](https://sepolia.basescan.org/tx/0x83359ec2790a984cb904b103648521b787b785312b04a2029e91cb126dfeface) (before the fixes; its receipt predates the `payee` field, so the verifier refuses to call it verified).
 
+## x402 exact on XRPL testnet
+
+Run 2026-10-03 · `examples/x402-xrpl/e2e.mjs` sold one render for **0.01 XRP** (`10000` drops) over x402 `exact` on `xrpl:1` through `https://x402.org/facilitator` (advertises `{"areFeesSponsored":false}`, so the buyer paid the XRPL fee). The receipt carries the seller's XRPL binding (`bindings/xrpl-testnet-x402.json`) and is anchored by a `receptum/1` memo.
+
+| Step                                       | Network               | Reference                                                                                                                 |
+| ------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| x402 settlement (`Payment` buyer → seller) | XRPL testnet `xrpl:1` | [`CEBA2DF49DE1…`](https://testnet.xrpl.org/transactions/CEBA2DF49DE13B89A6A5A9D79F4CB113724EACC02DE9E4F1B0F5C8ADE1F4CC1E) |
+| Receipt anchor (`AccountSet` memo, seller) | XRPL testnet `xrpl:1` | [`C731592F3059…`](https://testnet.xrpl.org/transactions/C731592F3059F916685F7D5413575017167F5E25D6715780BB140B204D3932E1) |
+
+- receiptHash `176bfff7bd79d27ae58f3e31a16f21dbdfd03415bb520f8d8662988f1c08433f`, payer `xrpl:1:rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf`, payee `xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s`, ledger 21252639. Client check: all accepted, `payeeBound: true`.
+
+```text
+$ receptum-verify x402-xrpl-testnet.json x402-xrpl-testnet-output.svg --anchor xrpl:1:C731592F3059F916685F7D5413575017167F5E25D6715780BB140B204D3932E1
+[PASS] L1 File matches receipt — SHA-256 317511c7…153c = outputSha256
+[PASS] L2 Seller signature — signed by did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t
+[PASS] L2.5 Seller controls payee — did:key:z6Mkqc7R…by4t ↔ xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s: signed by the (enabled) master key of r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s (online, current account keys)
+[PASS] L3 Payment on xrpl:1 — 10000 drops delivered to r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s in ledger 21252639 (validated)
+[PASS] L3 Anchor on xrpl:1 — memo anchored 2026-10-03T17:58:20Z
+
+VERIFIED
+
+$ python -m receptum_verify x402-xrpl-testnet.json x402-xrpl-testnet-output.svg   # anchor read from the file
+VERIFIED
+  L1 file        PASS  SHA-256(file) = outputSha256
+  L2 signature   PASS  receiptHash recomputed and JWS verifies
+  L2.5 binding   PASS  signed by the enabled master key of r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s (online)
+  L3 settlement  PASS  tx CEBA2DF49DE1…: 10000 drops delivered to r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s in ledger 21252639 (validated)
+  L3 anchor      PASS  xrpl:1 tx C731592F3059… commits receiptHash in a receptum/1 memo (2026-10-03T17:58:20Z)
+```
+
+Level 3 uses `delivered_amount`, never `Amount`, so partial payments can't pass. The rule is in [docs/rails/x402-xrpl.md](../docs/rails/x402-xrpl.md). Files: `x402-xrpl-testnet.json`, `x402-xrpl-testnet-output.svg`.
+
 ## Bindings attached to earlier escrow receipts
 
 Bindings live outside the hashed receipt, so they can be added to receipts issued before bindings existed without changing `receiptHash`:

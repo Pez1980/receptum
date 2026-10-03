@@ -1,0 +1,125 @@
+{
+  "network": "xrpl:1",
+  "facilitator": "https://x402.org/facilitator",
+  "facilitatorKind": {
+    "x402Version": 2,
+    "scheme": "exact",
+    "network": "xrpl:1",
+    "extra": {
+      "areFeesSponsored": false
+    }
+  },
+  "settlement": {
+    "success": true,
+    "payer": "rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf",
+    "transaction": "CEBA2DF49DE13B89A6A5A9D79F4CB113724EACC02DE9E4F1B0F5C8ADE1F4CC1E",
+    "network": "xrpl:1"
+  },
+  "settlementUrl": "https://testnet.xrpl.org/transactions/CEBA2DF49DE13B89A6A5A9D79F4CB113724EACC02DE9E4F1B0F5C8ADE1F4CC1E",
+  "anchor": "xrpl:1:C731592F3059F916685F7D5413575017167F5E25D6715780BB140B204D3932E1",
+  "anchorUrl": "https://testnet.xrpl.org/transactions/C731592F3059F916685F7D5413575017167F5E25D6715780BB140B204D3932E1",
+  "signedReceipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-8G3S-GE4D",
+      "jobIdHash": "80404c17fedc6e3df71d9accfc2549a93e9d82cebaf3637e8e68510fdd44e83f",
+      "seller": {
+        "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "name": "render.example (xrpl)"
+      },
+      "inputSha256": ["08ab548fb172f98eedeb98d14f43507bc2be368d9a98381973cae463dd2eb5e9"],
+      "outputSha256": "317511c7f0d4363d280a2cd0fea964c491c895d36e84953e2d3d6f4af7c9153c",
+      "payment": {
+        "rail": "x402:exact",
+        "network": "xrpl:1",
+        "asset": "XRP",
+        "amount": "10000",
+        "reference": "CEBA2DF49DE13B89A6A5A9D79F4CB113724EACC02DE9E4F1B0F5C8ADE1F4CC1E",
+        "payee": "xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+        "payer": "xrpl:1:rEsPJWasngBfidJ75VHhrCv4ZMQTV1uFHf"
+      },
+      "acceptance": {
+        "mode": "auto",
+        "reviewWindowSeconds": 0
+      },
+      "deliveredAt": "2026-10-03T17:58:13.401Z",
+      "remedy": {
+        "kind": "rerender",
+        "withinDays": 30
+      }
+    },
+    "receiptHash": "176bfff7bd79d27ae58f3e31a16f21dbdfd03415bb520f8d8662988f1c08433f",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..v7ITkiEuvM0OgeK_PRQVBOMNi2VT4cN1r1H9ltdFdtqWni0DZ610Czn9pxspWTQCaf-be0fxrBzVi1KKrT0VDw"
+    },
+    "bindings": [
+      {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "account": "xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s",
+          "issuedAt": "2026-10-03T17:54:09.575Z",
+          "expiresAt": "2027-10-03T17:54:09.575Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..nvPyZCvAeRi5m9P0q-Hz8Q0YczWUMgcfZM7S2EE0_8mrm2Atwy3Y-KNokvWIocLhCzW3b5yQa34qJ_QRGtkuCg"
+        },
+        "accountProof": {
+          "type": "xrpl",
+          "publicKey": "EDF467790A9257C18B222ED2C7EADCF72A5A66A44CC47D92FC4C00FEA4944E2EF3",
+          "signature": "9E58CEDAD9A133A0D0C89900D6EF85585FE696E5546012A2B15AA51CCC99C6775FA9A35C217277ED7314D76CD28C43FE6D1C7BEDD4931358508A421339732B0E"
+        }
+      }
+    ]
+  },
+  "check": {
+    "ok": true,
+    "signature": true,
+    "outputMatches": true,
+    "settlementMatches": true,
+    "sellerAllowed": true,
+    "expectationsMet": true,
+    "payeeBound": true,
+    "reasons": []
+  },
+  "verify": {
+    "ok": true,
+    "complete": true,
+    "checks": [
+      {
+        "level": 1,
+        "name": "File matches receipt",
+        "status": "pass",
+        "detail": "SHA-256 317511c7f0d4363d280a2cd0fea964c491c895d36e84953e2d3d6f4af7c9153c = outputSha256"
+      },
+      {
+        "level": 2,
+        "name": "Seller signature",
+        "status": "pass",
+        "detail": "signed by did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t"
+      },
+      {
+        "level": 2.5,
+        "name": "Seller controls payee",
+        "status": "pass",
+        "detail": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t ↔ xrpl:1:r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s: signed by the (enabled) master key of r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s (online, current account keys)"
+      },
+      {
+        "level": 3,
+        "name": "Payment on xrpl:1",
+        "status": "pass",
+        "detail": "10000 drops delivered to r9vbiDzUBwmrfL62JeGoNnKSbVofVWpg2s in ledger 21252639 (validated)"
+      },
+      {
+        "level": 3,
+        "name": "Anchor on xrpl:1",
+        "status": "pass",
+        "detail": "memo anchored 2026-10-03T17:58:20Z"
+      }
+    ]
+  }
+}

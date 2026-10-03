@@ -41,6 +41,7 @@ import {
   type Hex,
 } from "viem";
 import { Client } from "xrpl";
+import { verifyXrplX402Payment } from "./xrpl-x402.js";
 
 /** pending = genuine but not yet final (e.g. escrow delivered, awaiting acceptance). */
 export type CheckStatus = "pass" | "fail" | "pending" | "skipped";
@@ -296,6 +297,8 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
         `claimable balance released to the payee (${state.releasedBy}); first delivery anchor ${state.deliveredBy} matches`,
       );
     }
+    if (rail === "x402:exact" && network.startsWith("xrpl:"))
+      return { level: 3, name, ...(await verifyXrplX402Payment(signed.receipt.payment)) };
     if (rail.startsWith("x402:") && network === "stellar:testnet") {
       if (!payeeAddr)
         return pending("receipt does not name a payee, so the recipient can't be confirmed");

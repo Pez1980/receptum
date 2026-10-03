@@ -9,6 +9,7 @@ from typing import Any
 from .binding import DEFAULT_XRPL_RPCS, check_payee_binding
 from .evm import DEFAULT_RPCS, CheckResult, check_evm_anchor, check_x402_exact
 from .jws import verify_signed_receipt
+from .xrpl_x402 import check_xrpl_anchor, check_xrpl_x402_exact
 
 __all__ = [
     "NOT_VERIFIED",
@@ -121,6 +122,8 @@ def verify(
         pay = receipt["payment"]
         if pay["rail"] == "x402:exact" and pay["network"].startswith("eip155:"):
             levels["settlement"] = check_x402_exact(receipt, rpcs)
+        elif pay["rail"] == "x402:exact" and pay["network"].startswith("xrpl:"):
+            levels["settlement"] = check_xrpl_x402_exact(receipt, rpcs)
         else:
             levels["settlement"] = CheckResult(
                 "unavailable",
@@ -129,7 +132,11 @@ def verify(
         if anchor is None:
             levels["anchor"] = _skip("no anchor given; receiptHash commitment not checked")
         else:
-            levels["anchor"] = check_evm_anchor(anchor, sig.receipt_hash, rpcs)
+            levels["anchor"] = (
+                check_xrpl_anchor(anchor, sig.receipt_hash, rpcs)
+                if anchor.startswith("xrpl:")
+                else check_evm_anchor(anchor, sig.receipt_hash, rpcs)
+            )
 
     statuses = [c.status for c in levels.values()]
     # A skipped level 2.5 (no payee named, or --allow-unbound) does not block VERIFIED;

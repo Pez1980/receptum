@@ -146,7 +146,7 @@ console.log("  contract", contract);
     reviewWindowSeconds: 45,
   });
   const deliver = await s.deliver(escrowId, signed.receiptHash);
-  let early = "not attempted";
+  let early;
   try {
     await s.release(escrowId);
     early = "UNEXPECTED: release succeeded early";
@@ -177,7 +177,7 @@ console.log("  contract", contract);
     deliverBy: new Date((t + 40) * 1000),
     reviewWindowSeconds: 60,
   });
-  let early = "not attempted";
+  let early;
   try {
     await b.refund(escrowId);
     early = "UNEXPECTED: refund succeeded early";

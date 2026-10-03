@@ -1,0 +1,50 @@
+{
+  "settlement": {
+    "success": true,
+    "payer": "0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5",
+    "transaction": "0x3f668a0b9bbdb7f5f96c8cea488abe1f5760790ce060ecb8a21e1da287753873",
+    "network": "eip155:84532"
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "Transcript for aaaaaaaaaaaa…: \"Know what you paid for.\""
+    }
+  ],
+  "receipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-FS3E-M9ZP",
+      "jobIdHash": "5bcb600e3ae6338603cc5bba92516d2c12401ae435bf78f760a627de38b8e427",
+      "seller": {
+        "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "name": "render.example"
+      },
+      "inputSha256": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+      "outputSha256": "13b89bbcd4a59180e24c15e29daaede17f1cad64e19a17241e41cd2641b2bb01",
+      "payment": {
+        "rail": "x402:exact",
+        "network": "eip155:84532",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "amount": "100000",
+        "reference": "0x3f668a0b9bbdb7f5f96c8cea488abe1f5760790ce060ecb8a21e1da287753873",
+        "payer": "eip155:84532:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
+      },
+      "acceptance": {
+        "mode": "auto",
+        "reviewWindowSeconds": 0
+      },
+      "deliveredAt": "2026-10-03T07:00:44.874Z"
+    },
+    "receiptHash": "f5c49571f210efb57d5c06cea182a43c34b192267a5256cf9464c38363c25a10",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..JaJTT1DCDjkRc9ZJH90KfLj7TGEdIn1kd_skMo9hH_IFoRU1UqwrxR-RigtMKfuC0hz2iIymGHrJvM_XzzczCA"
+    }
+  },
+  "check": {
+    "ok": true,
+    "reasons": []
+  }
+}

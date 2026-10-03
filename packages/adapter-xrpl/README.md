@@ -117,6 +117,10 @@ The script refuses to run unless the server reports NetworkID 1 (testnet). It ke
 
 It writes public results (addresses, tx hashes, explorer links, signed receipts) to `E2E_RESULTS.md`.
 
+## x402 `exact` on XRPL
+
+This adapter isn't needed to sell over x402 on XRPL. `@x402/xrpl` (client and server schemes) and the public facilitator `https://x402.org/facilitator` do that on `xrpl:1` (the payer pays the fee, `areFeesSponsored: false`). The adapter adds the Receptum pieces: `XrplAnchor` for the receipt hash and `xrplAccountSigner`/`xrplBindingVerifier` for the seller ↔ payee binding. `@receptum/verify` confirms the settlement by its rule in [docs/rails/x402-xrpl.md](../../docs/rails/x402-xrpl.md): a validated tesSUCCESS `Payment` from the payer to the payee whose `delivered_amount` (not `Amount`) equals the receipt amount. The Python verifier applies the same rule. Example: [examples/x402-xrpl](../../examples/x402-xrpl). Live run (0.01 XRP): settlement [`CEBA2DF49DE1…`](https://testnet.xrpl.org/transactions/CEBA2DF49DE13B89A6A5A9D79F4CB113724EACC02DE9E4F1B0F5C8ADE1F4CC1E), anchor [`C731592F3059…`](https://testnet.xrpl.org/transactions/C731592F3059F916685F7D5413575017167F5E25D6715780BB140B204D3932E1), VERIFIED by both verifiers.
+
 ## Limitations
 
 - Testnet only; not audited.

@@ -1,6 +1,6 @@
 {
   "name": "@receptum/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Seller-side x402 middleware for Fastify and Express: price a route, answer HTTP 402, verify payment, issue receipts.",
   "license": "Apache-2.0",
   "type": "module",

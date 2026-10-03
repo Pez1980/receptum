@@ -1,6 +1,6 @@
 {
   "name": "@receptum/client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Buyer and agent client: pays HTTP 402 responses within per-agent spending limits and verifies receipts.",
   "license": "Apache-2.0",
   "type": "module",

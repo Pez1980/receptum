@@ -1,6 +1,6 @@
 {
   "name": "@receptum/adapter-xrpl",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "XRP Ledger rail: RLUSD payments, native Escrow, memo-anchored receipts.",
   "license": "Apache-2.0",
   "type": "module",

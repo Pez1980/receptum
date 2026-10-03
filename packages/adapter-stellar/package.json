@@ -1,6 +1,6 @@
 {
   "name": "@receptum/adapter-stellar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Stellar rails (testnet): Soroban ReceptumEscrow, claimable-balance escrow, MEMO_HASH receipt anchoring and x402 settlement checks.",
   "license": "Apache-2.0",
   "type": "module",

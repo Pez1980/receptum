@@ -6,7 +6,7 @@ import { newEscrowSecret } from "./condition.js";
 import { parseReceiptMemos, receiptMemos } from "./encoding.js";
 import { XrplEscrowRail } from "./escrow.js";
 import { fakeLedger } from "./fake-ledger.test-util.js";
-import { XrplTxError } from "./ledger.js";
+import { XrplHistoryIncompleteError, XrplTxError } from "./ledger.js";
 
 const buyer = Wallet.generate();
 const seller = Wallet.generate();
@@ -216,6 +216,130 @@ describe("XrplEscrowRail delivery from chronological history", () => {
     ledger.state.closeTime += 900; // == CancelAfter
     await memo(seller, first, escrowId);
     expect(await rail(buyer).getEscrow(escrowId)).toMatchObject({ receiptHash: first });
+  });
+});
+
+describe("XrplEscrowRail protocol identity and terms", () => {
+  let ledger: ReturnType<typeof fakeLedger>;
+  let secret: ReturnType<typeof newEscrowSecret>;
+  const rail = (wallet: Wallet) =>
+    new XrplEscrowRail({ client: ledger.client, wallet, fulfillment: () => secret.fulfillment });
+
+  beforeEach(() => {
+    ledger = fakeLedger();
+    secret = newEscrowSecret();
+  });
+
+  it("keeps the raw 160-bit currency, condition and ledger times in the escrow state", async () => {
+    const issuer = Wallet.generate().address;
+    const nonstandard = "5553440000000000000000000000000000000000"; // bytes spell "USD"
+    const { escrowId } = await rail(buyer).createEscrow({
+      seller: seller.address,
+      amount: "1",
+      asset: `${nonstandard}.${issuer}`,
+      deliverBy: new Date(rippleTimeToISOTime(ledger.state.closeTime + 600)),
+      reviewWindowSeconds: 300,
+      condition: secret.condition,
+    });
+    ledger.state.closeTime += 10;
+    await rail(seller).deliver(escrowId, receiptHash);
+    const state = await rail(buyer).getEscrow(escrowId);
+    expect(state.asset).toBe(`${nonstandard}.${issuer}`); // never displayed as "USD"
+    expect(state.xrpl).toEqual({
+      currency: nonstandard,
+      issuer,
+      condition: secret.condition,
+      cancelAfter: ledger.state.closeTime - 10 + 900,
+      deliveryCloseTime: ledger.state.closeTime,
+    });
+  });
+
+  it("reports XRP escrows as XRP", async () => {
+    const { escrowId } = await rail(buyer).createEscrow({
+      seller: seller.address,
+      amount: "5",
+      asset: "XRP",
+      deliverBy: new Date(rippleTimeToISOTime(ledger.state.closeTime + 600)),
+      reviewWindowSeconds: 300,
+      condition: secret.condition,
+    });
+    expect((await rail(buyer).getEscrow(escrowId)).xrpl).toMatchObject({ currency: "XRP" });
+  });
+});
+
+describe("XrplEscrowRail bounded history", () => {
+  let ledger: ReturnType<typeof fakeLedger>;
+  let secret: ReturnType<typeof newEscrowSecret>;
+  const rail = (wallet: Wallet, maxHistoryPages = 10) =>
+    new XrplEscrowRail({
+      client: ledger.client,
+      wallet,
+      fulfillment: () => secret.fulfillment,
+      maxHistoryPages,
+    });
+  const create = () =>
+    rail(buyer).createEscrow({
+      seller: seller.address,
+      amount: "1000000",
+      asset: "XRP",
+      deliverBy: new Date(rippleTimeToISOTime(ledger.state.closeTime + 600)),
+      reviewWindowSeconds: 300,
+      condition: secret.condition,
+    });
+  const noop = (from: Wallet) =>
+    ledger.client.submitAndWait({ TransactionType: "AccountSet", Account: from.address } as never, {
+      wallet: from,
+    });
+
+  beforeEach(() => {
+    ledger = fakeLedger();
+    secret = newEscrowSecret();
+  });
+
+  it("throws a dedicated incomplete-history error when the page limit leaves a marker", async () => {
+    const { escrowId } = await create();
+    await rail(seller).deliver(escrowId, receiptHash);
+    await rail(seller).release(escrowId);
+    for (let i = 0; i < 5; i++) await noop(buyer); // push the EscrowFinish back in history
+    ledger.state.pageSize = 2;
+    const err = await rail(buyer, 2)
+      .getEscrow(escrowId)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(XrplHistoryIncompleteError);
+    expect((err as Error).name).toBe("XrplHistoryIncompleteError");
+    // With enough pages the same history is decisive.
+    expect(await rail(buyer, 4).getEscrow(escrowId)).toMatchObject({ status: "released" });
+  });
+
+  it("stops early on decisive evidence even when more history remains", async () => {
+    const { escrowId } = await create();
+    await rail(seller).deliver(escrowId, receiptHash);
+    await rail(seller).release(escrowId);
+    for (let i = 0; i < 5; i++) await noop(seller);
+    ledger.state.pageSize = 2;
+    expect(await rail(buyer, 1).getEscrow(escrowId)).toMatchObject({
+      status: "released",
+      receiptHash,
+    });
+  });
+
+  it("an incomplete delivery scan is incomplete, not 'nothing delivered'", async () => {
+    const { escrowId } = await create();
+    for (let i = 0; i < 5; i++) await noop(seller);
+    await rail(seller).deliver(escrowId, receiptHash);
+    ledger.state.pageSize = 2;
+    await expect(rail(buyer, 2).getEscrow(escrowId)).rejects.toBeInstanceOf(
+      XrplHistoryIncompleteError,
+    );
+  });
+
+  it("'not found' only when the owner's history is complete back to its creation", async () => {
+    const { escrowId } = await create();
+    const unknown = `${buyer.address}:${Number(escrowId.split(":")[1]) + 50}`;
+    await expect(rail(buyer).getEscrow(unknown)).rejects.toThrow(/^escrow \S+ not found$/);
+    // A server that lacks the owner's early history can't prove the escrow never existed.
+    ledger.state.firstLedger = 1_000_000;
+    await expect(rail(buyer).getEscrow(unknown)).rejects.toBeInstanceOf(XrplHistoryIncompleteError);
   });
 });
 

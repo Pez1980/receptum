@@ -1,0 +1,77 @@
+{
+  "description": "XRPL issued-currency codes as written in payment.asset (\"<code>.<issuer>\", SPEC §7.3) and their 160-bit protocol identities (40 upper-case hex). Two codes denote the same currency exactly when their ids are equal. id null: invalid, the asset MUST fail. 3-character codes are case-sensitive; a 40-hex code in the standard layout is that standard code; 4-20 character symbols are their UTF-8 bytes, zero-padded.",
+  "codes": [
+    {
+      "code": "USD",
+      "id": "0000000000000000000000005553440000000000"
+    },
+    {
+      "code": "usd",
+      "id": "0000000000000000000000007573640000000000"
+    },
+    {
+      "code": "U$D",
+      "id": "0000000000000000000000005524440000000000"
+    },
+    {
+      "code": "[|]",
+      "id": "0000000000000000000000005B7C5D0000000000"
+    },
+    {
+      "code": "0000000000000000000000005553440000000000",
+      "id": "0000000000000000000000005553440000000000"
+    },
+    {
+      "code": "0000000000000000000000005553440000000000",
+      "id": "0000000000000000000000005553440000000000"
+    },
+    {
+      "code": "5553440000000000000000000000000000000000",
+      "id": "5553440000000000000000000000000000000000"
+    },
+    {
+      "code": "RLUSD",
+      "id": "524C555344000000000000000000000000000000"
+    },
+    {
+      "code": "rlusd",
+      "id": "726C757364000000000000000000000000000000"
+    },
+    {
+      "code": "XRP",
+      "id": null
+    },
+    {
+      "code": "0000000000000000000000005852500000000000",
+      "id": null
+    },
+    {
+      "code": "0000000000000000000000000000000000000000",
+      "id": null
+    },
+    {
+      "code": "0001000000000000000000000000000000000000",
+      "id": null
+    },
+    {
+      "code": "0000000000000000000000005553440000000001",
+      "id": null
+    },
+    {
+      "code": "U D",
+      "id": null
+    },
+    {
+      "code": "US",
+      "id": null
+    },
+    {
+      "code": "€€€",
+      "id": null
+    },
+    {
+      "code": "ABCDEFGHIJKLMNOPQRSTU",
+      "id": null
+    }
+  ]
+}

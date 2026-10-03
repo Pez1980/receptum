@@ -18,6 +18,7 @@ import { fulfillmentMatches } from "./condition.js";
 import {
   formatEscrowId,
   fromXrplAmount,
+  xrplAmountId,
   parseEscrowId,
   parseReceiptMemos,
   receiptMemos,
@@ -25,13 +26,16 @@ import {
   type XrplAmount,
 } from "./encoding.js";
 import {
+  accountExists,
   accountTxs,
   compareTx,
+  createsAccount,
   errorCode,
   getTx,
   submit,
   validatedCloseTime,
   XRPL_TESTNET,
+  XrplHistoryIncompleteError,
   type LedgerTx,
 } from "./ledger.js";
 
@@ -68,6 +72,26 @@ export interface CreateEscrowParams {
   reviewWindowSeconds: number;
   /** PREIMAGE-SHA-256 condition (hex) from `newEscrowSecret()`; the buyer keeps the preimage. */
   condition: string;
+}
+
+/**
+ * `getEscrow` result: the generic state plus the raw protocol facts verifiers compare. `asset`
+ * is for display; compare `xrpl.currency` (160-bit identity, see `currencyId`) and `xrpl.issuer`.
+ */
+export interface XrplEscrowState extends EscrowState {
+  xrpl: {
+    /** `XRP`, or the escrowed currency's 160-bit identity as 40 upper-case hex. */
+    currency: string;
+    /** Issuer of an issued-token escrow. */
+    issuer?: string;
+    /** PREIMAGE-SHA-256 condition (hex), when the escrow is conditional. */
+    condition?: string;
+    /** Ripple-epoch seconds. */
+    cancelAfter?: number;
+    finishAfter?: number;
+    /** Ripple-epoch close time of the ledger holding the delivery memo, when delivered. */
+    deliveryCloseTime?: number;
+  };
 }
 
 type EscrowFields = Pick<LedgerEntry.Escrow, "Account" | "Destination" | "CancelAfter"> & {
@@ -139,7 +163,7 @@ export class XrplEscrowRail implements EscrowRail {
    * seller sent for this escrow after its EscrowCreate, no later than CancelAfter and before
    * settlement. Later memos are ignored.
    */
-  async getEscrow(escrowId: string): Promise<EscrowState> {
+  async getEscrow(escrowId: string): Promise<XrplEscrowState> {
     const open = await this.entry(escrowId);
     const closed = open ? null : await this.closing(escrowId);
     const fields = open ?? closed?.fields;
@@ -153,11 +177,22 @@ export class XrplEscrowRail implements EscrowRail {
       : delivery
         ? "delivered"
         : "open";
+    const id = xrplAmountId(fields.Amount);
+    if (!id) throw new Error(`escrow ${escrowId} holds an invalid currency`);
+    const deliveryCloseTime = delivery ? rippleCloseTime(delivery.tx) : undefined;
     return {
       ...this.handle(escrowId, fields),
       status,
       ...(delivery ? { receiptHash: delivery.receiptHash } : {}),
       ...(fields.FinishAfter ? { releasableAfter: rippleTimeToISOTime(fields.FinishAfter) } : {}),
+      xrpl: {
+        currency: id.currency,
+        ...("issuer" in id ? { issuer: id.issuer } : {}),
+        ...(fields.Condition ? { condition: fields.Condition.toUpperCase() } : {}),
+        ...(fields.CancelAfter ? { cancelAfter: fields.CancelAfter } : {}),
+        ...(fields.FinishAfter ? { finishAfter: fields.FinishAfter } : {}),
+        ...(deliveryCloseTime !== undefined ? { deliveryCloseTime } : {}),
+      },
     };
   }
 
@@ -277,7 +312,11 @@ export class XrplEscrowRail implements EscrowRail {
     escrowId: string,
   ): Promise<{ type: "EscrowFinish" | "EscrowCancel"; fields: EscrowFields; tx: LedgerTx } | null> {
     const { owner, sequence } = parseEscrowId(escrowId);
+    let reachedCreation = false;
+    let scanned = 0;
     for await (const t of accountTxs(this.client, owner, this.maxPages)) {
+      scanned++;
+      if (createsAccount(t, owner)) reachedCreation = true;
       const type = t.tx.TransactionType;
       if (type !== "EscrowFinish" && type !== "EscrowCancel") continue;
       if (t.tx.Owner !== owner || Number(t.tx.OfferSequence) !== sequence) continue;
@@ -288,7 +327,21 @@ export class XrplEscrowRail implements EscrowRail {
         return { type, fields: node.DeletedNode.FinalFields as unknown as EscrowFields, tx: t };
       }
     }
+    await this.assertCompleteHistory(owner, reachedCreation, scanned);
     return null;
+  }
+
+  /**
+   * A full backward scan proves absence only if it reached the transaction that created the
+   * account (or the account never existed). Servers keep partial history, so otherwise the
+   * absence is undecided.
+   */
+  private async assertCompleteHistory(owner: string, reachedCreation: boolean, scanned: number) {
+    if (reachedCreation) return;
+    if (scanned === 0 && !(await accountExists(this.client, owner))) return;
+    throw new XrplHistoryIncompleteError(
+      `the server's account_tx history for ${owner} does not reach the account's creation`,
+    );
   }
 
   /** The validated EscrowCreate for this escrow (via PreviousTxnID, else the owner's history). */
@@ -303,7 +356,14 @@ export class XrplEscrowRail implements EscrowRail {
       const t = await getTx(this.client, fields.PreviousTxnID);
       if (isCreate(t)) return t;
     }
-    for await (const t of accountTxs(this.client, owner, this.maxPages)) if (isCreate(t)) return t;
+    let reachedCreation = false;
+    let scanned = 0;
+    for await (const t of accountTxs(this.client, owner, this.maxPages)) {
+      scanned++;
+      if (isCreate(t)) return t;
+      if (createsAccount(t, owner)) reachedCreation = true;
+    }
+    await this.assertCompleteHistory(owner, reachedCreation, scanned);
     throw new Error(`EscrowCreate for ${escrowId} not found in ledger history`);
   }
 

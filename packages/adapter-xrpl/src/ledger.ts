@@ -39,6 +39,40 @@ export class XrplTxError extends Error {
   }
 }
 
+/**
+ * The ledger history needed to decide could not be read in full: the `account_tx` page limit
+ * was reached with a `marker` remaining, or the server's history does not reach back far
+ * enough. Absence of evidence in an incomplete history proves nothing, so verifiers report this
+ * as `unavailable` — never as a failure and never as a pass.
+ */
+export class XrplHistoryIncompleteError extends Error {
+  constructor(message: string) {
+    super(`XRPL history incomplete: ${message}`);
+    this.name = "XrplHistoryIncompleteError";
+  }
+}
+
+/** Does this transaction create `account`'s AccountRoot (the start of its history)? */
+export function createsAccount(t: LedgerTx, account: string): boolean {
+  return t.meta.AffectedNodes.some(
+    (n) =>
+      "CreatedNode" in n &&
+      n.CreatedNode.LedgerEntryType === "AccountRoot" &&
+      (n.CreatedNode.NewFields as { Account?: string } | undefined)?.Account === account,
+  );
+}
+
+/** Does `account` exist in the validated ledger? */
+export async function accountExists(client: Client, account: string): Promise<boolean> {
+  try {
+    await client.request({ command: "account_info", account, ledger_index: "validated" });
+    return true;
+  } catch (err) {
+    if (errorCode(err) === "actNotFound") return false;
+    throw err;
+  }
+}
+
 const resultCode = (meta: unknown): string | undefined =>
   (meta as { TransactionResult?: string } | null)?.TransactionResult;
 
@@ -96,7 +130,9 @@ export async function getTx(client: Client, hash: string): Promise<LedgerTx | nu
 
 /**
  * Validated, successful transactions affecting `account`, newest first — or oldest first from
- * `fromLedger` when `forward` is set (chronological history).
+ * `fromLedger` when `forward` is set (chronological history). Consumers may stop early once
+ * they have decisive evidence; a scan that would need more than `maxPages` pages throws
+ * `XrplHistoryIncompleteError` instead of ending as if the history were complete.
  */
 export async function* accountTxs(
   client: Client,
@@ -130,6 +166,9 @@ export async function* accountTxs(
     marker = result.marker;
     if (!marker) return;
   }
+  throw new XrplHistoryIncompleteError(
+    `account_tx for ${account} needs more than ${maxPages} page(s) (maxHistoryPages)`,
+  );
 }
 
 /** Close time (Ripple epoch seconds) of the latest validated ledger. */

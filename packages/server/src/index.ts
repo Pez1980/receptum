@@ -36,6 +36,17 @@ type ResourceServer = Pick<
 type ResourceConfig = Parameters<x402ResourceServer["buildPaymentRequirements"]>[0];
 type ResourceInfo = Parameters<x402ResourceServer["createPaymentRequiredResponse"]>[1];
 
+/**
+ * Safety margin, in seconds, for account-binding expiry. With `bindingVerifiers`, the server
+ * refuses — before charging — unless a binding covering the payee stays valid for at least this
+ * long after the receipt's `deliveredAt`. `deliveredAt` is fixed before settlement and reused in
+ * the final receipt, so the binding that passed the preflight also covers the receipt the buyer
+ * gets; the margin keeps a binding that is about to lapse from being used at all (settlement,
+ * anchoring and delivery to the buyer take time, and the buyer's and verifiers' clocks differ).
+ * Five minutes, the same tolerance SPEC §4.1 allows for a binding's `issuedAt` clock skew.
+ */
+export const BINDING_EXPIRY_MARGIN_SECONDS = 300;
+
 export interface PaidJobConfig {
   /** An initialized x402 resource server with the schemes you accept registered. */
   x402: ResourceServer;
@@ -167,8 +178,12 @@ export async function handlePaidJob(
     if (!verified.isValid) return paymentRequired(verified.invalidReason ?? "payment invalid");
 
     const job = await run();
+    // One delivery time for the preflight and the final receipt: a binding that covers the
+    // preflight receipt then covers the delivered one, however long settlement takes.
+    const deliveredAt = new Date();
     const draft = (reference: string, settledAmount: string, network: string, payer?: string) =>
       createReceipt({
+        deliveredAt,
         jobId: job.jobId,
         seller: {
           id: config.seller.did,
@@ -202,6 +217,16 @@ export async function handlePaidJob(
     if (config.bindingVerifiers) {
       const bound = checkPayeeBinding(preflight, { verifiers: config.bindingVerifiers });
       if (!bound.ok) throw new Error(`account binding does not cover the payee: ${bound.reason}`);
+      const margin = new Date(deliveredAt.getTime() + BINDING_EXPIRY_MARGIN_SECONDS * 1000);
+      const later = {
+        ...preflight,
+        receipt: { ...preflight.receipt, deliveredAt: margin.toISOString() },
+      };
+      const lasting = checkPayeeBinding(later, { verifiers: config.bindingVerifiers });
+      if (!lasting.ok)
+        throw new Error(
+          `account binding expires within ${BINDING_EXPIRY_MARGIN_SECONDS} s; refusing to charge (${lasting.reason})`,
+        );
     }
 
     const settled = await config.x402.settlePayment(payload, matched);

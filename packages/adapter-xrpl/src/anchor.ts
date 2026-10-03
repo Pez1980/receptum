@@ -1,7 +1,14 @@
 import { isSha256Hex, type Anchor, type AnchorRecord, type Sha256Hex } from "@receptum/core";
 import type { Client, Wallet } from "xrpl";
 import { parseReceiptMemos, receiptMemos } from "./encoding.js";
-import { accountTxs, getTx, submit, XRPL_TESTNET, type LedgerTx } from "./ledger.js";
+import {
+  accountTxs,
+  getTx,
+  submit,
+  XRPL_TESTNET,
+  XrplHistoryIncompleteError,
+  type LedgerTx,
+} from "./ledger.js";
 
 export const XRPL_ANCHOR_RAIL = "anchor:xrpl";
 
@@ -56,10 +63,18 @@ export class XrplAnchor implements Anchor {
     }
     const account = this.opts.account ?? this.opts.wallet?.address;
     if (!account) return null;
-    for await (const tx of accountTxs(this.opts.client, account, this.opts.maxHistoryPages ?? 10)) {
-      if (tx.tx.Account === account && parseReceiptMemos(tx.tx.Memos).receiptHash === receiptHash) {
-        return this.record(receiptHash, tx);
+    try {
+      for await (const tx of accountTxs(
+        this.opts.client,
+        account,
+        this.opts.maxHistoryPages ?? 10,
+      )) {
+        if (tx.tx.Account === account && parseReceiptMemos(tx.tx.Memos).receiptHash === receiptHash)
+          return this.record(receiptHash, tx);
       }
+    } catch (err) {
+      // `find` searches recent history only; beyond it the anchor is simply not found here.
+      if (!(err instanceof XrplHistoryIncompleteError)) throw err;
     }
     return null;
   }

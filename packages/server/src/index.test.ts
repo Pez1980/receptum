@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { generateSellerKey, sha256Hex, verifySignedReceipt } from "@receptum/core";
 import { encodePaymentSignatureHeader } from "@x402/core/http";
-import { handlePaidJob, RECEIPT_HEADER, type PaidJobConfig } from "./index.js";
+import {
+  BINDING_EXPIRY_MARGIN_SECONDS,
+  handlePaidJob,
+  RECEIPT_HEADER,
+  type PaidJobConfig,
+} from "./index.js";
 
 const seller = generateSellerKey();
 const req = {
@@ -265,6 +270,52 @@ describe("account bindings", async () => {
   it("refuses to charge when its bindings don't cover the payee", async () => {
     const cfg = await boundConfig(stranger);
     await expect(handlePaidJob(pay, job, cfg)).rejects.toThrow(/does not cover the payee/);
+    expect(cfg.x402.settlePayment).not.toHaveBeenCalled();
+  });
+
+  it("uses one deliveredAt for the preflight check and the final receipt", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const start = new Date("2026-10-03T12:00:00.000Z");
+      vi.setSystemTime(start);
+      const binding = await createAccountBinding({
+        key: seller,
+        signer: evmAccountSigner(payTo, "eip155:84532"),
+        issuedAt: new Date(start.getTime() - 60_000),
+        expiresAt: new Date(start.getTime() + (BINDING_EXPIRY_MARGIN_SECONDS + 60) * 1000),
+      });
+      const cfg = await boundConfig();
+      cfg.bindings = [binding];
+      // Settlement is slow: the binding expires while it is in flight.
+      (cfg.x402.settlePayment as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+        vi.setSystemTime(new Date(start.getTime() + 3_600_000));
+        return {
+          success: true,
+          transaction: "0xsettle",
+          network: "eip155:84532",
+          payer: "0xBuyer",
+        };
+      });
+      const res = await handlePaidJob(pay, job, cfg);
+      expect(res.status).toBe(200);
+      expect(res.receipt!.receipt.deliveredAt).toBe(start.toISOString());
+      const { checkPayeeBinding } = await import("@receptum/core");
+      expect(checkPayeeBinding(res.receipt!, { verifiers: [evmBindingVerifier] }).ok).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refuses to charge when the covering binding expires within the safety margin", async () => {
+    const soon = await createAccountBinding({
+      key: seller,
+      signer: evmAccountSigner(payTo, "eip155:84532"),
+      issuedAt: new Date(Date.now() - 60_000),
+      expiresAt: new Date(Date.now() + (BINDING_EXPIRY_MARGIN_SECONDS - 30) * 1000),
+    });
+    const cfg = await boundConfig();
+    cfg.bindings = [soon];
+    await expect(handlePaidJob(pay, job, cfg)).rejects.toThrow(/expires within/);
     expect(cfg.x402.settlePayment).not.toHaveBeenCalled();
   });
 });

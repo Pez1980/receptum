@@ -35,16 +35,10 @@ import {
   xrplBindingVerifier,
   xrplOnlineBindingVerifier,
 } from "@receptum/adapter-xrpl";
-import {
-  createPublicClient,
-  decodeEventLog,
-  erc20Abi,
-  getAddress,
-  http,
-  keccak256,
-  type Hex,
-} from "viem";
+import { createPublicClient, getAddress, http, keccak256, type Hex } from "viem";
 import { Client } from "xrpl";
+import { erc20TransferMatches } from "./evm-transfer.js";
+import { verifyXrplEscrowPayment } from "./xrpl-escrow.js";
 import { verifyXrplX402Payment } from "./xrpl-x402.js";
 
 /**
@@ -170,6 +164,8 @@ const CONTRADICTIONS = [
 function fromError(level: Check["level"], name: string, err: unknown): Check {
   const e = err as { name?: string; shortMessage?: string; message?: string };
   const msg = e?.shortMessage ?? e?.message ?? String(err);
+  if (e?.name === "XrplHistoryIncompleteError")
+    return { level, name, status: "unavailable", detail: `could not be checked: ${msg}` };
   if (e?.name === "TransactionNotFoundError" || e?.name === "TransactionReceiptNotFoundError")
     return { level, name, status: "fail", detail: "transaction not found or not mined" };
   if (!(err instanceof Unavailable) && CONTRADICTIONS.some((p) => p.test(msg)))
@@ -421,21 +417,9 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       await assertChain(evm.client, network);
       const tx = await evm.client.getTransactionReceipt({ hash: reference as Hex });
       if (tx.status !== "success") return fail("settlement transaction reverted");
-      const paid = tx.logs.some((log) => {
-        if ((log as { removed?: boolean }).removed) return false;
-        if (!sameAddr(log.address, asset)) return false;
-        try {
-          const ev = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
-          return (
-            ev.eventName === "Transfer" &&
-            ev.args.value.toString() === amount &&
-            sameAddr(ev.args.to, payeeAddr) &&
-            (!payerAddr || sameAddr(ev.args.from, payerAddr))
-          );
-        } catch {
-          return false;
-        }
-      });
+      const paid = tx.logs.some((log) =>
+        erc20TransferMatches(log, { asset, amount, payee: payeeAddr, payer: payerAddr }),
+      );
       return paid
         ? pass(`${amount} base units paid to ${payeeAddr} in block ${tx.blockNumber}`)
         : fail("no transfer of that amount to the payee in the settlement transaction");
@@ -447,24 +431,10 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       } catch (err) {
         return fail(err instanceof Error ? err.message : String(err));
       }
-      const state = await withXrpl((client) => new XrplEscrowRail({ client }).getEscrow(reference));
-      const problems = [
-        state.receiptHash !== signed.receiptHash && "recorded delivery is for a different receipt",
-        state.amount !== amount && "amount differs",
-        state.asset !== asset && "asset differs",
-        payerAddr && state.buyer !== payerAddr && "buyer differs from payment.payer",
-        payeeAddr && state.seller !== payeeAddr && "seller differs from payment.payee",
-      ].filter(Boolean);
-      if (problems.length) return fail(`escrow ${state.status}: ${problems.join("; ")}`);
-      if (!payerAddr || !payeeAddr)
-        return unavailable(
-          "receipt doesn't name both payer and payee, so the parties can't be confirmed",
-        );
-      if (state.status === "released")
-        return pass("escrow finished to the payee; amount, asset, parties and delivery memo match");
-      if (state.status === "delivered")
-        return pending("delivered; awaiting the buyer's fulfillment");
-      return fail(`escrow is ${state.status}`);
+      const r = await withXrpl((client) =>
+        verifyXrplEscrowPayment(signed, (id) => new XrplEscrowRail({ client }).getEscrow(id)),
+      );
+      return { level: 3, name, ...r };
     }
     return unavailable(`no settlement check for rail ${rail} on ${network}`);
   } catch (err) {

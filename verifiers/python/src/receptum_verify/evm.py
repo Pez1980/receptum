@@ -93,8 +93,11 @@ def _check_chain(rpc: JsonRpc, chain_id: int) -> CheckResult | None:
     return None
 
 
+_WORD = re.compile(r"^0x[0-9a-fA-F]{64}\Z")
+
+
 def _addr_topic(topic: Any) -> str | None:
-    if not isinstance(topic, str) or len(topic) != 66 or not topic.startswith("0x"):
+    if not isinstance(topic, str) or not _WORD.match(topic):
         return None
     if topic[2:26].strip("0"):
         return None
@@ -169,10 +172,12 @@ def check_x402_exact(receipt: dict, rpcs: dict[str, str] | None = None) -> Check
         ):
             continue
         frm, to = _addr_topic(topics[1]), _addr_topic(topics[2])
-        try:
-            value = int(log.get("data", ""), 16)
-        except ValueError:
+        data = log.get("data")
+        # SPEC §7.3: data is exactly one 32-byte word (int() alone would accept short, long,
+        # zero-prefixed or underscored hex and diverge from other verifiers).
+        if frm is None or to is None or not isinstance(data, str) or not _WORD.match(data):
             continue
+        value = int(data[2:], 16)
         if to == payee and value == amount and (payer is None or frm == payer):
             who = f"{frm} -> {to}"
             return CheckResult(

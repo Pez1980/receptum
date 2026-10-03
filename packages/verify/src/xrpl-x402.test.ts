@@ -52,13 +52,61 @@ describe("x402:exact on xrpl:*", () => {
     expect(r.detail).toContain("10000 drops");
   });
 
-  it("passes an issued-currency payment with an equal decimal value", async () => {
-    const delivered = { currency: "USD", issuer: ISSUER, value: "1e-2" };
+  it("never passes an issued-currency payment: RRF v1 has no amount unit for it", async () => {
+    const delivered = { currency: "USD", issuer: ISSUER, value: "1" };
     const r = await run(
-      payment({ asset: `USD.${ISSUER}`, amount: "0.010" }),
+      payment({ asset: `USD.${ISSUER}`, amount: "1" }),
       txReply({ meta: { delivered_amount: delivered } }),
     );
-    expect(r.status).toBe("pass");
+    expect(r.status).toBe("unavailable");
+    expect(r.detail).toMatch(/RRF v1/);
+  });
+
+  it("compares 3-character currency codes case-sensitively (finding 1)", async () => {
+    const usd = { currency: "USD", issuer: ISSUER, value: "1" };
+    const lower = await run(
+      payment({ asset: `usd.${ISSUER}`, amount: "1" }),
+      txReply({ meta: { delivered_amount: usd } }),
+    );
+    expect(lower.status).toBe("fail");
+    const upper = await run(
+      payment({ asset: `USD.${ISSUER}`, amount: "1" }),
+      txReply({ meta: { delivered_amount: { ...usd, currency: "usd" } } }),
+    );
+    expect(upper.status).toBe("fail");
+  });
+
+  it("compares 160-bit currency identities: standard layout = the code, nonstandard ≠", async () => {
+    const p = payment({ asset: `USD.${ISSUER}`, amount: "1" });
+    const standard = {
+      currency: "0000000000000000000000005553440000000000",
+      issuer: ISSUER,
+      value: "1",
+    };
+    expect((await run(p, txReply({ meta: { delivered_amount: standard } }))).status).toBe(
+      "unavailable",
+    );
+    const nonstandard = { ...standard, currency: "5553440000000000000000000000000000000000" };
+    expect((await run(p, txReply({ meta: { delivered_amount: nonstandard } }))).status).toBe(
+      "fail",
+    );
+    const hexAsset = payment({
+      asset: `5553440000000000000000000000000000000000.${ISSUER}`,
+      amount: "1",
+    });
+    const usd = { currency: "USD", issuer: ISSUER, value: "1" };
+    expect((await run(hexAsset, txReply({ meta: { delivered_amount: usd } }))).status).toBe("fail");
+  });
+
+  it("fails malformed currency codes without querying the ledger", async () => {
+    for (const code of ["XRP", "U D", "0001" + "00".repeat(18), "00".repeat(20)]) {
+      const r = await verifyXrplX402Payment(payment({ asset: `${code}.${ISSUER}`, amount: "1" }), {
+        rpc: async () => {
+          throw new Error("must not be called");
+        },
+      });
+      expect(r.status, code).toBe("fail");
+    }
   });
 
   it("fails a payment to another destination", async () => {
@@ -81,10 +129,8 @@ describe("x402:exact on xrpl:*", () => {
     expect(r.detail).toContain("delivered 1 drops");
   });
 
-  it("fails an issued-currency partial payment and a wrong issuer", async () => {
+  it("fails an issued-currency payment from a wrong issuer", async () => {
     const p = payment({ asset: `USD.${ISSUER}`, amount: "1" });
-    const partial = { currency: "USD", issuer: ISSUER, value: "0.5" };
-    expect((await run(p, txReply({ meta: { delivered_amount: partial } }))).status).toBe("fail");
     const forged = { currency: "USD", issuer: BUYER, value: "1" };
     expect((await run(p, txReply({ meta: { delivered_amount: forged } }))).status).toBe("fail");
   });

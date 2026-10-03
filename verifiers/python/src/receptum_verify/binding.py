@@ -198,6 +198,24 @@ def _ripple_b58(data: bytes) -> str:
     return _RIPPLE_ALPHABET[0] * zeros + "".join(reversed(out))
 
 
+def is_classic_address(address: Any) -> bool:
+    """A valid XRPL classic address: ripple-base58check of 0x00 ‖ 20-byte account id."""
+    if not isinstance(address, str) or not address.startswith("r") or not 25 <= len(address) <= 35:
+        return False
+    n = 0
+    for ch in address:
+        i = _RIPPLE_ALPHABET.find(ch)
+        if i < 0:
+            return False
+        n = n * 58 + i
+    zeros = len(address) - len(address.lstrip(_RIPPLE_ALPHABET[0]))
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big") if n else b""
+    data = b"\x00" * zeros + raw
+    if len(data) != 25 or data[0] != 0:
+        return False
+    return hashlib.sha256(hashlib.sha256(data[:21]).digest()).digest()[:4] == data[21:]
+
+
 def xrpl_address(public_key: bytes) -> str:
     """Classic address: base58check(0x00 ‖ RIPEMD-160(SHA-256(publicKey))), ripple alphabet."""
     payload = b"\x00" + ripemd160(hashlib.sha256(public_key).digest())

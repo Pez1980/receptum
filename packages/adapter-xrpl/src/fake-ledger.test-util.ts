@@ -22,7 +22,12 @@ export function fakeLedger() {
     nextResult: "tesSUCCESS",
     submitted: [] as Tx[],
     networkId: 1 as number | undefined,
+    /** account_tx page size (rippled returns a `marker` when more remain). */
+    pageSize: 200,
+    /** Oldest ledger this server keeps (account_tx can't see earlier history). */
+    firstLedger: 0,
   };
+  const seen = new Set<string>();
 
   const notFound = (error: string) => Object.assign(new Error(error), { data: { error } });
   const entryResult = (e: Entry) => ({
@@ -35,6 +40,13 @@ export function fakeLedger() {
   const record = (entry: Entry, accounts: unknown[]) => {
     byHash.set(entry.hash, entry);
     for (const a of new Set(accounts.filter(Boolean) as string[])) {
+      // An account's first appearance is the transaction that funded (created) it.
+      if (!seen.has(a)) {
+        seen.add(a);
+        entry.meta.AffectedNodes.push({
+          CreatedNode: { LedgerEntryType: "AccountRoot", NewFields: { Account: a } },
+        });
+      }
       history.set(a, [...(history.get(a) ?? []), entry]);
     }
   };
@@ -47,6 +59,7 @@ export function fakeLedger() {
       transaction?: string;
       forward?: boolean;
       ledger_index_min?: number;
+      marker?: unknown;
     }) {
       switch (req.command) {
         case "server_info":
@@ -58,15 +71,24 @@ export function fakeLedger() {
           if (!node) throw notFound("entryNotFound");
           return { result: { node } };
         }
+        case "account_info": {
+          if (!seen.has(req.account ?? "")) throw notFound("actNotFound");
+          return { result: { validated: true, account_data: { Account: req.account } } };
+        }
         case "account_tx": {
-          const min = req.ledger_index_min ?? -1;
+          const min = Math.max(req.ledger_index_min ?? -1, state.firstLedger);
           const all = (history.get(req.account ?? "") ?? []).filter(
             (e) => min < 0 || e.ledger_index >= min,
           );
           const txs = req.forward ? [...all] : [...all].reverse();
+          const start = typeof req.marker === "number" ? req.marker : 0;
+          const end = start + state.pageSize;
           return {
             result: {
-              transactions: txs.map((e) => ({ validated: true, ...entryResult(e) })),
+              transactions: txs
+                .slice(start, end)
+                .map((e) => ({ validated: true, ...entryResult(e) })),
+              ...(end < txs.length ? { marker: end } : {}),
             },
           };
         }

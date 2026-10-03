@@ -11,24 +11,35 @@ export {
 export {
   caip10,
   currencyCode,
+  currencyId,
   currencySymbol,
   ESCROW_MEMO_TYPE,
   formatEscrowId,
   fromXrplAmount,
   parseEscrowId,
   parseReceiptMemos,
+  parseXrplAsset,
   RECEIPT_MEMO_TYPE,
   receiptMemos,
   toXrplAmount,
+  xrplAmountId,
   type XrplAmount,
+  type XrplAssetId,
 } from "./encoding.js";
 export {
   XRPL_ESCROW_RAIL,
   XrplEscrowRail,
   type CreateEscrowParams,
   type XrplEscrowRailOptions,
+  type XrplEscrowState,
 } from "./escrow.js";
-export { assertTestnet, XRPL_TESTNET, XRPL_TESTNET_NETWORK_ID, XrplTxError } from "./ledger.js";
+export {
+  assertTestnet,
+  XRPL_TESTNET,
+  XRPL_TESTNET_NETWORK_ID,
+  XrplHistoryIncompleteError,
+  XrplTxError,
+} from "./ledger.js";
 export {
   xrplAccountSigner,
   xrplBindingVerifier,

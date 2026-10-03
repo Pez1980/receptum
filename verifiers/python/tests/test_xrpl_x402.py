@@ -75,10 +75,42 @@ def test_success():
     assert "10000 drops" in res.detail
 
 
-def test_issued_currency_success_with_equal_decimal_value():
-    delivered = {"currency": "USD", "issuer": ISSUER, "value": "1e-2"}
-    res = check(receipt(asset=f"USD.{ISSUER}", amount="0.010"), tx_reply(meta={"delivered_amount": delivered}))
-    assert res.status == "pass", res.detail
+def test_issued_currency_is_never_pass_in_rrf_v1():
+    delivered = {"currency": "USD", "issuer": ISSUER, "value": "1"}
+    res = check(receipt(asset=f"USD.{ISSUER}", amount="1"), tx_reply(meta={"delivered_amount": delivered}))
+    assert res.status == "unavailable", res.detail
+    assert "RRF v1" in res.detail
+
+
+def test_currency_codes_are_case_sensitive():
+    usd = {"currency": "USD", "issuer": ISSUER, "value": "1"}
+    lower = check(receipt(asset=f"usd.{ISSUER}", amount="1"), tx_reply(meta={"delivered_amount": usd}))
+    assert lower.status == "fail", lower.detail
+    upper = check(
+        receipt(asset=f"USD.{ISSUER}", amount="1"),
+        tx_reply(meta={"delivered_amount": {**usd, "currency": "usd"}}),
+    )
+    assert upper.status == "fail", upper.detail
+
+
+def test_currency_compared_by_160_bit_identity():
+    rec = receipt(asset=f"USD.{ISSUER}", amount="1")
+    standard = {"currency": "0000000000000000000000005553440000000000", "issuer": ISSUER, "value": "1"}
+    assert check(rec, tx_reply(meta={"delivered_amount": standard})).status == "unavailable"
+    nonstandard = {**standard, "currency": "5553440000000000000000000000000000000000"}
+    assert check(rec, tx_reply(meta={"delivered_amount": nonstandard})).status == "fail"
+    hex_asset = receipt(asset=f"5553440000000000000000000000000000000000.{ISSUER}", amount="1")
+    usd = {"currency": "USD", "issuer": ISSUER, "value": "1"}
+    assert check(hex_asset, tx_reply(meta={"delivered_amount": usd})).status == "fail"
+
+
+def test_malformed_currency_codes_fail_without_rpc():
+    def never(method, params):
+        raise AssertionError("must not be called")
+
+    for code in ["XRP", "U D", "0001" + "00" * 18, "00" * 20]:
+        res = check_xrpl_x402_exact(receipt(asset=f"{code}.{ISSUER}", amount="1"), rpc=never)
+        assert res.status == "fail", code
 
 
 def test_wrong_destination():
@@ -98,10 +130,8 @@ def test_partial_payment_delivered_less_than_amount():
     assert "delivered 1 drops" in res.detail
 
 
-def test_issued_partial_payment_and_wrong_issuer():
+def test_issued_wrong_issuer():
     rec = receipt(asset=f"USD.{ISSUER}", amount="1")
-    partial = {"currency": "USD", "issuer": ISSUER, "value": "0.5"}
-    assert check(rec, tx_reply(meta={"delivered_amount": partial})).status == "fail"
     forged = {"currency": "USD", "issuer": BUYER, "value": "1"}
     assert check(rec, tx_reply(meta={"delivered_amount": forged})).status == "fail"
     assert check(receipt(asset="USD", amount="1"), tx_reply()).status == "fail"
@@ -173,3 +203,21 @@ def test_example_online():
     assert report.levels["settlement"].status == "pass", report.levels["settlement"].detail
     assert report.levels["anchor"].status == "pass", report.levels["anchor"].detail
     assert report.status == VERIFIED
+
+
+def _vectors():
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[3] / "spec" / "vectors" / "xrpl-currency-v1.json"
+    return json.loads(path.read_text("utf-8"))["codes"]
+
+
+@pytest.mark.parametrize("case", _vectors(), ids=lambda c: c["code"])
+def test_currency_identity_vectors(case):
+    from receptum_verify.xrpl_x402 import _asset_currency_id
+
+    assert _asset_currency_id(case["code"]) == case["id"]
+    if case["id"] is None:
+        res = check_xrpl_x402_exact(receipt(asset=f"{case['code']}.{ISSUER}", amount="1"), rpc=lambda m, p: None)
+        assert res.status == "fail"

@@ -4,7 +4,6 @@
   "description": "CLI and static page: hash a file, find its on-chain receipt, show who delivered what, when and for how much.",
   "license": "Apache-2.0",
   "type": "module",
-  "private": true,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,6 +18,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@receptum/core": "workspace:*"
+    "@receptum/core": "workspace:*",
+    "@receptum/adapter-evm": "workspace:*",
+    "@receptum/adapter-stellar": "workspace:*",
+    "@receptum/adapter-xrpl": "workspace:*",
+    "viem": "^2.57.2",
+    "xrpl": "^5.3.0"
+  },
+  "bin": {
+    "receptum-verify": "./dist/cli.js"
   }
 }

@@ -10,6 +10,7 @@ import {
 } from "@receptum/core";
 import { evmAccountSigner } from "@receptum/adapter-evm";
 import { xrplAccountSigner } from "@receptum/adapter-xrpl";
+import { solanaAccountSigner, solanaKeypair } from "@receptum/adapter-solana";
 import { stellarAccountSigner } from "@receptum/core";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it } from "vitest";
@@ -35,7 +36,11 @@ function signerFor(account: string, chainKey: string): AccountSigner {
     const entropy = createHash("sha512").update(chainKey).digest().subarray(0, 16);
     return xrplAccountSigner(Wallet.fromEntropy(entropy, { algorithm: ECDSA.secp256k1 }));
   }
-
+  if (account.startsWith("solana:"))
+    return solanaAccountSigner(
+      solanaKeypair(Buffer.from(chainKey, "hex")),
+      account.slice(0, account.lastIndexOf(":")),
+    );
   const seed = Buffer.from(chainKey, "hex");
   const signer = stellarAccountSigner(strkeySeed(seed), "stellar:testnet");
   return signer;

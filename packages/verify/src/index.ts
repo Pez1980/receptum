@@ -39,11 +39,23 @@ import {
   xrplBindingVerifier,
   xrplOnlineBindingVerifier,
 } from "@receptum/adapter-xrpl";
+import {
+  RECEPTUM_SOLANA_DEPLOYMENTS,
+  SOLANA_DEVNET,
+  SOLANA_ESCROW_RAIL,
+  SOLANA_MAINNET,
+  solanaBindingVerifier,
+} from "@receptum/adapter-solana";
 import { createPublicClient, getAddress, http, keccak256, type Hex } from "viem";
 import { Client } from "xrpl";
 import { erc20TransferMatches } from "./evm-transfer.js";
 import { verifyXrplEscrowPayment } from "./xrpl-escrow.js";
 import { verifyXrplX402Payment } from "./xrpl-x402.js";
+import {
+  verifySolanaAnchor,
+  verifySolanaEscrowPayment,
+  verifySolanaX402Payment,
+} from "./solana.js";
 
 /**
  * pass = confirmed; fail = the evidence contradicts the receipt (or the receipt breaks a MUST);
@@ -102,6 +114,7 @@ export const COMMITTING_RAILS: readonly string[] = [
   SOROBAN_ESCROW_RAIL,
   "escrow:xrpl",
   STELLAR_ESCROW_RAIL,
+  SOLANA_ESCROW_RAIL,
 ];
 
 const FILE_CHECK = "File matches receipt";
@@ -215,12 +228,15 @@ export const TRUSTED_ESCROWS: Record<string, readonly string[]> = {
   "eip155:5042002": ["0x20d69c6c647559f48a7e6b0a3f922e99a4068f16"],
   // Soroban ReceptumEscrow (packages/adapter-stellar/contracts/receptum-escrow/deployment.testnet.json).
   "stellar:testnet": ["CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG"],
+  // Solana receptum_escrow, immutable (packages/adapter-solana/program/deployment.devnet.json).
+  [SOLANA_DEVNET]: RECEPTUM_SOLANA_DEPLOYMENTS[SOLANA_DEVNET] ?? [],
   // Mainnets: deliberately EMPTY. No ReceptumEscrow has been deployed to a mainnet; escrow
   // contracts go to mainnet only after an independent audit (docs/MAINNET.md §0). Until a
   // deployment is published here, mainnet escrow receipts report an untrusted deployment.
   "eip155:8453": [],
   "eip155:5042": [],
   "stellar:pubnet": [],
+  [SOLANA_MAINNET]: [],
 };
 
 /** The "not in the registry" result, worded for mainnets that have no published deployment. */
@@ -408,6 +424,17 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
     }
     if (rail.startsWith("x402:") && rail !== "x402:exact")
       return unavailable(`only the x402 "exact" scheme is recognised, not ${rail}`);
+    if (network.startsWith("solana:") && (rail === "x402:exact" || rail === SOLANA_ESCROW_RAIL))
+      return {
+        level: 3,
+        name,
+        ...(rail === SOLANA_ESCROW_RAIL
+          ? await verifySolanaEscrowPayment(signed, [
+              ...(TRUSTED_ESCROWS[network] ?? []),
+              ...trustedEscrows,
+            ])
+          : await verifySolanaX402Payment(signed.receipt.payment)),
+      };
     if (rail === "x402:exact" && network.startsWith("xrpl:"))
       return { level: 3, name, ...(await verifyXrplX402Payment(signed.receipt.payment)) };
     if (rail === "x402:exact" && STELLAR_IDS.includes(network)) {
@@ -550,6 +577,8 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
           : fail("no receptum/1 memo for this receiptHash in that transaction");
       });
     }
+    if (network.startsWith("solana:"))
+      return { level: 3, name, ...(await verifySolanaAnchor(hash, network, reference)) };
     if (STELLAR_IDS.includes(network)) {
       // anchor:stellar — a successful tx with MEMO_HASH = receiptHash.
       if (!/^[0-9a-f]{64}$/.test(reference)) return fail("anchor transaction hash is malformed");
@@ -570,6 +599,7 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
 export const BINDING_VERIFIERS: readonly BindingVerifier[] = [
   evmBindingVerifier,
   xrplBindingVerifier,
+  solanaBindingVerifier,
 ];
 
 /**

@@ -22,6 +22,7 @@
   "dependencies": {
     "@receptum/core": "workspace:*",
     "@receptum/adapter-evm": "workspace:*",
+    "@receptum/adapter-solana": "workspace:*",
     "@receptum/adapter-stellar": "workspace:*",
     "@receptum/adapter-xrpl": "workspace:*",
     "viem": "^2.57.2",

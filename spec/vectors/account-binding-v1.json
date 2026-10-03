@@ -1,5 +1,5 @@
 {
-  "description": "Receptum account binding (receptum/account-binding/1) test vectors, SPEC §4.1. Every key here is a PUBLIC TEST VALUE: the RFC 8032 §7.1 TEST 1 seed (did:key and Stellar), anvil default account #0 (EVM), and the XRPL genesis key (passphrase masterpassphrase). Never use them for real funds.",
+  "description": "Receptum account binding (receptum/account-binding/1) test vectors, SPEC §4.1. Every key here is a PUBLIC TEST VALUE: the RFC 8032 §7.1 TEST 1 seed (did:key, Stellar and Solana), anvil default account #0 (EVM), and the XRPL genesis key (passphrase masterpassphrase). Never use them for real funds.",
   "testSeedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
   "sellerDid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
   "vectors": [
@@ -79,6 +79,32 @@
         "accountProof": {
           "type": "sep53",
           "signature": "a+bR+z6Nfd4VR5MDpp4WwxlwA0mSztdSj+RKDvqmkgmDBIHsqKZPXK1ETC5SfOp5ymoGcgffYjigu8Ivfg7ICA=="
+        }
+      }
+    },
+    {
+      "name": "solana (Ed25519 over SHA-256(\"Solana Signed Message:\\n\" ‖ m)), devnet",
+      "chainKey": {
+        "kind": "Ed25519 seed (RFC 8032 TEST 1)",
+        "value": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+      },
+      "jcs": "{\"account\":\"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z\",\"did\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"expiresAt\":\"2027-10-01T00:00:00.000Z\",\"issuedAt\":\"2026-10-01T00:00:00.000Z\",\"type\":\"receptum/account-binding/1\"}",
+      "binding": {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "account": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z",
+          "issuedAt": "2026-10-01T00:00:00.000Z",
+          "expiresAt": "2027-10-01T00:00:00.000Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3R3dXBkbUxYVlZxVHpDdzRpNDZyNHVHeW9zR1hSblIzWGpONFpxN29NTXN3I3o2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..FOr6Y7ZpUt2-lo3iQcPejAwcEzPE0QE1nPy8nz3oIeGyCUsch2MQ6XfzohGO4ccJD8zX-UEkztSFg08B64AqBg"
+        },
+        "accountProof": {
+          "type": "solana",
+          "signature": "nyLVrFBrlKo3lgHG+xqqsboaqJXSciSjC6X5oQydMX/APO9w6nVayebddgTOObR2E1OTOKylQP2HnLQRbKURCg=="
         }
       }
     }

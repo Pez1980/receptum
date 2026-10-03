@@ -22,9 +22,13 @@ import {
   type WalletClient,
 } from "viem";
 import { arcTestnet, baseSepolia } from "viem/chains";
-import { receptumEscrowAbi, receptumEscrowBytecode } from "./artifact.js";
+import {
+  receptumEscrowAbi,
+  receptumEscrowBytecode,
+  receptumEscrowDeployedBytecode,
+} from "./artifact.js";
 
-export { receptumEscrowAbi, receptumEscrowBytecode };
+export { receptumEscrowAbi, receptumEscrowBytecode, receptumEscrowDeployedBytecode };
 
 export interface EvmNetwork {
   /** CAIP-2 id. */
@@ -144,7 +148,7 @@ export class EvmEscrowRail implements EscrowRail {
 
   private async write(
     contract: Address,
-    functionName: "deliver" | "accept" | "reject" | "release" | "refund",
+    functionName: "deliver" | "accept" | "reject" | "release" | "refund" | "sellerRefund",
     args: readonly unknown[],
   ) {
     const hash = await this.c.walletClient.writeContract({
@@ -268,6 +272,12 @@ export class EvmEscrowRail implements EscrowRail {
   release(escrowId: string) {
     const { contract, id } = this.parse(escrowId);
     return this.write(contract, "release", [id]);
+  }
+
+  /** Seller: return the funds to the buyer before release (dispute settlement, blocked payee). */
+  sellerRefund(escrowId: string) {
+    const { contract, id } = this.parse(escrowId);
+    return this.write(contract, "sellerRefund", [id]);
   }
 
   /** Anyone: refund the buyer after the deadline when nothing was delivered. */

@@ -28,4 +28,4 @@ export {
   type CreateEscrowParams,
   type XrplEscrowRailOptions,
 } from "./escrow.js";
-export { XRPL_TESTNET, XrplTxError } from "./ledger.js";
+export { assertTestnet, XRPL_TESTNET, XRPL_TESTNET_NETWORK_ID, XrplTxError } from "./ledger.js";

@@ -116,4 +116,58 @@ describe("handlePaidJob", () => {
     });
     expect(JSON.stringify(signed)).not.toContain("job-1");
   });
+
+  it("rejects bad job data before charging the buyer", async () => {
+    const x402 = fakeX402();
+    const bad = vi.fn(async () => ({
+      jobId: "j",
+      inputSha256: [],
+      output,
+      contentType: "video/mp4",
+    }));
+    await expect(
+      handlePaidJob(
+        headers({ "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) }),
+        bad,
+        config(x402),
+      ),
+    ).rejects.toThrow(/input hash/);
+    expect(x402.settlePayment).not.toHaveBeenCalled();
+  });
+
+  it("still delivers the paid output when anchoring fails", async () => {
+    const anchor = {
+      id: "anchor:test",
+      anchor: vi.fn(async () => {
+        throw new Error("rpc down");
+      }),
+      find: vi.fn(),
+    };
+    const res = await handlePaidJob(
+      headers({ "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) }),
+      job,
+      { ...config(), anchor },
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toBe(output);
+    expect(res.headers["Receptum-Anchor-Error"]).toBe("rpc down");
+  });
+
+  it("refuses a payment that is already backing another request", async () => {
+    let release!: () => void;
+    const slow = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<typeof job>>>((r) => {
+          release = () =>
+            r({ jobId: "j", inputSha256: [sha256Hex("in")], output, contentType: "video/mp4" });
+        }),
+    );
+    const h = headers({ "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) });
+    const first = handlePaidJob(h, slow, config());
+    await new Promise((r) => setTimeout(r, 10));
+    const second = await handlePaidJob(h, slow, config());
+    expect(second.status).toBe(409);
+    release();
+    expect((await first).status).toBe(200);
+  });
 });

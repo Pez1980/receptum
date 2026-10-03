@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createReceipt, generateSellerKey, sha256Hex, signReceipt } from "@receptum/core";
+import { encodePaymentResponseHeader } from "@x402/core/http";
 import { checkDelivery, createReceptumFetch, ReceiptError } from "./index.js";
 
 const seller = generateSellerKey();
@@ -13,38 +14,76 @@ const signed = signReceipt(
     payment: {
       rail: "x402:exact",
       network: "eip155:84532",
-      asset: "USDC",
-      amount: "1",
+      asset: "0xUSDC",
+      amount: "250000",
       reference: "0xsettle",
+      payee: "eip155:84532:0xSeller",
+      payer: "eip155:84532:0xBuyer",
     },
   }),
   seller,
 );
+const ok = { success: true, transaction: "0xsettle", network: "eip155:84532", payer: "0xBuyer" };
 const header = Buffer.from(JSON.stringify(signed)).toString("base64url");
 
 describe("checkDelivery", () => {
-  it("accepts the genuine output", () => {
-    expect(checkDelivery(body, signed, { transaction: "0xsettle" })).toMatchObject({ ok: true });
+  it("accepts the genuine output with its settlement", () => {
+    expect(checkDelivery(body, signed, ok)).toMatchObject({ ok: true });
   });
   it("flags swapped output", () => {
-    expect(checkDelivery(new TextEncoder().encode("other"), signed).outputMatches).toBe(false);
+    expect(checkDelivery(new TextEncoder().encode("other"), signed, ok).outputMatches).toBe(false);
   });
-  it("flags a receipt for a different settlement", () => {
-    expect(checkDelivery(body, signed, { transaction: "0xother" }).settlementMatches).toBe(false);
+  it("fails closed without a settlement, or with a failed one", () => {
+    expect(checkDelivery(body, signed).reasons).toContain("no settlement was returned");
+    expect(checkDelivery(body, signed, { ...ok, success: false }).reasons).toContain(
+      "settlement did not succeed",
+    );
+  });
+  it("flags a receipt for a different settlement, network or payer", () => {
+    expect(checkDelivery(body, signed, { ...ok, transaction: "0xother" }).settlementMatches).toBe(
+      false,
+    );
+    expect(checkDelivery(body, signed, { ...ok, network: "eip155:1" }).ok).toBe(false);
+    expect(checkDelivery(body, signed, { ...ok, payer: "0xSomeoneElse" }).ok).toBe(false);
   });
   it("enforces the seller allow-list", () => {
-    expect(checkDelivery(body, signed, undefined, ["did:key:zNotThem"]).sellerAllowed).toBe(false);
+    expect(checkDelivery(body, signed, ok, ["did:key:zNotThem"]).sellerAllowed).toBe(false);
+  });
+  it("checks the buyer's own expectations", () => {
+    expect(
+      checkDelivery(body, signed, ok, undefined, {
+        expected: {
+          payee: "eip155:84532:0xseller",
+          amount: "250000",
+          inputSha256: [sha256Hex("in")],
+        },
+      }).ok,
+    ).toBe(true);
+    expect(
+      checkDelivery(body, signed, ok, undefined, { expected: { payee: "eip155:84532:0xAttacker" } })
+        .reasons,
+    ).toContain("unexpected payee");
+    expect(
+      checkDelivery(body, signed, ok, undefined, { expected: { maxAmount: "100000" } }).reasons,
+    ).toContain("amount exceeds the maximum");
+    expect(
+      checkDelivery(body, signed, ok, undefined, {
+        expected: { inputSha256: [sha256Hex("other")] },
+      }).reasons,
+    ).toContain("receipt is for different inputs");
   });
 });
 
 describe("createReceptumFetch", () => {
   const fake = (h: Record<string, string>, b: Uint8Array = body) =>
     (async () => new Response(b, { status: 200, headers: h })) as unknown as typeof fetch;
+  const paid = {
+    "Receptum-Receipt": header,
+    "PAYMENT-RESPONSE": encodePaymentResponseHeader(ok as never),
+  };
 
   it("returns the verified result", async () => {
-    const r = await createReceptumFetch({ paidFetch: fake({ "Receptum-Receipt": header }) })(
-      "https://x",
-    );
+    const r = await createReceptumFetch({ paidFetch: fake(paid) })("https://x");
     expect(r.check.ok).toBe(true);
   });
   it("refuses responses without a receipt", async () => {
@@ -52,11 +91,14 @@ describe("createReceptumFetch", () => {
       ReceiptError,
     );
   });
+  it("refuses responses without a settlement", async () => {
+    await expect(
+      createReceptumFetch({ paidFetch: fake({ "Receptum-Receipt": header }) })("https://x"),
+    ).rejects.toThrow(/no settlement/);
+  });
   it("refuses tampered output", async () => {
     await expect(
-      createReceptumFetch({ paidFetch: fake({ "Receptum-Receipt": header }, new Uint8Array([1])) })(
-        "https://x",
-      ),
+      createReceptumFetch({ paidFetch: fake(paid, new Uint8Array([1])) })("https://x"),
     ).rejects.toThrow(/output hash/);
   });
 });

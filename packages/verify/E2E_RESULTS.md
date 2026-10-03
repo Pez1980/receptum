@@ -1,16 +1,13 @@
-# Cross-chain verification (Oct 3, 2026)
+# Cross-chain verification (Oct 3, 2026 — hardened verifier)
 
-`receptum-verify` independently checked receipts produced by every adapter's live testnet run:
+`receptum-verify` returns **VERIFIED** only when nothing fails _and_ the payment itself is confirmed on its rail; **PARTIALLY VERIFIED** when only anchors could be checked; **NOT VERIFIED** otherwise.
 
-| Receipt                                                                    | Checks                                                                          | Result                     |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------- |
-| x402 render, Base Sepolia (`examples/x402-base-sepolia.json`) + Arc anchor | file hash · seller signature · USDC transfer in settlement tx · anchor calldata | VERIFIED                   |
-| Arc escrow, flow A (`packages/adapter-evm/e2e-results.json`)               | signature · escrow released with matching committed receiptHash and amount      | VERIFIED                   |
-| XRPL escrow, flow A (`packages/adapter-xrpl/E2E_RESULTS.md`)               | signature · receipt memo on deliver tx `03477D9B…A549C7`                        | VERIFIED                   |
-| Stellar escrow, auto-release (`packages/adapter-stellar/E2E_RESULTS.md`)   | signature · MEMO_HASH on deliver tx `26a35e0f…cf5af`                            | VERIFIED                   |
-| Arc receipt with the amount edited                                         | signature / receiptHash                                                         | NOT VERIFIED (as expected) |
-
-```sh
-node packages/verify/dist/cli.js examples/x402-base-sepolia.json examples/x402-base-sepolia-output.svg \
-  --anchor eip155:5042002:0x178192fa86acc85fb2b33189708703a96125feb5bef6c6817f8faedeefaa6103
-```
+| Receipt                                                                  | Level-3 checks                                                                                                                                  | Result                 |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| x402 render, Base Sepolia (`examples/x402-base-sepolia.json`)            | USDC transfer of the exact amount **to the receipt's payee** from the payer · anchor tx mined and successful on Arc                             | VERIFIED               |
+| Arc escrow flow A (`packages/adapter-evm/e2e-results.json`)              | contract runtime code = genuine `ReceptumEscrow` · network/token/payer/payee/amount match · status **released** · committed receiptHash matches | VERIFIED               |
+| XRPL escrow flow A (`packages/adapter-xrpl/E2E_RESULTS.md`)              | escrow finished to the seller · delivery memo matches the receipt                                                                               | VERIFIED               |
+| Stellar escrow, auto-release (`packages/adapter-stellar/E2E_RESULTS.md`) | MEMO_HASH anchor only (no on-chain settlement reader for claimable balances yet)                                                                | PARTIALLY VERIFIED     |
+| Earlier x402 receipt without `payee`                                     | recipient can't be checked                                                                                                                      | NOT VERIFIED (correct) |
+| Receipt referencing the pre-fix escrow contract                          | runtime code is not the genuine contract                                                                                                        | NOT VERIFIED (correct) |
+| Any receipt with an edited field                                         | signature / receiptHash                                                                                                                         | NOT VERIFIED (correct) |

@@ -32,6 +32,7 @@ A receipt is a JSON object with these members:
 | `payment.amount`                 | string                            | MUST                     | Non-negative integer in the asset's smallest unit                                   |
 | `payment.reference`              | string                            | MUST                     | Rail reference: tx hash, escrow id, or payment proof id                             |
 | `payment.payer`                  | string                            | MAY                      | CAIP-10 payer account                                                               |
+| `payment.payee`                  | string                            | SHOULD                   | CAIP-10 account that receives the funds; verifiers check the settlement went to it  |
 | `acceptance.mode`                | `buyer` \| `evaluator` \| `auto`  | MUST                     | How delivery is accepted                                                            |
 | `acceptance.reviewWindowSeconds` | integer ≥ 0                       | MUST                     | Window after delivery during which delivery can be rejected                         |
 | `acceptance.evaluator`           | string                            | MUST if mode = evaluator | Evaluator identity                                                                  |
@@ -82,6 +83,10 @@ quoted → expired
 
 ## 6. Verification levels
 
+Verifiers MUST NOT report a receipt as fully verified unless level 3 confirms the payment on its rail; anchors alone are partial evidence.
+
+Verifiers MUST NOT report a receipt as fully verified unless level 3 confirms the payment on its rail; anchors alone are partial evidence.
+
 1. **File ↔ receipt (offline):** `SHA-256(file) == outputSha256`.
 2. **Receipt ↔ seller (offline):** the JWS proof verifies against `seller.id`.
 3. **Receipt ↔ settlement (online):** the rail shows `receiptHash` committed and the payment settled, at `payment.reference` on `payment.network`.
@@ -101,17 +106,17 @@ Adapters anchor `receiptHash` as follows:
 ### 7.1 Outputs that are not files
 
 - **HTTP responses:** `outputSha256` is the SHA-256 of the response body bytes as delivered.
-- **MCP tool results:** `outputSha256` is the SHA-256 of `JCS(result.content)`; the receipt travels in `result._meta["receptum/receipt"]`.
+- **MCP tool results:** `outputSha256` is the SHA-256 of `JCS({ content, structuredContent?, isError? })` (members present only when set); the receipt travels in `result._meta["receptum/receipt"]`.
 
 ### 7.2 Rail differences
 
 Rails enforce acceptance differently. Adapters SHOULD publish their `EscrowCapabilities`:
 
-| Rail                       | Acceptance modes enforced on-chain           | Review window starts                | Refund after delivery                               |
-| -------------------------- | -------------------------------------------- | ----------------------------------- | --------------------------------------------------- |
-| `escrow:receptum-evm`      | buyer, evaluator, auto                       | at delivery                         | only by buyer/evaluator rejection within the window |
-| `escrow:xrpl`              | buyer, evaluator (holder of the fulfillment) | n/a (release needs the fulfillment) | yes, after `CancelAfter`                            |
-| `escrow:stellar-claimable` | buyer, auto                                  | at the delivery deadline            | yes, by the buyer within its claim window           |
+| Rail                       | Acceptance modes enforced on-chain                                                                      | Review window starts                | Refund after delivery                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
+| `escrow:receptum-evm`      | one hybrid machine: buyer or evaluator may accept/reject within the window; anyone may release after it | at delivery                         | by buyer/evaluator rejection within the window, or voluntarily by the seller (`sellerRefund`) |
+| `escrow:xrpl`              | buyer, evaluator (holder of the fulfillment)                                                            | n/a (release needs the fulfillment) | yes, after `CancelAfter`                                                                      |
+| `escrow:stellar-claimable` | buyer, auto                                                                                             | at the delivery deadline            | yes, by the buyer within its claim window                                                     |
 
 ## 8. Test vectors
 

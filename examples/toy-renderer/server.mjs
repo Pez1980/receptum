@@ -37,50 +37,74 @@ function render(prompt) {
   );
 }
 
-const server = createServer(async (req, res) => {
-  if (req.method !== "POST" || req.url !== "/render") {
-    res.writeHead(404).end();
-    return;
-  }
-  const chunks = [];
-  for await (const c of req) chunks.push(c);
-  const input = Buffer.concat(chunks);
-  const { prompt = "Hello, Receptum" } = JSON.parse(input.toString() || "{}");
+const MAX_BODY = 16 * 1024;
 
-  const result = await handlePaidJob(
-    (name) => req.headers[name.toLowerCase()],
-    async () => ({
-      jobId: `render-${Date.now()}`,
-      inputSha256: [sha256Hex(input)],
-      output: render(prompt),
-      contentType: "image/svg+xml",
-    }),
-    {
-      x402,
-      accepts: [
-        {
-          scheme: "exact",
-          network: "eip155:84532",
-          payTo: wallets.seller.address,
-          price: "$0.25",
-          maxTimeoutSeconds: 120,
+async function readBody(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const c of req) {
+    size += c.length;
+    if (size > MAX_BODY) throw Object.assign(new Error("request body too large"), { status: 413 });
+    chunks.push(c);
+  }
+  return Buffer.concat(chunks);
+}
+
+const server = createServer(async (req, res) => {
+  try {
+    if (req.method !== "POST" || req.url !== "/render") {
+      res.writeHead(404).end();
+      return;
+    }
+    const input = await readBody(req);
+    let prompt = "Hello, Receptum";
+    if (input.length) {
+      const parsed = JSON.parse(input.toString());
+      if (parsed.prompt !== undefined && typeof parsed.prompt !== "string")
+        throw Object.assign(new Error("prompt must be a string"), { status: 400 });
+      prompt = parsed.prompt ?? prompt;
+    }
+
+    const result = await handlePaidJob(
+      (name) => req.headers[name.toLowerCase()],
+      async () => ({
+        jobId: `render-${Date.now()}`,
+        inputSha256: [sha256Hex(input)],
+        output: render(prompt),
+        contentType: "image/svg+xml",
+      }),
+      {
+        x402,
+        accepts: [
+          {
+            scheme: "exact",
+            network: "eip155:84532",
+            payTo: wallets.seller.address,
+            price: "$0.25",
+            maxTimeoutSeconds: 120,
+          },
+        ],
+        resource: {
+          url: `http://localhost:${PORT}/render`,
+          description: "Render a title card",
+          mimeType: "image/svg+xml",
+          serviceName: "render.example",
         },
-      ],
-      resource: {
-        url: `http://localhost:${PORT}/render`,
-        description: "Render a title card",
-        mimeType: "image/svg+xml",
-        serviceName: "render.example",
+        seller: { ...sellerKey, name: "render.example" },
+        acceptance: { mode: "auto", reviewWindowSeconds: 0 },
+        remedy: { kind: "rerender", withinDays: 30 },
+        ...(anchor ? { anchor } : {}),
       },
-      seller: { ...sellerKey, name: "render.example" },
-      acceptance: { mode: "auto", reviewWindowSeconds: 0 },
-      remedy: { kind: "rerender", withinDays: 30 },
-      ...(anchor ? { anchor } : {}),
-    },
-  );
-  if (result.anchor)
-    res.setHeader("Receptum-Anchor", `${result.anchor.network}:${result.anchor.reference}`);
-  res.writeHead(result.status, result.headers).end(result.body);
+    );
+    if (result.anchor)
+      res.setHeader("Receptum-Anchor", `${result.anchor.network}:${result.anchor.reference}`);
+    res.writeHead(result.status, result.headers).end(result.body);
+  } catch (err) {
+    const status = err?.status ?? (err instanceof SyntaxError ? 400 : 500);
+    if (!res.headersSent) res.writeHead(status, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: status === 500 ? "internal error" : err.message }));
+    if (status === 500) console.error(err);
+  }
 });
 
 server.listen(PORT, () =>

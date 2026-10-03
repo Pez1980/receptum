@@ -1,6 +1,6 @@
 {
   "name": "@receptum/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Chain-agnostic job lifecycle, delivery receipts and rail interfaces for Receptum.",
   "license": "Apache-2.0",
   "type": "module",
@@ -11,10 +11,37 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
-  }
+  },
+  "author": "Swiftleads AI, Inc.",
+  "homepage": "https://receptum-ai.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pez1980/receptum.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Pez1980/receptum/issues"
+  },
+  "keywords": [
+    "agents",
+    "escrow",
+    "proof-of-delivery",
+    "receipts",
+    "receptum",
+    "x402"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
 }

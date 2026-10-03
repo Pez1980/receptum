@@ -77,6 +77,7 @@ function signedReceiptFor(escrowId, label, amount, acceptance) {
       amount: amount.toString(),
       reference: escrowId,
       payer: `${NETWORK}:${buyer.account.address}`,
+      payee: `${NETWORK}:${seller.account.address}`,
     },
     acceptance,
     remedy: { kind: "rerender", withinDays: 30 },

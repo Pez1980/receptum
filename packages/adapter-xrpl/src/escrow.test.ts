@@ -156,3 +156,15 @@ describe("XrplAnchor", () => {
     expect(await new XrplAnchor({ client }).find(receiptHash)).toBeNull();
   });
 });
+
+describe("network guard", () => {
+  it("refuses to sign when the connected server is not testnet", async () => {
+    const { assertTestnet } = await import("./ledger.js");
+    const ledger = fakeLedger();
+    await expect(assertTestnet(ledger.client)).resolves.toBeUndefined();
+    ledger.state.networkId = 0; // XRPL mainnet
+    await expect(assertTestnet(ledger.client)).rejects.toThrow(/refusing to sign/);
+    ledger.state.networkId = undefined;
+    await expect(assertTestnet(ledger.client)).rejects.toThrow(/NetworkID none/);
+  });
+});

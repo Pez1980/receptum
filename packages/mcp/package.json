@@ -1,6 +1,6 @@
 {
   "name": "@receptum/mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Turn MCP tools into paid tools: price per call, x402 payment, receipt per result.",
   "license": "Apache-2.0",
   "type": "module",
@@ -11,7 +11,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -27,5 +29,30 @@
     "@x402/mcp": "^2.28.0",
     "viem": "^2.57.2",
     "zod": "^3.25.0"
-  }
+  },
+  "author": "Swiftleads AI, Inc.",
+  "homepage": "https://receptum-ai.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pez1980/receptum.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/Pez1980/receptum/issues"
+  },
+  "keywords": [
+    "agents",
+    "escrow",
+    "proof-of-delivery",
+    "receipts",
+    "receptum",
+    "x402"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
 }

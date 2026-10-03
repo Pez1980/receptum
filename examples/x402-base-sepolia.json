@@ -2,15 +2,15 @@
   "settlement": {
     "success": true,
     "payer": "0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5",
-    "transaction": "0x83359ec2790a984cb904b103648521b787b785312b04a2029e91cb126dfeface",
+    "transaction": "0x90a09ae1de82b87162cb03be1d7828df5af491ba695e930c1f984a0654ff454f",
     "network": "eip155:84532"
   },
-  "anchor": "eip155:5042002:0x178192fa86acc85fb2b33189708703a96125feb5bef6c6817f8faedeefaa6103",
+  "anchor": "eip155:5042002:0xe708fdb7858930c15e013e06133c1beddac5b3353723b3d5b1485f720e67e9f8",
   "signedReceipt": {
     "receipt": {
       "version": "receptum/1",
-      "receiptId": "RCPT-YZ25-24X8",
-      "jobIdHash": "295652794cd3ca9b4e5f1221e5faf75f548667e08b1023ae0879a2ddeec1575b",
+      "receiptId": "RCPT-K3NM-87Z3",
+      "jobIdHash": "1f2a6c283addfe17a5ba367e6df456b40bcf30a555ff64486b6c397f67eb55eb",
       "seller": {
         "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
         "name": "render.example"
@@ -22,24 +22,25 @@
         "network": "eip155:84532",
         "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         "amount": "250000",
-        "reference": "0x83359ec2790a984cb904b103648521b787b785312b04a2029e91cb126dfeface",
+        "reference": "0x90a09ae1de82b87162cb03be1d7828df5af491ba695e930c1f984a0654ff454f",
+        "payee": "eip155:84532:0x6344D17a80775A71b51A61124767AbCD22B0328B",
         "payer": "eip155:84532:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5"
       },
       "acceptance": {
         "mode": "auto",
         "reviewWindowSeconds": 0
       },
-      "deliveredAt": "2026-10-03T06:46:26.929Z",
+      "deliveredAt": "2026-10-03T14:03:42.380Z",
       "remedy": {
         "kind": "rerender",
         "withinDays": 30
       }
     },
-    "receiptHash": "8c73f5d882b31360a12da942d7ceaef47a59613e94fb64bf00b5af9989476149",
+    "receiptHash": "cb27b5b6a98fdaecb96fbedf557acba67bdad3a2fa6505f9836c49fbc766ba4a",
     "proof": {
       "type": "jws",
       "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
-      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..RAujEvA-IqgmZII6wr5MeuQbMnxulq2Z3ZRFNGiPdZZwQ_7awiYQwzmRSJgxS8K6X87rYjlC3Y-zNTYoemjQDA"
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..bfXVdjAHnhbGnbLtk8tLWJYlcaYa5-urvK56O6Pk5Lbv7sR1Dw4Xq19oat9VxqHyhKhIh-2HCBNW4bmp_iTQBw"
     }
   },
   "check": {
@@ -48,6 +49,7 @@
     "outputMatches": true,
     "settlementMatches": true,
     "sellerAllowed": true,
+    "expectationsMet": true,
     "reasons": []
   }
 }

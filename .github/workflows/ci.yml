@@ -22,7 +22,7 @@ jobs:
       - name: Build and test contracts
         working-directory: packages/adapter-evm
         run: |
-          forge install foundry-rs/forge-std --no-git
+          forge install foundry-rs/forge-std@v1.17.0 --no-git
           forge build
           forge test
       - run: pnpm install --frozen-lockfile

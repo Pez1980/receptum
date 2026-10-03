@@ -41,6 +41,8 @@ export interface DeliveryReceipt {
     reference: string;
     /** CAIP-10 account of the payer, when known. */
     payer?: string;
+    /** CAIP-10 account that received (or will receive) the funds. Verifiers check it. */
+    payee?: string;
   };
   /** How the delivery is accepted before funds are released. */
   acceptance: {
@@ -116,41 +118,117 @@ export function createReceipt(input: ReceiptInput): DeliveryReceipt {
 }
 
 const CAIP2 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$/;
+const RECEIPT_ID = /^RCPT-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
+const RFC3339_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
+const AMOUNT = /^(0|[1-9][0-9]*)$/;
 
+const ALLOWED: Record<string, readonly string[]> = {
+  receipt: [
+    "version",
+    "receiptId",
+    "jobIdHash",
+    "seller",
+    "buyer",
+    "inputSha256",
+    "outputSha256",
+    "evidence",
+    "payment",
+    "acceptance",
+    "remedy",
+    "supersedes",
+    "deliveredAt",
+  ],
+  seller: ["id", "name"],
+  buyer: ["id"],
+  payment: ["rail", "network", "asset", "amount", "reference", "payer", "payee"],
+  acceptance: ["mode", "reviewWindowSeconds", "evaluator"],
+  remedy: ["kind", "withinDays", "termsSha256"],
+};
+
+/**
+ * Validates a receipt exactly as SPEC §2 defines it: only permitted members at every level,
+ * correct JSON types, no nulls, own properties only. Anything else is rejected before
+ * hashing or signing so a receipt can never smuggle extra data (e.g. raw prompts).
+ */
 export function assertValidReceipt(receipt: DeliveryReceipt): void {
   const fail = (msg: string): never => {
     throw new TypeError(`invalid receipt: ${msg}`);
   };
-  if (receipt.version !== RECEIPT_VERSION) fail("unknown version");
-  if (!/^RCPT-[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(receipt.receiptId)) fail("receiptId");
-  if (!isSha256Hex(receipt.jobIdHash)) fail("jobIdHash");
-  if (!receipt.seller?.id) fail("seller.id is required");
-  if (receipt.inputSha256.length === 0) fail("at least one input hash is required");
-  receipt.inputSha256.forEach((h, i) => isSha256Hex(h) || fail(`inputSha256[${i}]`));
-  if (!isSha256Hex(receipt.outputSha256)) fail("outputSha256");
-  for (const [k, h] of Object.entries(receipt.evidence ?? {})) {
-    if (!isSha256Hex(h)) fail(`evidence.${k}`);
+  const obj = (v: unknown, path: string, shape: string): Record<string, unknown> => {
+    if (typeof v !== "object" || v === null || Array.isArray(v)) fail(`${path} must be an object`);
+    const proto = Object.getPrototypeOf(v);
+    if (proto !== Object.prototype && proto !== null) fail(`${path} must be a plain object`);
+    const o = v as Record<string, unknown>;
+    for (const k of Object.keys(o)) {
+      if (!ALLOWED[shape]!.includes(k)) fail(`${path}.${k} is not part of RRF v1`);
+      if (o[k] === null) fail(`${path}.${k} must be omitted, not null`);
+    }
+    return o;
+  };
+  const has = (o: Record<string, unknown>, k: string) => Object.hasOwn(o, k) && o[k] !== undefined;
+  const text = (o: Record<string, unknown>, k: string, path: string, required = true) => {
+    if (!has(o, k)) return required ? fail(`${path}.${k} is required`) : undefined;
+    if (typeof o[k] !== "string" || (o[k] as string).length === 0)
+      fail(`${path}.${k} must be a non-empty string`);
+    return o[k] as string;
+  };
+  const hash = (v: unknown, path: string) => (isSha256Hex(v) ? v : fail(path));
+
+  const r = obj(receipt, "receipt", "receipt");
+  if (r.version !== RECEIPT_VERSION) fail("unknown version");
+  if (!RECEIPT_ID.test(text(r, "receiptId", "receipt")!)) fail("receiptId");
+  hash(r.jobIdHash, "jobIdHash");
+
+  const seller = obj(r.seller, "seller", "seller");
+  text(seller, "id", "seller");
+  text(seller, "name", "seller", false);
+  if (has(r, "buyer")) text(obj(r.buyer, "buyer", "buyer"), "id", "buyer");
+
+  if (!Array.isArray(r.inputSha256) || r.inputSha256.length === 0)
+    fail("at least one input hash is required");
+  (r.inputSha256 as unknown[]).forEach((h, i) => hash(h, `inputSha256[${i}]`));
+  hash(r.outputSha256, "outputSha256");
+  if (has(r, "evidence")) {
+    const ev = r.evidence;
+    if (
+      typeof ev !== "object" ||
+      ev === null ||
+      Array.isArray(ev) ||
+      Object.getPrototypeOf(ev) !== Object.prototype
+    )
+      fail("evidence must be an object");
+    for (const [k, h] of Object.entries(ev as object)) hash(h, `evidence.${k}`);
   }
-  const p = receipt.payment;
-  if (!/^(0|[1-9][0-9]*)$/.test(p.amount)) fail("payment.amount");
-  if (!p.rail || !p.asset || !p.reference) fail("payment rail, asset and reference are required");
-  if (!CAIP2.test(p.network)) fail("payment.network must be a CAIP-2 id");
-  const a = receipt.acceptance;
-  if (!["buyer", "evaluator", "auto"].includes(a.mode)) fail("acceptance.mode");
-  if (!Number.isSafeInteger(a.reviewWindowSeconds) || a.reviewWindowSeconds < 0) {
+
+  const p = obj(r.payment, "payment", "payment");
+  for (const k of ["rail", "network", "asset", "amount", "reference"]) text(p, k, "payment");
+  text(p, "payer", "payment", false);
+  text(p, "payee", "payment", false);
+  if (!AMOUNT.test(p.amount as string))
+    fail("payment.amount must be a non-negative integer string");
+  if (!CAIP2.test(p.network as string)) fail("payment.network must be a CAIP-2 id");
+
+  const a = obj(r.acceptance, "acceptance", "acceptance");
+  if (!["buyer", "evaluator", "auto"].includes(a.mode as string)) fail("acceptance.mode");
+  if (!Number.isSafeInteger(a.reviewWindowSeconds) || (a.reviewWindowSeconds as number) < 0)
     fail("acceptance.reviewWindowSeconds");
+  text(a, "evaluator", "acceptance", a.mode === "evaluator");
+
+  if (has(r, "remedy")) {
+    const m = obj(r.remedy, "remedy", "remedy");
+    if (!["rerender", "refund", "terms"].includes(m.kind as string)) fail("remedy.kind");
+    if (
+      has(m, "withinDays") &&
+      (!Number.isSafeInteger(m.withinDays) || (m.withinDays as number) < 0)
+    )
+      fail("remedy.withinDays");
+    if (has(m, "termsSha256")) hash(m.termsSha256, "remedy.termsSha256");
+    if (m.kind === "terms" && !has(m, "termsSha256")) fail("remedy.termsSha256 is required");
   }
-  if (a.mode === "evaluator" && !a.evaluator)
-    fail("acceptance.evaluator is required for evaluator mode");
-  if (receipt.remedy) {
-    if (!["rerender", "refund", "terms"].includes(receipt.remedy.kind)) fail("remedy.kind");
-    if (receipt.remedy.termsSha256 && !isSha256Hex(receipt.remedy.termsSha256))
-      fail("remedy.termsSha256");
-    if (receipt.remedy.kind === "terms" && !receipt.remedy.termsSha256)
-      fail("remedy.termsSha256 is required");
-  }
-  if (receipt.supersedes && !isSha256Hex(receipt.supersedes)) fail("supersedes");
-  if (Number.isNaN(Date.parse(receipt.deliveredAt))) fail("deliveredAt");
+  if (has(r, "supersedes")) hash(r.supersedes, "supersedes");
+  const at = text(r, "deliveredAt", "receipt")!;
+  if (!RFC3339_UTC.test(at) || Number.isNaN(Date.parse(at)))
+    fail("deliveredAt must be an RFC 3339 UTC timestamp");
 }
 
 /** JCS (RFC 8785) bytes of a receipt — what gets hashed and signed. */

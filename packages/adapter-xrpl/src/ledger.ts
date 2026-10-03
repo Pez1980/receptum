@@ -35,11 +35,26 @@ const resultCode = (meta: unknown): string | undefined =>
 const succeeded = (meta: unknown): meta is TransactionMetadata => resultCode(meta) === "tesSUCCESS";
 
 /** Autofills, signs, submits and waits for validation; throws unless tesSUCCESS. */
+/** XRPL testnet's NetworkID. Signing is refused on any other network. */
+export const XRPL_TESTNET_NETWORK_ID = 1;
+
+/** Throws unless the connected server reports XRPL testnet. Checked before every signature. */
+export async function assertTestnet(client: Client): Promise<void> {
+  const info = await client.request({ command: "server_info" });
+  const id = (info.result.info as { network_id?: number }).network_id;
+  if (id !== XRPL_TESTNET_NETWORK_ID) {
+    throw new Error(
+      `refusing to sign: connected XRPL server reports NetworkID ${id ?? "none"}, expected testnet (1)`,
+    );
+  }
+}
+
 export async function submit(
   client: Client,
   wallet: Wallet,
   tx: SubmittableTransaction,
 ): Promise<LedgerTx> {
+  await assertTestnet(client);
   const res = await client.submitAndWait(tx, { wallet, autofill: true });
   const { meta, hash, tx_json, close_time_iso } = res.result;
   if (!succeeded(meta)) throw new XrplTxError(resultCode(meta) ?? "unknown", hash);

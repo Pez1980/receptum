@@ -73,6 +73,9 @@ const json = (
   body: JSON.stringify(value),
 });
 
+/** Payment authorizations currently being processed — a payload can back only one job at a time. */
+const inFlight = new Set<string>();
+
 /** base64url(JSON) — compact enough for a response header. */
 export const encodeReceiptHeader = (signed: SignedReceipt) =>
   Buffer.from(JSON.stringify(signed)).toString("base64url");
@@ -114,51 +117,80 @@ export async function handlePaidJob(
   const matched = config.x402.findMatchingRequirements(requirements, payload);
   if (!matched) return paymentRequired("payment does not match any accepted option");
 
-  const verified = await config.x402.verifyPayment(payload, matched);
-  if (!verified.isValid) return paymentRequired(verified.invalidReason ?? "payment invalid");
+  const lock = sha256Hex(signature);
+  if (inFlight.has(lock))
+    return json(409, {}, { error: "this payment is already being used for another request" });
+  inFlight.add(lock);
+  try {
+    const verified = await config.x402.verifyPayment(payload, matched);
+    if (!verified.isValid) return paymentRequired(verified.invalidReason ?? "payment invalid");
 
-  const job = await run();
+    const job = await run();
+    const draft = (reference: string, settledAmount: string, network: string, payer?: string) =>
+      createReceipt({
+        jobId: job.jobId,
+        seller: {
+          id: config.seller.did,
+          ...(config.seller.name ? { name: config.seller.name } : {}),
+        },
+        inputSha256: job.inputSha256,
+        outputSha256: sha256Hex(job.output),
+        ...(job.evidence ? { evidence: job.evidence } : {}),
+        payment: {
+          rail: `x402:${matched.scheme}`,
+          network,
+          asset: matched.asset,
+          amount: settledAmount,
+          reference,
+          payee: `${network}:${matched.payTo}`,
+          ...(payer ? { payer: `${network}:${payer}` } : {}),
+        },
+        acceptance: config.acceptance ?? { mode: "auto", reviewWindowSeconds: 0 },
+        ...(config.remedy ? { remedy: config.remedy } : {}),
+      });
+    // Validate the job's receipt data before charging, so the buyer is never charged for a
+    // result we then fail to deliver.
+    draft("pending", matched.amount, matched.network);
 
-  const settled = await config.x402.settlePayment(payload, matched);
-  if (!settled.success) {
-    return json(
-      402,
-      { "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled) },
-      { error: settled.errorReason ?? "settlement failed" },
+    const settled = await config.x402.settlePayment(payload, matched);
+    if (!settled.success) {
+      return json(
+        402,
+        { "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled) },
+        { error: settled.errorReason ?? "settlement failed" },
+      );
+    }
+
+    const signed = signReceipt(
+      draft(settled.transaction, settled.amount ?? matched.amount, settled.network, settled.payer),
+      config.seller,
     );
+    let anchor: AnchorRecord | undefined;
+    let anchorError: string | undefined;
+    if (config.anchor) {
+      try {
+        anchor = await config.anchor.anchor(signed.receiptHash);
+      } catch (err) {
+        // The buyer has paid: deliver anyway and let the seller retry the anchor later.
+        anchorError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    return {
+      status: 200,
+      headers: {
+        "content-type": job.contentType,
+        "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled),
+        [RECEIPT_HEADER]: encodeReceiptHeader(signed),
+        [RECEIPT_HASH_HEADER]: signed.receiptHash,
+        ...(anchorError ? { "Receptum-Anchor-Error": anchorError.slice(0, 200) } : {}),
+        "Access-Control-Expose-Headers": `PAYMENT-RESPONSE, ${RECEIPT_HEADER}, ${RECEIPT_HASH_HEADER}`,
+      },
+      body: job.output,
+      receipt: signed,
+      ...(anchor ? { anchor } : {}),
+    };
+  } finally {
+    inFlight.delete(lock);
   }
-
-  const receipt = createReceipt({
-    jobId: job.jobId,
-    seller: { id: config.seller.did, ...(config.seller.name ? { name: config.seller.name } : {}) },
-    inputSha256: job.inputSha256,
-    outputSha256: sha256Hex(job.output),
-    ...(job.evidence ? { evidence: job.evidence } : {}),
-    payment: {
-      rail: `x402:${matched.scheme}`,
-      network: settled.network,
-      asset: matched.asset,
-      amount: settled.amount ?? matched.amount,
-      reference: settled.transaction,
-      ...(settled.payer ? { payer: `${settled.network}:${settled.payer}` } : {}),
-    },
-    acceptance: config.acceptance ?? { mode: "auto", reviewWindowSeconds: 0 },
-    ...(config.remedy ? { remedy: config.remedy } : {}),
-  });
-  const signed = signReceipt(receipt, config.seller);
-  const anchor = config.anchor ? await config.anchor.anchor(signed.receiptHash) : undefined;
-
-  return {
-    status: 200,
-    headers: {
-      "content-type": job.contentType,
-      "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled),
-      [RECEIPT_HEADER]: encodeReceiptHeader(signed),
-      [RECEIPT_HASH_HEADER]: signed.receiptHash,
-      "Access-Control-Expose-Headers": `PAYMENT-RESPONSE, ${RECEIPT_HEADER}, ${RECEIPT_HASH_HEADER}`,
-    },
-    body: job.output,
-    receipt: signed,
-    ...(anchor ? { anchor } : {}),
-  };
 }

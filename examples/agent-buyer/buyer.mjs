@@ -22,7 +22,16 @@ const paidFetch = wrapFetchWithPaymentFromConfig(fetch, {
     },
   ],
 });
-const buy = createReceptumFetch({ paidFetch, allowedSellers: [expectedSeller] });
+const buy = createReceptumFetch({
+  paidFetch,
+  allowedSellers: [expectedSeller],
+  // The buyer's own expectations — never taken from the response.
+  expected: {
+    network: "eip155:84532",
+    maxAmount: "250000",
+    payer: privateKeyToAccount(wallets.buyer.privateKey).address,
+  },
+});
 
 const result = await buy(url, {
   method: "POST",

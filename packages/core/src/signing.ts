@@ -48,6 +48,7 @@ export function base58btcDecode(text: string): Uint8Array {
 }
 
 const b64u = (data: Uint8Array | string) => Buffer.from(data).toString("base64url");
+const B64U = /^[A-Za-z0-9_-]+$/;
 
 // ─── did:key (Ed25519) ─────────────────────────────────────────────────────
 
@@ -154,15 +155,23 @@ export function verifySignedReceipt(signed: SignedReceipt): VerifyResult {
     if (hash !== signed.receiptHash)
       return { ok: false, reason: "receiptHash does not match the receipt" };
     if (signed.proof?.type !== "jws") return { ok: false, reason: "unsupported proof type" };
-    const [header, empty, sig] = signed.proof.jws.split(".");
-    if (!header || empty !== "" || !sig) return { ok: false, reason: "malformed detached JWS" };
-    const h = JSON.parse(Buffer.from(header, "base64url").toString()) as {
-      alg?: string;
-      kid?: string;
-    };
+    const parts = signed.proof.jws.split(".");
+    if (parts.length !== 3 || parts[1] !== "")
+      return { ok: false, reason: "malformed detached JWS" };
+    const [header, , sig] = parts as [string, string, string];
+    if (!B64U.test(header) || !B64U.test(sig))
+      return { ok: false, reason: "JWS segments must be base64url" };
+    const h = JSON.parse(Buffer.from(header, "base64url").toString()) as Record<string, unknown>;
+    if (b64u(Buffer.from(header, "base64url")) !== header)
+      return { ok: false, reason: "non-canonical base64url header" };
+    const keys = Object.keys(h).sort().join(",");
+    if (keys !== "alg,kid,typ") return { ok: false, reason: "unexpected JWS header parameters" };
     if (h.alg !== "EdDSA") return { ok: false, reason: "unsupported alg" };
+    if (h.typ !== "receptum+jws") return { ok: false, reason: "unexpected typ" };
     if (h.kid !== signed.proof.kid) return { ok: false, reason: "kid mismatch" };
-    const did = signed.proof.kid.split("#")[0] ?? "";
+    const [did, fragment] = signed.proof.kid.split("#");
+    if (!did || fragment !== did.slice("did:key:".length))
+      return { ok: false, reason: "kid must be <did>#<multibase key>" };
     if (did !== signed.receipt.seller.id)
       return { ok: false, reason: "signer is not the receipt's seller" };
     const payload = b64u(receiptBytes(signed.receipt));

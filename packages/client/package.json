@@ -1,6 +1,6 @@
 {
   "name": "@receptum/client",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Buyer and agent client: pays HTTP 402 responses within per-agent spending limits and verifies receipts.",
   "license": "Apache-2.0",
   "type": "module",
@@ -11,7 +11,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -20,5 +22,30 @@
   "dependencies": {
     "@receptum/core": "workspace:*",
     "@x402/core": "^2.28.0"
-  }
+  },
+  "author": "Swiftleads AI, Inc.",
+  "homepage": "https://receptum-ai.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pez1980/receptum.git",
+    "directory": "packages/client"
+  },
+  "bugs": {
+    "url": "https://github.com/Pez1980/receptum/issues"
+  },
+  "keywords": [
+    "agents",
+    "escrow",
+    "proof-of-delivery",
+    "receipts",
+    "receptum",
+    "x402"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
 }

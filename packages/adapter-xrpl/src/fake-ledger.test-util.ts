@@ -15,7 +15,12 @@ export function fakeLedger() {
   const history = new Map<string, Entry[]>();
   const byHash = new Map<string, Entry>();
   let sequence = 100;
-  const state = { closeTime: 800_000_000, nextResult: "tesSUCCESS", submitted: [] as Tx[] };
+  const state = {
+    closeTime: 800_000_000,
+    nextResult: "tesSUCCESS",
+    submitted: [] as Tx[],
+    networkId: 1 as number | undefined,
+  };
 
   const notFound = (error: string) => Object.assign(new Error(error), { data: { error } });
   const entryResult = (e: Entry) => ({
@@ -39,6 +44,8 @@ export function fakeLedger() {
       transaction?: string;
     }) {
       switch (req.command) {
+        case "server_info":
+          return { result: { info: { network_id: state.networkId } } };
         case "ledger":
           return { result: { ledger: { close_time: state.closeTime } } };
         case "ledger_entry": {

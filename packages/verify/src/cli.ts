@@ -34,10 +34,12 @@ const report = await verify(signed, {
 if (values.json) {
   console.log(JSON.stringify(report, null, 2));
 } else {
-  const mark = { pass: "PASS", fail: "FAIL", skipped: "SKIP" } as const;
+  const mark = { pass: "PASS", fail: "FAIL", pending: "WAIT", skipped: "SKIP" } as const;
   console.log(`receipt ${report.receiptHash}\nseller  ${report.seller}\n`);
   for (const c of report.checks)
     console.log(`[${mark[c.status]}] L${c.level} ${c.name} — ${c.detail}`);
-  console.log(`\n${report.ok ? "VERIFIED" : "NOT VERIFIED"}`);
+  console.log(
+    `\n${!report.ok ? "NOT VERIFIED" : report.complete ? "VERIFIED" : "PARTIALLY VERIFIED — the payment itself was not confirmed on its rail"}`,
+  );
 }
-process.exit(report.ok ? 0 : 1);
+process.exit(!report.ok ? 1 : report.complete ? 0 : 3);

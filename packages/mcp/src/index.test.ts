@@ -48,13 +48,38 @@ describe("verifyToolResult", () => {
   it("detects altered tool content", async () => {
     const result = await withReceipts(paid({ [X402_SETTLEMENT_META_KEY]: settled }), opts)({}, {});
     (result.content[0] as { text: string }).text = "something else";
-    expect(verifyToolResult(result).reasons).toContain("tool content does not match the receipt");
+    expect(verifyToolResult(result).reasons).toContain("tool result does not match the receipt");
   });
 
   it("detects a receipt for another settlement", async () => {
     const result = await withReceipts(paid({ [X402_SETTLEMENT_META_KEY]: settled }), opts)({}, {});
     result._meta![X402_SETTLEMENT_META_KEY] = { ...settled, transaction: "0xother" };
     expect(verifyToolResult(result).ok).toBe(false);
+  });
+
+  it("detects structured-output and error-status tampering", async () => {
+    const result = await withReceipts(
+      async () => ({
+        content: [{ type: "text", text: "ok" }],
+        structuredContent: { approved: true },
+        _meta: { [X402_SETTLEMENT_META_KEY]: settled },
+      }),
+      opts,
+    )({}, {});
+    expect(verifyToolResult(result).ok).toBe(true);
+    result.structuredContent = { approved: false };
+    expect(verifyToolResult(result).ok).toBe(false);
+    result.structuredContent = { approved: true };
+    result.isError = true;
+    expect(verifyToolResult(result).ok).toBe(false);
+  });
+
+  it("fails closed without a successful settlement", async () => {
+    const result = await withReceipts(paid({ [X402_SETTLEMENT_META_KEY]: settled }), opts)({}, {});
+    delete result._meta![X402_SETTLEMENT_META_KEY];
+    expect(verifyToolResult(result).reasons).toContain("no settlement on the tool result");
+    result._meta![X402_SETTLEMENT_META_KEY] = { ...settled, success: false };
+    expect(verifyToolResult(result).reasons).toContain("settlement did not succeed");
   });
 
   it("reports missing receipts", () => {

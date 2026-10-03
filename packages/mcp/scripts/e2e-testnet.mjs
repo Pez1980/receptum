@@ -47,7 +47,7 @@ server.tool(
     })),
     {
       seller: { ...seller, name: "render.example" },
-      price: { asset: accepts[0].asset, amount: accepts[0].amount },
+      price: { asset: accepts[0].asset, amount: accepts[0].amount, payTo: accepts[0].payTo },
       inputsFor: ({ audioSha256 }) => [audioSha256],
     },
   ),

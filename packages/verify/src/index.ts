@@ -1,11 +1,26 @@
 import { sha256File, sha256Hex, verifySignedReceipt, type SignedReceipt } from "@receptum/core";
-import { anchorCalldata, NETWORKS, receptumEscrowAbi, parseEscrowId } from "@receptum/adapter-evm";
+import {
+  anchorCalldata,
+  NETWORKS,
+  receptumEscrowAbi,
+  receptumEscrowDeployedBytecode,
+  parseEscrowId,
+} from "@receptum/adapter-evm";
 import { StellarAnchor } from "@receptum/adapter-stellar";
-import { XrplAnchor } from "@receptum/adapter-xrpl";
-import { createPublicClient, decodeEventLog, erc20Abi, getAddress, http, type Hex } from "viem";
+import { XrplAnchor, XrplEscrowRail } from "@receptum/adapter-xrpl";
+import {
+  createPublicClient,
+  decodeEventLog,
+  erc20Abi,
+  getAddress,
+  http,
+  keccak256,
+  type Hex,
+} from "viem";
 import { Client } from "xrpl";
 
-export type CheckStatus = "pass" | "fail" | "skipped";
+/** pending = genuine but not yet final (e.g. escrow delivered, awaiting acceptance). */
+export type CheckStatus = "pass" | "fail" | "pending" | "skipped";
 
 export interface Check {
   /** 1 = file ↔ receipt, 2 = receipt ↔ seller, 3 = receipt ↔ settlement/anchor (SPEC §6). */
@@ -16,7 +31,10 @@ export interface Check {
 }
 
 export interface VerifyReport {
+  /** Nothing failed. */
   ok: boolean;
+  /** Nothing failed AND the payment itself was verified on its rail (not just anchored). */
+  complete: boolean;
   receiptHash: string;
   seller: string;
   checks: Check[];
@@ -62,79 +80,127 @@ function evmClient(network: string) {
   return { net, client: createPublicClient({ chain: net.chain, transport: http() }) };
 }
 
+const bare = (caip10?: string) => caip10?.split(":").pop();
+const sameAddr = (a?: string, b?: string) => !!a && !!b && getAddress(a) === getAddress(b);
+const GENUINE_ESCROW_CODE = keccak256(receptumEscrowDeployedBytecode);
+
+async function withXrpl<T>(fn: (client: Client) => Promise<T>): Promise<T> {
+  const client = new Client(XRPL_TESTNET_WSS);
+  await client.connect();
+  try {
+    return await fn(client);
+  } finally {
+    await client.disconnect();
+  }
+}
+
 /** Level 3 for the payment rail named in the receipt. */
 async function verifyPayment(signed: SignedReceipt): Promise<Check> {
-  const { rail, network, reference, amount, asset, payer } = signed.receipt.payment;
+  const { rail, network, reference, amount, asset, payer, payee } = signed.receipt.payment;
   const name = `Payment on ${network}`;
+  const fail = (detail: string): Check => ({ level: 3, name, status: "fail", detail });
   try {
     if (rail === "escrow:receptum-evm") {
       const evm = evmClient(network);
       if (!evm)
         return { level: 3, name, status: "skipped", detail: `unsupported network ${network}` };
-      const { contract, id } = parseEscrowId(reference);
-      const e = await evm.client.readContract({
-        address: contract,
-        abi: receptumEscrowAbi,
-        functionName: "escrows",
-        args: [id],
-      });
-      const [, , , , escrowAmount, , , , status, committed] = e;
+      const ref = parseEscrowId(reference);
+      if (ref.network !== network)
+        return fail(`escrow reference is on ${ref.network}, receipt says ${network}`);
+      const code = await evm.client.getCode({ address: ref.contract });
+      if (!code || keccak256(code) !== GENUINE_ESCROW_CODE)
+        return fail("referenced contract is not a genuine ReceptumEscrow deployment");
+      const [buyer, seller, , token, escrowAmount, , , , status, committed] =
+        await evm.client.readContract({
+          address: ref.contract,
+          abi: receptumEscrowAbi,
+          functionName: "escrows",
+          args: [ref.id],
+        });
       const statusName = ["none", "open", "delivered", "released", "refunded"][status] ?? "unknown";
-      const hashOk = committed.slice(2).toLowerCase() === signed.receiptHash;
-      const ok =
-        hashOk &&
-        escrowAmount.toString() === amount &&
-        (statusName === "released" || statusName === "delivered");
-      return {
-        level: 3,
-        name,
-        status: ok ? "pass" : "fail",
-        detail: `escrow ${statusName}; committed receiptHash ${hashOk ? "matches" : "differs"}; amount ${escrowAmount}`,
-      };
+      const problems = [
+        committed.slice(2).toLowerCase() !== signed.receiptHash && "committed receiptHash differs",
+        escrowAmount.toString() !== amount && "amount differs",
+        !sameAddr(token, asset) && "token differs from payment.asset",
+        payer && !sameAddr(buyer, bare(payer)) && "buyer differs from payment.payer",
+        payee && !sameAddr(seller, bare(payee)) && "seller differs from payment.payee",
+      ].filter(Boolean);
+      if (problems.length) return fail(`escrow ${statusName}: ${problems.join("; ")}`);
+      if (statusName === "released")
+        return {
+          level: 3,
+          name,
+          status: "pass",
+          detail: `escrow released to the seller; committed receiptHash matches`,
+        };
+      if (statusName === "delivered")
+        return {
+          level: 3,
+          name,
+          status: "pending",
+          detail: "delivery committed; funds still held awaiting acceptance or the review window",
+        };
+      return fail(`escrow is ${statusName}, not released`);
     }
     if (rail.startsWith("x402:") && network.startsWith("eip155:")) {
       const evm = evmClient(network);
       if (!evm)
         return { level: 3, name, status: "skipped", detail: `unsupported network ${network}` };
+      if (!payee) return fail("receipt does not name a payee, so the recipient can't be checked");
       const tx = await evm.client.getTransactionReceipt({ hash: reference as Hex });
-      if (tx.status !== "success")
-        return { level: 3, name, status: "fail", detail: "settlement transaction reverted" };
-      const from = payer?.split(":").pop();
+      if (tx.status !== "success") return fail("settlement transaction reverted");
+      const from = bare(payer);
       const paid = tx.logs.some((log) => {
-        if (getAddress(log.address) !== getAddress(asset)) return false;
+        if (!sameAddr(log.address, asset)) return false;
         try {
           const ev = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
           return (
             ev.eventName === "Transfer" &&
             ev.args.value.toString() === amount &&
-            (!from || getAddress(ev.args.from) === getAddress(from))
+            sameAddr(ev.args.to, bare(payee)) &&
+            (!from || sameAddr(ev.args.from, from))
           );
         } catch {
           return false;
         }
       });
-      return {
-        level: 3,
-        name,
-        status: paid ? "pass" : "fail",
-        detail: paid
-          ? `settled ${amount} base units in block ${tx.blockNumber}`
-          : "no matching token transfer in the settlement transaction",
-      };
+      return paid
+        ? {
+            level: 3,
+            name,
+            status: "pass",
+            detail: `${amount} base units paid to ${bare(payee)} in block ${tx.blockNumber}`,
+          }
+        : fail("no transfer of that amount to the payee in the settlement transaction");
+    }
+    if (rail === "escrow:xrpl" && network === "xrpl:1") {
+      const state = await withXrpl((client) => new XrplEscrowRail({ client }).getEscrow(reference));
+      if (state.receiptHash !== signed.receiptHash)
+        return fail(`escrow ${state.status}; recorded delivery is for a different receipt`);
+      if (state.status === "released")
+        return {
+          level: 3,
+          name,
+          status: "pass",
+          detail: "escrow finished to the seller; delivery memo matches",
+        };
+      if (state.status === "delivered")
+        return {
+          level: 3,
+          name,
+          status: "pending",
+          detail: "delivered; awaiting the buyer's fulfillment",
+        };
+      return fail(`escrow is ${state.status}`);
     }
     return {
       level: 3,
       name,
       status: "skipped",
-      detail: `rail ${rail} is verified through its anchor; pass --anchor`,
+      detail: `no settlement check for rail ${rail}; only its anchor can be checked`,
     };
   } catch (err) {
-    return {
-      level: 3,
-      name,
-      status: "fail",
-      detail: err instanceof Error ? err.message : String(err),
-    };
+    return fail(err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -150,6 +216,9 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
       if (!evm)
         return { level: 3, name, status: "skipped", detail: `unsupported network ${network}` };
       const tx = await evm.client.getTransaction({ hash: reference as Hex });
+      const mined = await evm.client.getTransactionReceipt({ hash: reference as Hex });
+      if (mined.status !== "success")
+        return { level: 3, name, status: "fail", detail: "anchor transaction reverted" };
       const ok = tx.input.toLowerCase() === anchorCalldata(signed.receiptHash).toLowerCase();
       return {
         level: 3,
@@ -215,8 +284,11 @@ export async function verify(
     checks.push(await verifyPayment(signed));
     for (const a of options.anchors ?? []) checks.push(await verifyAnchor(signed, a));
   }
+  const ok = checks.every((c) => c.status !== "fail");
+  const payment = checks.find((c) => c.level === 3 && c.name.startsWith("Payment"));
   return {
-    ok: checks.every((c) => c.status !== "fail"),
+    ok,
+    complete: ok && payment?.status === "pass",
     receiptHash: signed.receiptHash,
     seller: signed.receipt.seller.id,
     checks,

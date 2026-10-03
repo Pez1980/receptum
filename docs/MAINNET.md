@@ -33,3 +33,4 @@ Everything in Receptum runs on testnets today. This is the checklist for moving 
 - Monitoring: alerts on escrows approaching deadlines (especially Stellar claimable-balance refund windows) and on anchor failures.
 - Caps: per-escrow and total-value-locked limits until an audit is complete, enforced off-chain by the seller service and stated publicly.
 - Incident plan: who can pause new escrows (the contracts have no admin key by design; pausing = stop opening new escrows client-side).
+- Fresh keys for every mainnet account. Several testnet seeds (XRPL testnet buyer, seller and issuer) were exposed in development tool output on 3 Oct 2026; they hold only testnet funds and must never be reused, and no testnet key is ever promoted to mainnet.

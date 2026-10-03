@@ -196,6 +196,21 @@ describe("handlePaidJob", () => {
     await first;
   });
 
+  it("refuses issued-token requirements before charging", async () => {
+    const issued = {
+      ...req,
+      network: "xrpl:1",
+      asset: "USD",
+      amount: "0.25",
+      extra: { issuer: "rIssuer" },
+    };
+    const x402 = fakeX402({ findMatchingRequirements: vi.fn(() => issued) });
+    const paid = headers({ "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) });
+    await expect(handlePaidJob(paid, job, config(x402))).rejects.toThrow(/issued-token/);
+    expect(x402.verifyPayment).not.toHaveBeenCalled();
+    expect(x402.settlePayment).not.toHaveBeenCalled();
+  });
+
   it("checks the seller key before charging", async () => {
     const x402 = fakeX402();
     const broken = { ...config(x402), seller: { ...seller, did: generateSellerKey().did } };

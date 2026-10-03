@@ -150,6 +150,14 @@ export async function handlePaidJob(
   const matched = config.x402.findMatchingRequirements(requirements, payload);
   if (!matched) return paymentRequired("payment does not match any accepted option");
 
+  // RRF v1 amounts are integers in the asset's smallest unit and `asset` must identify the token
+  // exactly. Issued tokens (e.g. XRPL `extra.issuer`) have decimal amounts and an issuer that
+  // `asset` alone would drop, so refuse them before anything is charged.
+  if (typeof (matched.extra as Record<string, unknown> | undefined)?.issuer === "string")
+    throw new Error(
+      `issued-token payments (${matched.network} ${matched.asset}) are not supported by RRF v1 receipts`,
+    );
+
   const lock = authorizationId(payload, matched);
   if (inFlight.has(lock))
     return json(409, {}, { error: "this payment is already being used for another request" });

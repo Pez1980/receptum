@@ -18,7 +18,10 @@ _EXIT = {VERIFIED: 0, NOT_VERIFIED: 1}
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m receptum_verify",
-        description="Verify a Receptum (RRF v1) receipt: file, signature, settlement, anchor.",
+        description=(
+            "Verify a Receptum (RRF v1) receipt: file, signature, account binding, "
+            "settlement, anchor."
+        ),
     )
     p.add_argument("receipt", help="signed receipt JSON, or an object with `signedReceipt`")
     p.add_argument("file", nargs="?", help="delivered file to compare with outputSha256")
@@ -27,13 +30,18 @@ def _parser() -> argparse.ArgumentParser:
         metavar="CAIP2:TX",
         help="EVM anchor transaction, e.g. eip155:5042002:0x… (defaults to the wrapper's `anchor`)",
     )
-    p.add_argument("--offline", action="store_true", help="skip level 3 (no network)")
+    p.add_argument("--offline", action="store_true", help="skip level 3 and the online XRPL key check (no network)")
     p.add_argument(
         "--rpc",
         action="append",
         default=[],
         metavar="CAIP2=URL",
         help="override/add a JSON-RPC endpoint (repeatable)",
+    )
+    p.add_argument(
+        "--allow-unbound",
+        action="store_true",
+        help="accept a receipt without any account binding (legacy receipts); invalid bindings still fail",
     )
     p.add_argument("--json", action="store_true", help="machine-readable output")
     return p
@@ -61,7 +69,14 @@ def main(argv: list[str] | None = None) -> int:
 
     signed, wrapper_anchor = extract_signed_receipt(doc)
     anchor = args.anchor or wrapper_anchor
-    report = verify(signed, file_bytes, anchor=anchor, offline=args.offline, rpcs=rpcs)
+    report = verify(
+        signed,
+        file_bytes,
+        anchor=anchor,
+        offline=args.offline,
+        rpcs=rpcs,
+        allow_unbound=args.allow_unbound,
+    )
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
@@ -74,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
         labels = {
             "file": "L1 file",
             "signature": "L2 signature",
+            "binding": "L2.5 binding",
             "settlement": "L3 settlement",
             "anchor": "L3 anchor",
         }

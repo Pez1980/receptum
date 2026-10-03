@@ -6,6 +6,7 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
+from .binding import DEFAULT_XRPL_RPCS, check_payee_binding
 from .evm import DEFAULT_RPCS, CheckResult, check_evm_anchor, check_x402_exact
 from .jws import verify_signed_receipt
 
@@ -63,8 +64,14 @@ def verify(
     anchor: str | None = None,
     offline: bool = False,
     rpcs: dict[str, str] | None = None,
+    allow_unbound: bool = False,
+    now: float | None = None,
 ) -> Report:
-    rpcs = {**DEFAULT_RPCS, **(rpcs or {})}
+    """Run every applicable level. ``rpcs`` maps CAIP-2 ids to JSON-RPC endpoints
+    (EVM, and XRPL for the online account-key check of level 2.5).
+    ``allow_unbound`` accepts receipts without any account binding (legacy receipts);
+    invalid bindings still fail."""
+    rpcs = {**DEFAULT_RPCS, **DEFAULT_XRPL_RPCS, **(rpcs or {})}
     sig = verify_signed_receipt(signed)
     levels: dict[str, CheckResult] = {}
 
@@ -91,6 +98,18 @@ def verify(
     else:
         levels["signature"] = CheckResult("fail", "; ".join(sig.errors) or "invalid")
 
+    # Level 2.5 — seller <-> payee: an account binding (SPEC §4.1; online for XRPL keys).
+    if not sig.ok:
+        levels["binding"] = _skip("receipt not authenticated")
+    else:
+        levels["binding"] = check_payee_binding(
+            signed,
+            offline=offline,
+            allow_unbound=allow_unbound,
+            xrpl_rpcs={k: v for k, v in rpcs.items() if k.startswith("xrpl:")},
+            now=now,
+        )
+
     # Level 3 — receipt <-> settlement (online): payment settled + receiptHash committed.
     if not sig.ok:
         levels["settlement"] = _skip("receipt not authenticated")
@@ -113,9 +132,12 @@ def verify(
             levels["anchor"] = check_evm_anchor(anchor, sig.receipt_hash, rpcs)
 
     statuses = [c.status for c in levels.values()]
+    # A skipped level 2.5 (no payee named, or --allow-unbound) does not block VERIFIED;
+    # a pending one (no binding at all) does (SPEC §6).
+    required = [c.status for k, c in levels.items() if not (k == "binding" and c.status == "skipped")]
     if "fail" in statuses:
         status = NOT_VERIFIED
-    elif all(s == "pass" for s in statuses):
+    elif all(s == "pass" for s in required):
         status = VERIFIED
     else:
         status = PARTIALLY_VERIFIED

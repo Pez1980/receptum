@@ -12,10 +12,13 @@ from .encoding import EncodingError, b64url_decode, b64url_encode, did_key_publi
 from .jcs import JCSError, canonicalize, loads_strict
 from .receipt import HEX64, receipt_hash, validate_receipt
 
-__all__ = ["JWS_TYP", "SignatureResult", "verify_signed_receipt"]
+__all__ = ["JWS_TYP", "SignatureResult", "verify_detached_jws", "verify_signed_receipt"]
 
 JWS_TYP = "receptum+jws"
 _SIGNED_MEMBERS = {"receipt", "receiptHash", "proof"}
+# `bindings` (SPEC §4.1) is optional and outside the signed receipt; it is
+# checked at level 2.5 (binding.py), not here.
+_OPTIONAL_MEMBERS = {"bindings"}
 _PROOF_MEMBERS = {"type", "kid", "jws"}
 _HEADER_MEMBERS = {"alg", "kid", "typ"}
 # Order of the Ed25519 base point (RFC 8032 §5.1): S MUST be < L.
@@ -42,7 +45,7 @@ def verify_signed_receipt(signed: Any) -> SignatureResult:
     if not isinstance(signed, dict):
         err.append("signed receipt must be an object")
         return res
-    extra = set(signed) - _SIGNED_MEMBERS
+    extra = set(signed) - _SIGNED_MEMBERS - _OPTIONAL_MEMBERS
     missing = _SIGNED_MEMBERS - set(signed)
     if extra:
         err.append(f"signed receipt has unknown members: {sorted(extra)}")
@@ -80,45 +83,62 @@ def verify_signed_receipt(signed: Any) -> SignatureResult:
 
 
 def _verify_proof(proof: Any, receipt: dict, payload: bytes, err: list[str]) -> bool:
+    return verify_detached_jws(
+        proof, receipt["seller"]["id"], payload, JWS_TYP, err, path="proof", signer="seller.id"
+    )
+
+
+def verify_detached_jws(
+    proof: Any,
+    did: str,
+    payload: bytes,
+    typ: str,
+    err: list[str],
+    *,
+    path: str,
+    signer: str,
+) -> bool:
+    """Verify ``{type:"jws", kid, jws}``: a detached compact EdDSA JWS over
+    base64url(payload) with header exactly {alg:"EdDSA", kid, typ}, where kid is
+    ``did#<multibase>`` of the Ed25519 ``did``. Appends reasons to ``err``."""
     if not isinstance(proof, dict):
-        err.append("proof must be an object")
+        err.append(f"{path} must be an object")
         return False
     if set(proof) != _PROOF_MEMBERS:
-        err.append(f"proof members must be exactly {sorted(_PROOF_MEMBERS)}")
+        err.append(f"{path} members must be exactly {sorted(_PROOF_MEMBERS)}")
         return False
     if proof["type"] != "jws":
-        err.append('proof.type must be "jws"')
+        err.append(f'{path}.type must be "jws"')
         return False
 
-    seller_id = receipt["seller"]["id"]
     try:
-        public_key = did_key_public_key(seller_id)
+        public_key = did_key_public_key(did)
     except EncodingError:
-        err.append("seller.id is not an Ed25519 did:key; a JWS proof cannot verify against it")
+        err.append(f"{signer} is not an Ed25519 did:key; a JWS proof cannot verify against it")
         return False
-    expected_kid = seller_id + "#" + seller_id[len("did:key:") :]
+    expected_kid = did + "#" + did[len("did:key:") :]
     kid = proof["kid"]
     if kid != expected_kid:
-        err.append(f"proof.kid must be {expected_kid}")
+        err.append(f"{path}.kid must be {expected_kid}")
         return False
 
     jws = proof["jws"]
     if not isinstance(jws, str):
-        err.append("proof.jws must be a string")
+        err.append(f"{path}.jws must be a string")
         return False
     parts = jws.split(".")
     if len(parts) != 3:
-        err.append("proof.jws must have exactly 3 segments")
+        err.append(f"{path}.jws must have exactly 3 segments")
         return False
     header_b64, body_b64, sig_b64 = parts
     if body_b64 != "":
-        err.append("proof.jws payload must be detached (empty middle segment)")
+        err.append(f"{path}.jws payload must be detached (empty middle segment)")
         return False
     try:
         header = loads_strict(b64url_decode(header_b64))
         signature = b64url_decode(sig_b64)
     except (EncodingError, JCSError) as exc:
-        err.append(f"proof.jws is malformed: {exc}")
+        err.append(f"{path}.jws is malformed: {exc}")
         return False
     if not isinstance(header, dict) or set(header) != _HEADER_MEMBERS:
         err.append(f"JWS header members must be exactly {sorted(_HEADER_MEMBERS)}")
@@ -126,11 +146,11 @@ def _verify_proof(proof: Any, receipt: dict, payload: bytes, err: list[str]) -> 
     if header["alg"] != "EdDSA":
         err.append('JWS header alg must be "EdDSA"')
         return False
-    if header["typ"] != JWS_TYP:
-        err.append(f'JWS header typ must be "{JWS_TYP}"')
+    if header["typ"] != typ:
+        err.append(f'JWS header typ must be "{typ}"')
         return False
     if header["kid"] != kid:
-        err.append("JWS header kid does not match proof.kid")
+        err.append(f"JWS header kid does not match {path}.kid")
         return False
     if len(signature) != 64:
         err.append("Ed25519 signature must be 64 bytes")
@@ -143,6 +163,6 @@ def _verify_proof(proof: Any, receipt: dict, payload: bytes, err: list[str]) -> 
     try:
         Ed25519PublicKey.from_public_bytes(public_key).verify(signature, signing_input)
     except (InvalidSignature, ValueError):
-        err.append("signature does not verify against seller.id")
+        err.append(f"signature does not verify against {signer}")
         return False
     return True

@@ -260,7 +260,10 @@ describe("Horizon: the server's passphrase is verified before every signature (r
     vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "1"); // even with the env opt-in
     for (const allowMainnet of [undefined, false, true]) {
       const { signer, passphrases } = signerSpy();
-      const h = new HorizonClient({ horizonUrl: "https://horizon-proxy.example", allowMainnet });
+      const h = new HorizonClient({
+        horizonUrl: "https://horizon-proxy.example",
+        ...(allowMainnet !== undefined ? { allowMainnet } : {}),
+      });
       const s = stubHorizon(h, Networks.PUBLIC);
       await expect(h.submit(signer, bump)).rejects.toThrow(
         /Horizon serves "Public Global Stellar Network ; September 2015", not stellar:testnet/,

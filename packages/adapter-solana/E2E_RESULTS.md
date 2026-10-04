@@ -4,6 +4,8 @@ Live runs on Solana **devnet** (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`) with 
 
 The sections below are written by the scripts that produced them.
 
+**Superseded program (review round 4, 4 Oct 2026).** The escrow flows were first run against `6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv` (build `b3964928…`), whose payouts required an exact vault balance — a 1-unit donation could lock an escrow forever. The fixed build (`e20b63d3…`, whole-vault payouts) is a new immutable program, `4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC` (deploy transaction [`3kzGgbAw…`](https://explorer.solana.com/tx/3kzGgbAwEDmzdoGoAUAEYvz8rHeQezSZfqgeGU35HCmmpANcK8UcuKRrbXbdEPTtRc6Nw1pqiF7Lmi3dpTZGx3Q4?cluster=devnet)); flows A–F below were re-run against it and replace the earlier receipts. The old program is no longer trusted and its build no longer verifies. The x402 run is unaffected (it uses no program).
+
 <!-- x402:start -->
 
 ## x402 exact on Solana devnet

@@ -36,9 +36,7 @@
         "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
         "name": "receptum e2e seller (solana)"
       },
-      "inputSha256": [
-        "dbb0fc1fa1b342e8ee00e9ba366303d08cd0776a151d904b644aec0ab60d8f18"
-      ],
+      "inputSha256": ["dbb0fc1fa1b342e8ee00e9ba366303d08cd0776a151d904b644aec0ab60d8f18"],
       "outputSha256": "65b28cb5dd1bc24c2ba50ac0bc5a03b9cb8a8710f95298e39ee26bd225d8aa21",
       "payment": {
         "rail": "escrow:receptum-solana",

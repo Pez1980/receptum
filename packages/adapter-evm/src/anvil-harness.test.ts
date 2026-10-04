@@ -46,7 +46,7 @@ describe("anvil test harness", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
       });
-      expect((await res.json()).result).toBe("0x7a69");
+      expect(((await res.json()) as { result?: string }).result).toBe("0x7a69");
       await a.stop();
       expect(a.exited()).toBe(true);
       await a.stop(); // idempotent

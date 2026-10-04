@@ -2,7 +2,7 @@
 
 Solana rail for Receptum: the **`receptum_escrow` program** (`escrow:receptum-solana`), **x402 `exact`** settlement checks, **SPL Memo anchors** (`anchor:solana`) and **account bindings** for `solana:` payout wallets.
 
-**Status:** devnet (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`, the default) — see [E2E_RESULTS.md](./E2E_RESULTS.md). Not audited. Mainnet (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) only behind the explicit opt-in (`allowMainnet: true` or `RECEPTUM_ALLOW_MAINNET=1`); every signing path refuses before signing otherwise.
+**Status:** devnet (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`, the default) — see [E2E_RESULTS.md](./E2E_RESULTS.md). Not audited. Mainnet (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) only behind the explicit opt-in (`allowMainnet: true` or `RECEPTUM_ALLOW_MAINNET=1`); every signing path refuses before signing otherwise. Before **every** signature the adapter asks the RPC for its genesis hash, maps it to the CAIP-2 network, requires that to equal the declared network and then applies the opt-in to it (`assertRpcNetwork`; `sendAndConfirm` takes `{ network, allowMainnet }`), so an `rpc` / `rpcUrl` override pointing at mainnet can't slip past a devnet declaration.
 
 No `@solana/web3.js` or `@solana/kit` dependency: the adapter builds, signs and sends legacy transactions itself (Ed25519 via `node:crypto`), derives PDAs and associated token accounts, and talks plain JSON-RPC.
 
@@ -46,7 +46,9 @@ const binding = await createAccountBinding({ key: sellerKey, signer: solanaAccou
 
 ## The `receptum_escrow` program
 
-Native Rust (`program/`, `solana-program` 4.0, no Anchor), built with Agave 4.3.0 `cargo-build-sbf` (platform-tools v1.57); `Cargo.lock` is committed and a clean rebuild is byte-identical. The build `program/receptum_escrow.so` hashes to `b3964928ffc08a5a6266957944d03deb62b206d9dfc356c126dedea229e5d93b` (SHA-256 with trailing zeros removed — what `solana-verify get-executable-hash` prints). It is deployed with `--final`: **no upgrade authority**, no admin, no fee.
+Native Rust (`program/`, `solana-program` 4.0, no Anchor), built with Agave 4.3.0 `cargo-build-sbf` (platform-tools v1.57); `Cargo.lock` is committed and a clean rebuild is byte-identical. The build `program/receptum_escrow.so` hashes to `e20b63d342e98ed1856e1d1df54fa7aaa9fabf8c2b26ac8f3e638e281d3e451b` (SHA-256 with trailing zeros removed — what `solana-verify get-executable-hash` prints). It is deployed on devnet at [`4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC`](https://explorer.solana.com/address/4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC?cluster=devnet) with `--final`: **no upgrade authority**, no admin, no fee.
+
+> **Superseded deployment.** The first devnet deployment, `6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv` (build `b3964928…`), required the vault to hold exactly `amount` at payout, so anyone could lock an escrow forever by sending 1 token unit to its vault (review round 4, HIGH). Being immutable, it can't be fixed in place: it is no longer in `TRUSTED_ESCROWS`, its build no longer verifies, and its receipts were replaced. Don't open escrows on it.
 
 ```text
 open ──deliver (seller, ≤ deliver_by)──▶ delivered ──accept (buyer/evaluator, any time)──▶ released
@@ -62,13 +64,14 @@ open ──deliver (seller, ≤ deliver_by)──▶ delivered ──accept (buy
 | escrow  | PDA `["escrow", buyer, id u64 LE]`            | 272-byte state (SPEC §7.3): parties, evaluator, mint, amount, deadline, review window, delivery, receiptHash |
 | vault   | PDA `["vault", escrow]`, an SPL Token account | the deposit, owned by the escrow PDA; closed (rent to the buyer) on payout                                   |
 
-- **Funds only move to the escrow's own buyer or seller**: payouts go to a token account the program checks is owned by that party (the rail creates the associated token account if needed), and the vault must hold exactly `amount`.
-- Classic SPL Token only — Token-2022 is refused (transfer fees and hooks would break the exact-amount invariant). The vault balance is re-read after the deposit.
+- **Funds only move to the escrow's own buyer or seller**: payouts go to a token account the program checks is owned by that party (the rail creates the associated token account if needed).
+- **Payouts move the whole vault** (at least `amount`, plus anything anyone sent to the vault) and close it, so a donation to a vault can never lock an escrow; it simply goes to the recipient the escrow's state machine picks. A vault below `amount` (impossible with the classic Token program) is refused.
+- Classic SPL Token only — Token-2022 is refused (transfer fees and hooks would break the exact-amount invariant at deposit). The vault balance is re-read after the deposit and must equal `amount`.
 - Checked arithmetic (`deliver_by + window`, `delivered_at + window`), `overflow-checks = true`; the evaluator must differ from buyer and seller; the receipt hash cannot be zero; delivery happens once.
 - `open` works even if someone pre-funds the escrow address (transfer + allocate + assign rather than `CreateAccount`). The escrow id is chosen by the buyer (random by default).
 - Errors (custom codes, numbered like the Soroban escrow): 1 BadState, 2 NotAllowed, 3 TooEarly, 4 TooLate, 5 InvalidArgs, 6 UnsupportedToken, 7 NotFound, 8 Overflow.
 
-Tests: `src/program.test.ts` runs the published `.so` in [LiteSVM](https://github.com/LiteSVM/litesvm) with the real SPL Token and ATA programs — every flow plus negative cases (wrong signer, double delivery, early/late calls, wrong token program, foreign payout account, wrong rent recipient, fake escrow accounts, pre-funded address, overflow). `scripts/e2e-local.mjs` runs the rail, anchor and verifier against a local `solana-test-validator`; `scripts/e2e-devnet.mjs` runs flows A–F on devnet; `scripts/deploy-devnet.mjs` deploys and records `program/deployment.devnet.json`.
+Tests: `src/program.test.ts` runs the published `.so` in [LiteSVM](https://github.com/LiteSVM/litesvm) with the real SPL Token and ATA programs — every flow plus negative cases (wrong signer, double delivery, early/late calls, wrong token program, foreign payout account, wrong rent recipient, fake escrow accounts, pre-funded address, overflow) and vault donations on every settlement path (accept, reject, release, refund, sellerRefund). `scripts/e2e-local.mjs` runs the rail, anchor and verifier against a local `solana-test-validator`; `scripts/e2e-devnet.mjs` runs flows A–F on devnet; `scripts/deploy-devnet.mjs` deploys and records `program/deployment.devnet.json`.
 
 ## x402 `exact` on Solana
 

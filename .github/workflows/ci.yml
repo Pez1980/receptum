@@ -78,3 +78,24 @@ jobs:
           echo "built $built, committed $committed"
           # Enforced: the deployed wasm (built on macOS aarch64) reproduces bit-for-bit on Linux x86_64.
           [ "$built" = "$committed" ] || { echo "::error::receptum_escrow.wasm does not match the committed (deployed) build"; exit 1; }
+
+  solana-program:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/adapter-solana/program
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Agave 4.3.0 (pinned; same toolchain as the deployed build)
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v4.3.0/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Build the program and compare it with the committed (deployed) build
+        run: |
+          cargo-build-sbf --version
+          cargo-build-sbf -- --locked
+          hash() { python3 -c 'import hashlib,sys; d=open(sys.argv[1],"rb").read().rstrip(b"\0"); print(hashlib.sha256(d).hexdigest())' "$1"; }
+          built=$(hash target/deploy/receptum_escrow.so)
+          committed=$(hash receptum_escrow.so)
+          echo "built $built, committed $committed"
+          [ "$built" = "$committed" ] || { echo "::error::receptum_escrow.so does not match the committed (deployed) build"; exit 1; }

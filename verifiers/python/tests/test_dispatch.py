@@ -143,7 +143,7 @@ def test_cli_passes_trusted_escrows_and_horizons(monkeypatch, tmp_path):
 
 
 SOLANA_REF = (
-    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC"
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:2neqpNegEPy9zYppnbMtksNdoXLE9XDesAbBEqKUqTsg"
     ":HrV3o4gmWbjBD52tudx5RAMyJu9tJz5mrJDJMwXtTT8o"
 )
 

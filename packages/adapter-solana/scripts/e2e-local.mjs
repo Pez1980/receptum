@@ -2,7 +2,7 @@
 // own transaction builder, SolanaEscrowRail, SolanaAnchor and the @receptum/verify Solana checks.
 //
 //   solana-test-validator --reset --upgradeable-program \
-//     4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC packages/adapter-solana/program/receptum_escrow.so none
+//     2neqpNegEPy9zYppnbMtksNdoXLE9XDesAbBEqKUqTsg packages/adapter-solana/program/receptum_escrow.so none
 //   pnpm build && node packages/adapter-solana/scripts/e2e-local.mjs
 //
 // Uses throwaway keys generated in memory. The verifier's cluster check is pointed at the local

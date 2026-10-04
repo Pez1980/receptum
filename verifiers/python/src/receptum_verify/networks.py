@@ -50,8 +50,9 @@ TRUSTED_ESCROWS: dict[str, tuple[str, ...]] = {
     "eip155:421614": ("0x1cd7ed69a10d5aafcf2fcb927a431183b3c43862",),
     "stellar:testnet": ("CAFAWMTCCIIVMLATUZ5GMBMPQE5JYJVP35SLVJCNIH6HMARFJDICVWGG",),
     # receptum_escrow, immutable (packages/adapter-solana/program/deployment.devnet.json). The
-    # first deployment 6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv is superseded (review round 4).
-    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": ("4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC",),
+    # earlier deployments 4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC (macOS build, not
+    # reproducible) and 6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv (review round 4) are superseded.
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": ("2neqpNegEPy9zYppnbMtksNdoXLE9XDesAbBEqKUqTsg",),
     "eip155:8453": (),
     "eip155:5042": (),
     "eip155:42161": (),

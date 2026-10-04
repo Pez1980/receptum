@@ -201,7 +201,7 @@ describe("XRPL: the server must serve payment.network", () => {
 
 describe("escrow:receptum-solana is dispatched by rail first (review round 4)", () => {
   const REF =
-    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC:HrV3o4gmWbjBD52tudx5RAMyJu9tJz5mrJDJMwXtTT8o";
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:2neqpNegEPy9zYppnbMtksNdoXLE9XDesAbBEqKUqTsg:HrV3o4gmWbjBD52tudx5RAMyJu9tJz5mrJDJMwXtTT8o";
   for (const network of ["eip155:84532", "xrpl:1", "stellar:testnet", "eip155:8453"])
     for (const reference of [REF, `0x${"11".repeat(32)}`])
       it(`fails (NOT VERIFIED) on ${network} with reference ${reference.slice(0, 12)}…`, async () => {

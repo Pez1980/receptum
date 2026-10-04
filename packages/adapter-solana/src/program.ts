@@ -15,20 +15,23 @@ import type { TransactionInstruction } from "./transaction.js";
 
 /**
  * The `receptum_escrow` program (packages/adapter-solana/program). Deployed immutable (no upgrade
- * authority) on devnet; see program/deployment.devnet.json. Supersedes the first immutable
- * deployment `6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv` (build `b3964928…`), whose payouts
- * required an exact vault balance, so a 1-unit donation to a vault could lock that escrow forever
- * (review round 4). That deployment is no longer trusted and its build no longer verifies.
+ * authority) on devnet; see program/deployment.devnet.json. This is the canonical Linux x86_64
+ * build (pinned Agave 4.3.0, rebuilt and compared in CI). It supersedes two earlier immutable
+ * deployments, neither trusted any more:
+ * - `4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC` (build `e20b63d3…`): same source, but built on
+ *   macOS arm64, whose platform-tools codegen differs from Linux, so it can't be reproduced in CI.
+ * - `6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv` (build `b3964928…`): payouts required an exact
+ *   vault balance, so a 1-unit donation to a vault could lock that escrow forever (review round 4).
  */
-export const RECEPTUM_SOLANA_PROGRAM_ID = "4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC";
+export const RECEPTUM_SOLANA_PROGRAM_ID = "2neqpNegEPy9zYppnbMtksNdoXLE9XDesAbBEqKUqTsg";
 
 /**
  * SHA-256 of the published build (program/receptum_escrow.so) with trailing zero bytes removed —
  * the same value `solana-verify get-executable-hash` prints, and what a verifier computes from the
- * deployed ProgramData (§7.4 of SPEC).
+ * deployed ProgramData (§7.4 of SPEC). Reproducible only on Linux x86_64 (CI job `solana-program`).
  */
 export const RECEPTUM_SOLANA_PROGRAM_HASH =
-  "e20b63d342e98ed1856e1d1df54fa7aaa9fabf8c2b26ac8f3e638e281d3e451b";
+  "b270e9844502f115ffcb41e260a23fe5487d2917dd0842c43c742895bf1467c3";
 
 /** Published deployments by network (mainnet: none — escrows go to mainnet only after an audit). */
 export const RECEPTUM_SOLANA_DEPLOYMENTS: Readonly<Record<string, readonly string[]>> = {

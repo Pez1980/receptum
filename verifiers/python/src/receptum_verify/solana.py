@@ -46,10 +46,12 @@ DEFAULT_SOLANA_RPCS = {
 }
 SOLANA_ESCROW_RAIL = "escrow:receptum-solana"
 # The published receptum_escrow build (packages/adapter-solana/program/deployment.devnet.json).
-# Supersedes 6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv (build b3964928…): its payouts needed
-# an exact vault balance, so a 1-unit donation could lock an escrow (review round 4).
-RECEPTUM_SOLANA_PROGRAM_ID = "4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC"
-RECEPTUM_SOLANA_PROGRAM_HASH = "e20b63d342e98ed1856e1d1df54fa7aaa9fabf8c2b26ac8f3e638e281d3e451b"
+# Canonical Linux x86_64 build (pinned Agave 4.3.0, reproduced in CI). Supersedes
+# 4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC (build e20b63d3…, same source built on macOS arm64,
+# not reproducible on Linux) and 6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv (build b3964928…):
+# the latter's payouts needed an exact vault balance, so a 1-unit donation could lock an escrow.
+RECEPTUM_SOLANA_PROGRAM_ID = "2neqpNegEPy9zYppnbMtksNdoXLE9XDesAbBEqKUqTsg"
+RECEPTUM_SOLANA_PROGRAM_HASH = "b270e9844502f115ffcb41e260a23fe5487d2917dd0842c43c742895bf1467c3"
 
 BPF_LOADER_UPGRADEABLE = "BPFLoaderUpgradeab1e11111111111111111111111"
 MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"

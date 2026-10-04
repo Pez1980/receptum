@@ -180,6 +180,50 @@ contract ReceptumEscrowTest is Test {
         escrow.open(seller, address(usdc), AMT, uint64(block.timestamp + 1 hours), 1 days, address(0));
     }
 
+    /// Review round 4 (the Solana donation lock): tokens sent straight to the contract can't block
+    /// any settlement path or a later open. Payouts are exactly `amount` (the contract pools all
+    /// escrows, so a donation is not attributable to one escrow and stays in the contract).
+    function test_donations_cannot_lock_any_settlement_path() public {
+        usdc.mint(buyer, 10_000_000); // six escrows below
+        uint256 a = _open(address(0));
+        uint256 r = _open(evaluator);
+        uint256 rel = _open(address(0));
+        uint256 ref = _open(address(0));
+        uint256 sr = _open(address(0));
+        usdc.mint(stranger, 1_000);
+        vm.prank(stranger);
+        usdc.transfer(address(escrow), 1); // the 1-unit donation
+        usdc.mint(address(escrow), 999); // and a larger one
+        vm.startPrank(seller);
+        escrow.deliver(a, RH);
+        escrow.deliver(r, RH);
+        escrow.deliver(rel, RH);
+        vm.stopPrank();
+        uint256 sellerBefore = usdc.balanceOf(seller);
+        vm.prank(buyer);
+        escrow.accept(a);
+        assertEq(usdc.balanceOf(seller) - sellerBefore, AMT);
+        uint256 buyerBefore = usdc.balanceOf(buyer);
+        vm.prank(evaluator);
+        escrow.reject(r);
+        assertEq(usdc.balanceOf(buyer) - buyerBefore, AMT);
+        vm.prank(seller);
+        escrow.sellerRefund(sr);
+        assertEq(usdc.balanceOf(buyer) - buyerBefore, 2 * uint256(AMT));
+        vm.warp(block.timestamp + 1 days + 1);
+        vm.prank(stranger);
+        escrow.release(rel);
+        assertEq(usdc.balanceOf(seller) - sellerBefore, 2 * uint256(AMT));
+        vm.prank(stranger);
+        escrow.refund(ref);
+        assertEq(usdc.balanceOf(buyer) - buyerBefore, 3 * uint256(AMT));
+        // Only the donations remain; a new escrow still opens (the delta check is unaffected).
+        assertEq(usdc.balanceOf(address(escrow)), 1_000);
+        vm.prank(buyer);
+        escrow.open(seller, address(usdc), AMT, uint64(block.timestamp + 1 hours), 1 days, address(0));
+        assertEq(usdc.balanceOf(address(escrow)), 1_000 + uint256(AMT));
+    }
+
     function testFuzz_funds_are_conserved(uint128 amount, bool deliver, bool accept) public {
         amount = uint128(bound(amount, 1, 10_000_000));
         vm.prank(buyer);

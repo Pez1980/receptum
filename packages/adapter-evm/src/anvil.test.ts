@@ -1,4 +1,4 @@
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -13,6 +13,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createReceipt, receiptHash, sha256Hex } from "@receptum/core";
+import { startAnvil, type Anvil } from "./anvil.test-util.js";
 import { deployEscrow, EvmEscrowRail, type EvmClients } from "./index.js";
 
 // Integration test against a local anvil chain. Skipped when Foundry isn't installed.
@@ -28,20 +29,21 @@ const hasAnvil =
   Boolean(ANVIL) &&
   existsSync(new URL("../contracts/out/ReceptumEscrow.t.sol/MockUSDC.json", import.meta.url));
 
-const PORT = 8547;
-const chain = defineChain({
-  id: 31337,
-  name: "anvil",
-  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: [`http://127.0.0.1:${PORT}`] } },
-});
+// A free port per run (review round 4: a fixed port made parallel runs collide).
+const chainOn = (url: string) =>
+  defineChain({
+    id: 31337,
+    name: "anvil",
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: [url] } },
+  });
 // anvil's well-known dev keys (public test values)
 const KEYS = [
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
   "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
 ] as const;
 
-function clients(i: 0 | 1): EvmClients {
+function clients(i: 0 | 1, chain: ReturnType<typeof chainOn>): EvmClients {
   const account = privateKeyToAccount(KEYS[i]);
   const transport = http();
   return {
@@ -58,22 +60,19 @@ function clients(i: 0 | 1): EvmClients {
 }
 
 describe.skipIf(!hasAnvil)("ReceptumEscrow on anvil", { timeout: 30_000 }, () => {
-  let anvil: ChildProcess;
+  let anvil: Anvil | undefined;
   let contract: Address;
   let token: Address;
-  const buyer = clients(0);
-  const seller = clients(1);
+  let chain: ReturnType<typeof chainOn>;
+  let buyer: EvmClients;
+  let seller: EvmClients;
 
   beforeAll(async () => {
-    anvil = spawn(ANVIL!, ["--port", String(PORT), "--silent"], { stdio: "ignore" });
-    for (let i = 0; i < 50; i++) {
-      try {
-        await buyer.publicClient.getBlockNumber();
-        break;
-      } catch {
-        await new Promise((r) => setTimeout(r, 100));
-      }
-    }
+    // Rejects at once (with anvil's output) if the child fails to start.
+    anvil = await startAnvil(ANVIL!);
+    chain = chainOn(anvil.url);
+    buyer = clients(0, chain);
+    seller = clients(1, chain);
     contract = await deployEscrow(buyer);
     const mock = JSON.parse(
       readFileSync(
@@ -99,7 +98,9 @@ describe.skipIf(!hasAnvil)("ReceptumEscrow on anvil", { timeout: 30_000 }, () =>
     await buyer.publicClient.waitForTransactionReceipt({ hash: mint });
   }, 30_000);
 
-  afterAll(() => anvil?.kill());
+  afterAll(async () => {
+    await anvil?.stop(); // waits for the process to exit
+  });
 
   const receipt = () =>
     receiptHash(

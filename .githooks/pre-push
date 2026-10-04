@@ -1,3 +1,10 @@
 #!/bin/sh
 # Refuses to push unless the full check passes (format, lint, build, typecheck, tests).
-pnpm check >/dev/null 2>&1 || { echo "pre-push: pnpm check failed — run it to see why." >&2; exit 1; }
+# On failure, prints the last lines of `pnpm check` so the reason is visible.
+log=$(mktemp "${TMPDIR:-/tmp}/receptum-pre-push.XXXXXX") || exit 1
+trap 'rm -f "$log"' EXIT
+if ! pnpm check >"$log" 2>&1; then
+  echo "pre-push: pnpm check failed — last ${PRE_PUSH_TAIL:-60} lines:" >&2
+  tail -n "${PRE_PUSH_TAIL:-60}" "$log" >&2
+  exit 1
+fi

@@ -1,0 +1,19 @@
+{
+  "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  "programId": "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv",
+  "programData": "E4531aKQES2JXqyHLdZaQCfh6rWmJzhawf5mmLG97mjx",
+  "executableHash": "b3964928ffc08a5a6266957944d03deb62b206d9dfc356c126dedea229e5d93b",
+  "executableHashNote": "SHA-256 of program/receptum_escrow.so with trailing zero bytes removed (= solana-verify get-executable-hash); verifiers recompute it from the ProgramData account after its 45-byte header",
+  "upgradeAuthority": null,
+  "deployedSlot": 507172712,
+  "deployer": "6iFH2SsdwVKqdHR4gYFHqV7hYAjZoRuHuvNNHTh3Etsb",
+  "deployTransaction": "589nTvxgUUmXknyUBTK78qabCS4J1C2Wb4tU4trALUm5dMQJPN5TbWyoyJzmtsgpKad75rMxVw6DT93MDykZqDqH",
+  "deployUrl": "https://explorer.solana.com/tx/589nTvxgUUmXknyUBTK78qabCS4J1C2Wb4tU4trALUm5dMQJPN5TbWyoyJzmtsgpKad75rMxVw6DT93MDykZqDqH?cluster=devnet",
+  "program": "https://explorer.solana.com/address/6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv?cluster=devnet",
+  "build": {
+    "toolchain": "Agave 4.3.0 cargo-build-sbf, platform-tools v1.57 (rustc 1.95.0-sbpf-solana-v1.57)",
+    "crate": "solana-program =4.0.0 (Cargo.lock committed)",
+    "command": "cd packages/adapter-solana/program && cargo-build-sbf"
+  },
+  "note": "Unaudited. Devnet only. Deployed with --final: there is no upgrade authority."
+}

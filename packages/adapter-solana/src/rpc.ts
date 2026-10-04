@@ -14,16 +14,24 @@ export class SolanaRpcError extends Error {
   }
 }
 
-/** Plain-fetch JSON-RPC client. */
-export function solanaJsonRpc(url: string, timeoutMs = 30_000): SolanaRpc {
+/**
+ * Plain-fetch JSON-RPC client. HTTP 429 and 5xx replies (public endpoints rate-limit) are retried
+ * with exponential backoff, up to `retries` times.
+ */
+export function solanaJsonRpc(url: string, timeoutMs = 30_000, retries = 5): SolanaRpc {
   let id = 0;
   return async (method, params) => {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    let res: Response;
+    for (let attempt = 0; ; attempt++) {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if ((res.status !== 429 && res.status < 500) || attempt >= retries) break;
+      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+    }
     if (!res.ok) throw new SolanaRpcError(`${method} via ${url}: HTTP ${res.status}`);
     const body = (await res.json()) as {
       result?: unknown;

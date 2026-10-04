@@ -8,7 +8,8 @@
 // $RECEPTUM_WALLETS_DIR/solana-devnet-deployer.json (~1.1 SOL: program rent + the temporary
 // buffer) and the program address keypair solana-devnet-program.json. Neither is ever printed.
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { generateKeyPairSync } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   elfHash,
@@ -39,31 +40,78 @@ const program = loadKeypair("program");
 if (program.address !== RECEPTUM_SOLANA_PROGRAM_ID)
   throw new Error("solana-devnet-program.json is not the published program address");
 
-let signature = null;
+// The CLI prints a recovery seed phrase for any buffer keypair it generates itself, so the
+// buffer keypair is created here (in the wallets dir, mode 600) and the CLI's stderr is never
+// shown raw: only lines without key material are echoed.
+function cli(args) {
+  try {
+    const out = execFileSync("solana", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    assertNoSecrets(out);
+    return out;
+  } catch (err) {
+    const lines = String(err.stderr ?? "")
+      .split("\n")
+      .filter(
+        (l) => /error|insufficient|failed/i.test(l) && !/seed phrase|keygen recover/i.test(l),
+      );
+    throw new Error(`solana ${args[0]} ${args[1]} failed: ${lines.join(" | ").slice(0, 500)}`);
+  }
+}
+const wallet = (role) => join(walletsDir, `solana-devnet-${role}.json`);
+const common = ["--keypair", wallet("deployer"), "--url", RPC_URL, "--commitment", "confirmed"];
+
+// DEPLOY_SIGNATURE records the deploy transaction when re-running only the post-deploy checks.
+let signature = process.env.DEPLOY_SIGNATURE ?? null;
 const existing = await getAccount(rpc, RECEPTUM_SOLANA_PROGRAM_ID);
 if (!existing) {
-  const out = execFileSync(
-    "solana",
-    [
-      "program",
-      "deploy",
-      so.pathname,
-      "--program-id",
-      join(walletsDir, "solana-devnet-program.json"),
-      "--keypair",
-      join(walletsDir, "solana-devnet-deployer.json"),
-      "--final",
-      "--use-rpc",
-      "--url",
-      RPC_URL,
-      "--commitment",
-      "confirmed",
-      "--output",
-      "json",
-    ],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
-  );
-  assertNoSecrets(out);
+  const bufferFile = wallet("buffer");
+  if (!existsSync(bufferFile)) {
+    const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+    const d = Buffer.from(privateKey.export({ format: "jwk" }).d, "base64url");
+    const x = Buffer.from(publicKey.export({ format: "jwk" }).x, "base64url");
+    writeFileSync(bufferFile, JSON.stringify([...d, ...x]), { mode: 0o600 });
+  }
+  loadKeypair("buffer"); // registers it for the secret screen
+  // Write (or resume writing) the buffer; retried because public RPCs drop write transactions.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      cli([
+        "program",
+        "write-buffer",
+        so.pathname,
+        "--buffer",
+        bufferFile,
+        "--use-rpc",
+        "--max-sign-attempts",
+        "50",
+        "--with-compute-unit-price",
+        "10000",
+        ...common,
+      ]);
+      break;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      console.log(`write-buffer attempt ${attempt} failed, resuming: ${err.message}`);
+    }
+  }
+  const out = cli([
+    "program",
+    "deploy",
+    "--buffer",
+    bufferFile,
+    "--program-id",
+    wallet("program"),
+    "--final",
+    "--use-rpc",
+    "--with-compute-unit-price",
+    "10000",
+    "--output",
+    "json",
+    ...common,
+  ]);
   signature = JSON.parse(out).signature ?? null;
   console.log("deployed", RECEPTUM_SOLANA_PROGRAM_ID, signature ?? "");
 }

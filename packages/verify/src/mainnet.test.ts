@@ -281,7 +281,8 @@ describe("mainnet escrow receipts while no deployment is published", () => {
 describe("CLI header", () => {
   it(
     "prints the mainnet/testnet label first (offline, built CLI)",
-    { timeout: 30_000 },
+    // Spawns the built CLI twice; on a loaded machine each start can take ~20 s.
+    { timeout: 120_000 },
     async () => {
       const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
       const { tmpdir } = await import("node:os");

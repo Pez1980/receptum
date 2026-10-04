@@ -284,8 +284,12 @@ export class SorobanRpcClient {
     this.allowMainnet = options.allowMainnet;
   }
 
-  /** Refuses any RPC whose passphrase isn't this client's network. */
-  assertNetwork(): Promise<void> {
+  /**
+   * Refuses any RPC whose passphrase isn't this client's network. Read-only calls reuse the first
+   * answer; `fresh` (used before every signature) asks the RPC again.
+   */
+  assertNetwork(fresh = false): Promise<void> {
+    if (fresh) this.checked = undefined;
     this.checked ??= this.server.getNetwork().then((n) => {
       if (n.passphrase !== this.network.networkPassphrase) {
         this.checked = undefined;
@@ -312,7 +316,7 @@ export class SorobanRpcClient {
     operation: xdr.Operation,
   ): Promise<{ hash: string; returnValue?: xdr.ScVal; ledger: number }> {
     assertStellarSigningAllowed(this.network, this.allowMainnet);
-    await this.assertNetwork();
+    await this.assertNetwork(true);
     const account = await this.server.getAccount(signer.publicKey);
     const draft = new TransactionBuilder(account, {
       fee: BASE_FEE,

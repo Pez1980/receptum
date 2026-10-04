@@ -22,8 +22,9 @@ const TX = `0x${"11".repeat(32)}` as const;
 
 afterEach(() => vi.unstubAllEnvs());
 
-function mocked(network: EvmNetwork, allowMainnet?: boolean) {
+function mocked(network: EvmNetwork, allowMainnet?: boolean, rpcChainId = network.chain.id) {
   const walletClient = {
+    getChainId: vi.fn(async () => rpcChainId),
     sendTransaction: vi.fn(async () => TX),
     writeContract: vi.fn(async () => TX),
     deployContract: vi.fn(async () => TX),
@@ -176,3 +177,54 @@ describe("signing paths refuse mainnet before signing", () => {
 });
 
 const rail = (c: EvmClients) => new EvmEscrowRail(c);
+
+describe("signing paths verify the RPC's chain id before every signature (review round 4)", () => {
+  const sepolia = TESTNETS["eip155:84532"];
+  const escrowId = `eip155:84532:0x1111111111111111111111111111111111111111:1`;
+  const openParams = {
+    contract: "0x1111111111111111111111111111111111111111",
+    seller: "0x3333333333333333333333333333333333333333",
+    amount: 1n,
+    deliverBy: new Date(),
+    reviewWindowSeconds: 0,
+  } as const;
+
+  it("a testnet declaration over a mainnet RPC (rpcUrl override) signs nothing", async () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "1"); // even with the env opt-in
+    for (const allowMainnet of [undefined, false, true]) {
+      const { c, walletClient } = mocked(sepolia, allowMainnet, 8453);
+      const r = rail(c);
+      for (const call of [
+        () => new EvmAnchor(c).anchor(H),
+        () => deployEscrow(c),
+        () => r.open(openParams),
+        () => r.deliver(escrowId, H),
+        () => r.accept(escrowId),
+        () => r.reject(escrowId),
+        () => r.release(escrowId),
+        () => r.refund(escrowId),
+        () => r.sellerRefund(escrowId),
+      ])
+        await expect(call()).rejects.toThrow(/RPC serves eip155:8453, not eip155:84532/);
+      expect(walletClient.sendTransaction).not.toHaveBeenCalled();
+      expect(walletClient.writeContract).not.toHaveBeenCalled();
+      expect(walletClient.deployContract).not.toHaveBeenCalled();
+    }
+  });
+
+  it("a mainnet declaration over a mainnet RPC still needs the opt-in", async () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
+    const { c, walletClient } = mocked(MAINNETS["eip155:8453"], false, 8453);
+    await expect(new EvmAnchor(c).anchor(H)).rejects.toThrow(MainnetNotAllowedError);
+    expect(walletClient.getChainId).not.toHaveBeenCalled();
+    expect(walletClient.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it("checks the chain id before each of open's two signatures", async () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
+    const { c, walletClient } = mocked(sepolia);
+    walletClient.getChainId.mockResolvedValueOnce(84532).mockResolvedValue(8453);
+    await expect(rail(c).open(openParams)).rejects.toThrow(/RPC serves eip155:8453/);
+    expect(walletClient.writeContract).toHaveBeenCalledOnce(); // the approve only
+  });
+});

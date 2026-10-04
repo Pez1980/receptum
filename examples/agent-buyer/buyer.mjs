@@ -25,6 +25,7 @@ const paidFetch = wrapFetchWithPaymentFromConfig(fetch, {
 });
 const buy = createReceptumFetch({
   paidFetch,
+  networks: ["eip155:84532"], // what paidFetch is registered to pay on (required)
   allowedSellers: [expectedSeller],
   // The buyer's own expectations — never taken from the response.
   expected: {

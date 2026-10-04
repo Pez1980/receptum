@@ -51,6 +51,12 @@ Not yet published; this release ships everything below. Testnets stay the defaul
 
 - Review round 2 items 3 (Soroban escrow), 13 (history-derived delivery on XRPL and Stellar) and 14 (Stellar batch claims).
 - Review round 3 (Codex): XRPL currency identity comparison (case-sensitive, protocol bytes), nonstandard XRPL currencies, incomplete XRPL history, binding expiry during settlement, malformed EVM `Transfer` logs, XRPL escrow acceptance terms. See [SECURITY.md](SECURITY.md).
+- Review round 4 (Codex, 4 Oct 2026), see [SECURITY.md](SECURITY.md#review-round-4-codex-4-oct-2026):
+  - **Solana `receptum_escrow` donation lock (High):** payouts now move the whole vault (≥ `amount`) instead of requiring an exact balance. The fixed build (`e20b63d3…3e451b`) is a new immutable devnet program `4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC`; the first deployment `6VdZ7E96…` is superseded (removed from `TRUSTED_ESCROWS`, its build no longer verifies) and the Solana escrow receipts A–F were re-run and replaced. EVM and Soroban escrows were checked and are not affected (donation tests added).
+  - **Signing gates verify the RPC's network (High):** Solana checks the genesis hash before every signature; EVM checks `eth_chainId`; Horizon checks its network passphrase; Soroban re-checks its passphrase before every signature (XRPL already checked NetworkID).
+  - `@receptum/client`: `createReceptumFetch` requires `networks` and gates `expected.network` (Medium).
+  - `@receptum/verify`: `escrow:receptum-solana` is dispatched by rail first, so a non-Solana `payment.network` fails as in Python (Low).
+  - The anvil integration test uses a free port with start-up failure detection and an awaited shutdown; the pre-push hook prints why `pnpm check` failed (Low).
 - Verifier parity round: the Python verifier's XRPL issued-token, TokenEscrow and evaluator rules, its single trusted registry and identical mainnet escrow verdicts, and the TypeScript/SPEC gaps listed under _Changed_. See [SECURITY.md](SECURITY.md).
 - `@receptum/server` records XRPL issued-token x402 requirements as `<currency>.<issuer>` + 10^-15 units and refuses, before charging, values that are not exactly representable (and issued-token requirements on other networks).
 - `@receptum/client`: `expected.amount` / `maxAmount` must be integers in the receipt's unit (10^-15 units for XRPL issued tokens); XRPL assets compare by currency identity and issuer; non-EVM payees compare case-sensitively.
@@ -58,6 +64,8 @@ Not yet published; this release ships everything below. Testnets stay the defaul
 ### Breaking (since the 0.2.0 draft)
 
 - `@receptum/adapter-xrpl`: `iouDecimals` is removed — issued-token amounts are always 10^-15 units; `toXrplAmount(asset, amount)` and `fromXrplAmount(amount)` lose their `decimals` argument; `parseXrplAsset` and the escrow rail refuse display symbols (`RLUSD.r…`) — use the 40-hex code. `spec/vectors/xrpl-currency-v1.json` marks display symbols invalid.
+- `@receptum/adapter-solana`: `sendAndConfirm(rpc, payer, instructions, options)` takes `{ network, allowMainnet?, extraSigners?, commitment?, timeoutMs? }` (the network is required; extra signers moved into the options). `RECEPTUM_SOLANA_PROGRAM_ID` / `RECEPTUM_SOLANA_PROGRAM_HASH` are the new deployment and build.
+- `@receptum/client`: `createReceptumFetch` requires `networks` (the CAIP-2 networks `paidFetch` pays on).
 - Python verifier: `xrpl_x402._currency_id` / `_asset_currency_id` and `xrpl_escrow.ISSUED_DECIMALS` are gone (use `xrpl_assets.currency_id`, `value_to_units`); `TRUSTED_EVM_ESCROWS` and `TRUSTED_SOROBAN_ESCROWS` are aliases of `networks.TRUSTED_ESCROWS`.
 
 ## 0.1.0 — October 2026

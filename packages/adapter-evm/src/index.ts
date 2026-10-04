@@ -163,6 +163,21 @@ export function assertSigningAllowed(c: Pick<EvmClients, "network" | "allowMainn
 }
 
 /**
+ * The signing gate run before every signature (review round 4): `assertSigningAllowed` on the
+ * declared network, then the chain id the wallet client's RPC actually serves (`eth_chainId`)
+ * must equal it. A custom `rpcUrl` (or hand-built clients) pointing at another chain — a mainnet
+ * endpoint behind a testnet declaration — throws before anything is signed.
+ */
+export async function assertSigningNetwork(
+  c: Pick<EvmClients, "network" | "allowMainnet" | "walletClient">,
+): Promise<void> {
+  assertSigningAllowed(c);
+  const served = await c.walletClient.getChainId();
+  if (served !== c.network.chain.id || `eip155:${served}` !== c.network.caip2)
+    throw new Error(`refusing to sign: the RPC serves eip155:${served}, not ${c.network.caip2}`);
+}
+
+/**
  * Signing clients for `networkId`. Mainnet ids throw `MainnetNotAllowedError` here unless
  * `allowMainnet: true` is passed or `RECEPTUM_ALLOW_MAINNET=1` is set. The third argument may be
  * an RPC URL (legacy form) or `{ rpcUrl, allowMainnet }`.
@@ -191,7 +206,7 @@ export function clientsFor(
 
 /** Deploys a ReceptumEscrow contract and returns its address. */
 export async function deployEscrow(c: EvmClients): Promise<Address> {
-  assertSigningAllowed(c);
+  await assertSigningNetwork(c);
   const hash = await c.walletClient.deployContract({
     abi: receptumEscrowAbi,
     bytecode: receptumEscrowBytecode,
@@ -235,7 +250,7 @@ export class EvmEscrowRail implements EscrowRail {
     functionName: "deliver" | "accept" | "reject" | "release" | "refund" | "sellerRefund",
     args: readonly unknown[],
   ) {
-    assertSigningAllowed(this.c);
+    await assertSigningNetwork(this.c);
     const hash = await this.c.walletClient.writeContract({
       address: contract,
       abi: receptumEscrowAbi,
@@ -251,7 +266,7 @@ export class EvmEscrowRail implements EscrowRail {
 
   /** Buyer: approve the token and open an escrow. Returns the escrowId and transaction hashes. */
   async open(p: OpenEscrowParams): Promise<{ escrowId: string; approve: Hex; open: Hex }> {
-    assertSigningAllowed(this.c);
+    await assertSigningNetwork(this.c);
     const token = p.token ?? this.c.network.usdc;
     const approve = await this.c.walletClient.writeContract({
       address: token,
@@ -262,6 +277,7 @@ export class EvmEscrowRail implements EscrowRail {
       chain: this.c.network.chain,
     });
     await this.c.publicClient.waitForTransactionReceipt({ hash: approve });
+    await assertSigningNetwork(this.c);
     const open = await this.c.walletClient.writeContract({
       address: p.contract,
       abi: receptumEscrowAbi,
@@ -387,7 +403,7 @@ export class EvmAnchor implements Anchor {
   constructor(private readonly c: EvmClients) {}
 
   async anchor(receiptHash: Sha256Hex): Promise<AnchorRecord> {
-    assertSigningAllowed(this.c);
+    await assertSigningNetwork(this.c);
     const hash = await this.c.walletClient.sendTransaction({
       to: this.c.account.address,
       value: 0n,

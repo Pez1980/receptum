@@ -447,19 +447,21 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
         `claimable balance released to the payee (${state.releasedBy}); first delivery anchor ${state.deliveredBy} matches`,
       );
     }
-    if (rail.startsWith("x402:") && rail !== "x402:exact")
-      return unavailable(`only the x402 "exact" scheme is recognised, not ${rail}`);
-    if (network.startsWith("solana:") && (rail === "x402:exact" || rail === SOLANA_ESCROW_RAIL))
+    // Dispatched by rail first, like the Python verifier: a non-Solana payment.network (or a
+    // malformed reference) is a contradiction (fail), never "unsupported" (review round 4).
+    if (rail === SOLANA_ESCROW_RAIL)
       return {
         level: 3,
         name,
-        ...(rail === SOLANA_ESCROW_RAIL
-          ? await verifySolanaEscrowPayment(signed, [
-              ...(TRUSTED_ESCROWS[network] ?? []),
-              ...trustedEscrows,
-            ])
-          : await verifySolanaX402Payment(signed.receipt.payment)),
+        ...(await verifySolanaEscrowPayment(signed, [
+          ...(TRUSTED_ESCROWS[network] ?? []),
+          ...trustedEscrows,
+        ])),
       };
+    if (rail.startsWith("x402:") && rail !== "x402:exact")
+      return unavailable(`only the x402 "exact" scheme is recognised, not ${rail}`);
+    if (rail === "x402:exact" && network.startsWith("solana:"))
+      return { level: 3, name, ...(await verifySolanaX402Payment(signed.receipt.payment)) };
     if (rail === "x402:exact" && network.startsWith("xrpl:"))
       return { level: 3, name, ...(await verifyXrplX402Payment(signed.receipt.payment)) };
     if (rail === "x402:exact" && STELLAR_IDS.includes(network)) {

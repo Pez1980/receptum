@@ -90,12 +90,45 @@ describe("createReceptumFetch with mainnet networks", () => {
   });
 
   it("testnets need no opt-in; RECEPTUM_ALLOW_MAINNET=1 also works", () => {
+    // (networks are required; see the review-round-4 tests below)
     vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
     expect(() =>
       createReceptumFetch({ paidFetch: respond("x"), networks: ["eip155:84532"] }),
     ).not.toThrow();
     vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "1");
     expect(() => createReceptumFetch({ paidFetch: respond("x"), networks: [BASE] })).not.toThrow();
+  });
+
+  it("requires declared networks: without them nothing could be gated (review round 4)", () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
+    const paidFetch = respond(BASE);
+    for (const opts of [
+      { paidFetch },
+      { paidFetch, allowMainnet: false },
+      { paidFetch, networks: [] },
+      { paidFetch, expected: { network: BASE } },
+    ])
+      expect(() => createReceptumFetch(opts as never)).toThrow(/networks/);
+    expect(paidFetch).not.toHaveBeenCalled();
+  });
+
+  it("gates expected.network too, and it must be a declared network", () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
+    const paidFetch = respond(BASE);
+    // A mainnet expected.network without the opt-in is refused, even with testnet networks.
+    expect(() =>
+      createReceptumFetch({ paidFetch, networks: ["eip155:84532"], expected: { network: BASE } }),
+    ).toThrow(MainnetNotAllowedError);
+    // An expected network outside the declared ones could never match: refused at construction.
+    expect(() =>
+      createReceptumFetch({
+        paidFetch,
+        networks: [BASE],
+        allowMainnet: true,
+        expected: { network: "eip155:84532" },
+      }),
+    ).toThrow(/expected.network/);
+    expect(paidFetch).not.toHaveBeenCalled();
   });
 
   it("checkDelivery pins mainnet vs testnet with expected.network", () => {

@@ -56,13 +56,14 @@ function signerSpy() {
 }
 
 /** Stubs the Horizon calls `HorizonClient.submit` makes. */
-function stubHorizon(h: HorizonClient) {
+function stubHorizon(h: HorizonClient, passphrase = h.network.networkPassphrase) {
+  const root = vi.fn(async () => ({ network_passphrase: passphrase }));
   const loadAccount = vi.fn(async (id: string) => new Account(id, "1"));
   const submitTransaction = vi.fn(async (tx: Transaction) => ({
     hash: Buffer.from(tx.hash()).toString("hex"),
   }));
-  Object.assign(h.server, { loadAccount, submitTransaction });
-  return { loadAccount, submitTransaction };
+  Object.assign(h.server, { root, loadAccount, submitTransaction });
+  return { root, loadAccount, submitTransaction };
 }
 
 /** Stubs the Soroban RPC calls `SorobanRpcClient.invoke` makes. */
@@ -229,6 +230,19 @@ describe("Soroban rail on pubnet", () => {
     expect(s.sendTransaction).not.toHaveBeenCalled();
   });
 
+  it("asks the RPC for its passphrase again before every signature (review round 4)", async () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
+    const { signer, passphrases } = signerSpy();
+    const rail = new SorobanEscrowRail({ contractId, signer, rpcUrl: "https://rpc-proxy.example" });
+    const s = stubRpc(rail.rpc, Networks.TESTNET);
+    const id = `stellar:testnet:${contractId}:1`;
+    await rail.release(id);
+    s.getNetwork.mockResolvedValue({ passphrase: Networks.PUBLIC });
+    await expect(rail.release(id)).rejects.toThrow(/configured for stellar:testnet/);
+    expect(s.sendTransaction).toHaveBeenCalledOnce();
+    expect(passphrases).toEqual([Networks.TESTNET]);
+  });
+
   it("keeps rails and escrow ids on their own network", async () => {
     const testnetRail = new SorobanEscrowRail({ contractId });
     await expect(testnetRail.getEscrow(escrowId)).rejects.toThrow(/is on stellar:pubnet/);
@@ -236,5 +250,67 @@ describe("Soroban rail on pubnet", () => {
     await expect(pubnetRail.getEscrow(`stellar:testnet:${contractId}:1`)).rejects.toThrow(
       /is on stellar:testnet/,
     );
+  });
+});
+
+describe("Horizon: the server's passphrase is verified before every signature (review round 4)", () => {
+  const bump = [Operation.bumpSequence({ bumpTo: "0" })];
+
+  it("a testnet client on a custom horizonUrl that serves pubnet signs nothing", async () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "1"); // even with the env opt-in
+    for (const allowMainnet of [undefined, false, true]) {
+      const { signer, passphrases } = signerSpy();
+      const h = new HorizonClient({
+        horizonUrl: "https://horizon-proxy.example",
+        ...(allowMainnet !== undefined ? { allowMainnet } : {}),
+      });
+      const s = stubHorizon(h, Networks.PUBLIC);
+      await expect(h.submit(signer, bump)).rejects.toThrow(
+        /Horizon serves "Public Global Stellar Network ; September 2015", not stellar:testnet/,
+      );
+      expect(s.loadAccount).not.toHaveBeenCalled();
+      expect(passphrases).toEqual([]);
+    }
+  });
+
+  it("a pubnet client still needs the opt-in before Horizon is even asked", async () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
+    const { signer } = signerSpy();
+    const h = new HorizonClient({ network: "pubnet", horizonUrl: "https://horizon-proxy.example" });
+    const s = stubHorizon(h);
+    await expect(h.submit(signer, bump)).rejects.toThrow(MainnetNotAllowedError);
+    expect(s.root).not.toHaveBeenCalled();
+  });
+
+  it("asks again before each signature", async () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
+    const { signer, passphrases } = signerSpy();
+    const h = new HorizonClient({ horizonUrl: "https://horizon-proxy.example" });
+    const s = stubHorizon(h);
+    await h.submit(signer, bump);
+    s.root.mockResolvedValue({ network_passphrase: Networks.PUBLIC });
+    await expect(h.submit(signer, bump)).rejects.toThrow(/not stellar:testnet/);
+    expect(s.root).toHaveBeenCalledTimes(2);
+    expect(passphrases).toEqual([Networks.TESTNET]);
+  });
+
+  it("the claimable-balance rail and the anchor go through the same check", async () => {
+    vi.stubEnv("RECEPTUM_ALLOW_MAINNET", "");
+    const { signer, passphrases } = signerSpy();
+    const opts = { signer, horizonUrl: "https://horizon-proxy.example" };
+    const rail = new StellarClaimableEscrowRail(opts);
+    stubHorizon((rail as unknown as { horizon: HorizonClient }).horizon, Networks.PUBLIC);
+    await expect(
+      rail.open({
+        seller,
+        amount: "10000000",
+        deadline: new Date(Date.now() + 3_600_000),
+        reviewWindowSeconds: 600,
+      }),
+    ).rejects.toThrow(/not stellar:testnet/);
+    const anchor = new StellarAnchor(opts);
+    stubHorizon((anchor as unknown as { horizon: HorizonClient }).horizon, Networks.PUBLIC);
+    await expect(anchor.anchor(HASH)).rejects.toThrow(/not stellar:testnet/);
+    expect(passphrases).toEqual([]);
   });
 });

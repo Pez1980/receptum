@@ -111,7 +111,11 @@ const expected = (maxValue: string) => ({
 describe("x402 exact on XRPL with an issued token, end to end (mocks)", () => {
   it("pays 0.25 RCPTUSD, receipts 250000000000000 units, and verifies the delivery", async () => {
     const { config } = seller(await requirement("0.25"));
-    const buy = createReceptumFetch({ paidFetch: paidFetch(config), expected: expected("0.25") });
+    const buy = createReceptumFetch({
+      paidFetch: paidFetch(config),
+      networks: ["xrpl:1"],
+      expected: expected("0.25"),
+    });
     const { receipt, check } = await buy("https://render.example/render");
     expect(check.ok).toBe(true);
     expect(receipt.receipt.payment).toMatchObject({
@@ -134,10 +138,15 @@ describe("x402 exact on XRPL with an issued token, end to end (mocks)", () => {
 
   it("the buyer's maxAmount compares integer units: 0.25 exceeds a 0.2 cap", async () => {
     const { config } = seller(await requirement("0.25"));
-    const buy = createReceptumFetch({ paidFetch: paidFetch(config), expected: expected("0.2") });
+    const buy = createReceptumFetch({
+      paidFetch: paidFetch(config),
+      networks: ["xrpl:1"],
+      expected: expected("0.2"),
+    });
     await expect(buy("https://render.example/render")).rejects.toThrow(/exceeds the maximum/);
     const decimal = createReceptumFetch({
       paidFetch: paidFetch(config),
+      networks: ["xrpl:1"],
       expected: { ...expected("0.25"), maxAmount: "0.25" },
     });
     await expect(decimal("https://render.example/render")).rejects.toThrow(ReceiptError);

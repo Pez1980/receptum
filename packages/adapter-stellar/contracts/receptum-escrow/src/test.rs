@@ -822,3 +822,42 @@ fn escrows_are_isolated() {
     assert_eq!(s.bal(&s.id), AMOUNT);
     assert_eq!(s.escrow.get(&b).receipt_hash, None);
 }
+
+// ─── donations (review round 4) ────────────────────────────────────────────
+
+/// The Solana donation lock (review round 4) has no Soroban analogue: the contract pools every
+/// escrow, measures only the delta at `open` and pays exactly `amount` out. Tokens sent straight
+/// to the contract can't block any settlement path or a later `open`.
+#[test]
+fn donations_cannot_lock_any_settlement_path() {
+    let s = setup();
+    let sac = StellarAssetClient::new(&s.env, &s.token.address);
+    let a = s.open();
+    let r = s.open_with(Some(s.evaluator.clone()), WINDOW);
+    let rel = s.open();
+    let rf = s.open();
+    let sr = s.open();
+    sac.mint(&s.stranger, &1_000);
+    s.token.transfer(&s.stranger, &s.id, &1); // the 1-unit donation
+    sac.mint(&s.id, &999); // and a larger one
+    for id in [a, r, rel] {
+        s.escrow.deliver(&id, &hash(&s.env, 7));
+    }
+    let buyer0 = s.bal(&s.buyer);
+    s.escrow.accept(&a, &s.buyer);
+    assert_eq!(s.bal(&s.seller), AMOUNT);
+    s.escrow.reject(&r, &s.evaluator);
+    assert_eq!(s.bal(&s.buyer), buyer0 + AMOUNT);
+    s.escrow.seller_refund(&sr);
+    assert_eq!(s.bal(&s.buyer), buyer0 + 2 * AMOUNT);
+    s.at(DEADLINE + 1);
+    s.escrow.release(&rel);
+    assert_eq!(s.bal(&s.seller), 2 * AMOUNT);
+    s.escrow.refund(&rf);
+    assert_eq!(s.bal(&s.buyer), buyer0 + 3 * AMOUNT);
+    // Only the donations remain; a new escrow still opens (the delta check is unaffected).
+    assert_eq!(s.bal(&s.id), 1_000);
+    s.at(T0);
+    s.open();
+    assert_eq!(s.bal(&s.id), 1_000 + AMOUNT);
+}

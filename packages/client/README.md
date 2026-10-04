@@ -2,9 +2,11 @@
 
 Pay for agent work over x402 and only accept results that come with a valid receipt.
 
-`createReceptumFetch({ paidFetch, allowedSellers })` wraps a paying fetch (e.g. `@x402/fetch`) and throws `ReceiptError` unless: the seller signature verifies, SHA-256 of the received bytes equals `outputSha256`, the receipt's `payment.reference` is the x402 settlement transaction, and the seller is on your allow-list. `checkDelivery()` runs the same checks on data you already have.
+`createReceptumFetch({ paidFetch, networks, allowedSellers })` wraps a paying fetch (e.g. `@x402/fetch`) and throws `ReceiptError` unless: the seller signature verifies, SHA-256 of the received bytes equals `outputSha256`, the receipt's `payment.reference` is the x402 settlement transaction, and the seller is on your allow-list. `checkDelivery()` runs the same checks on data you already have.
 
 Pass `requireBinding: true` with `bindingVerifiers: [evmBindingVerifier]` (from `@receptum/adapter-evm`; Stellar is built in, XRPL has `xrplBindingVerifier`) to also require an account binding (SPEC §4.1) proving the seller controls the account you paid. Without a verifier for the payee's namespace the check fails closed. `check.payeeBound` reports the result either way.
+
+`networks` is **required**: the CAIP-2 networks your `paidFetch` is registered to pay on (e.g. `["eip155:84532"]`). A missing or empty list throws a `TypeError` at construction — without it a mainnet payment could not be refused before `paidFetch` pays.
 
 See [`examples/agent-buyer`](../../examples/agent-buyer/buyer.mjs).
 
@@ -22,4 +24,4 @@ const buy = createReceptumFetch({
 });
 ```
 
-With `networks`, `createReceptumFetch` throws `MainnetNotAllowedError` at construction — before any request is paid — for a mainnet without the opt-in, and rejects receipts on networks outside the list. Pin `expected.network` so a testnet receipt can never stand in for a mainnet payment.
+`createReceptumFetch` throws `MainnetNotAllowedError` at construction — before any request is paid — when `networks` or `expected.network` names a mainnet (or unknown) network without the opt-in, throws a `TypeError` when `expected.network` is not one of the declared `networks`, and rejects receipts on networks outside the list. Pin `expected.network` so a testnet receipt can never stand in for a mainnet payment.

@@ -54,6 +54,17 @@ export function rpcFor(network: string, rpcUrl?: string): SolanaRpc {
   return solanaJsonRpc(url);
 }
 
+/**
+ * The CAIP-2 id of the cluster an RPC actually serves: `solana:` + the first 32 characters of the
+ * base58 genesis hash it reports. Throws when the reply is not a genesis hash.
+ */
+export async function rpcNetwork(rpc: SolanaRpc): Promise<string> {
+  const genesis = await rpc("getGenesisHash", []);
+  if (typeof genesis !== "string" || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(genesis))
+    throw new SolanaRpcError("getGenesisHash did not return a genesis hash");
+  return `solana:${genesis.slice(0, 32)}`;
+}
+
 /** The cluster's genesis hash serves `network` when it begins with the CAIP-2 reference. */
 export async function servesNetwork(rpc: SolanaRpc, network: string): Promise<boolean> {
   const genesis = await rpc("getGenesisHash", []);

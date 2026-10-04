@@ -140,3 +140,24 @@ def test_cli_passes_trusted_escrows_and_horizons(monkeypatch, tmp_path):
     assert seen["horizons"] == {"stellar:testnet": "http://h"}
     assert seen["rpcs"] == {"stellar:testnet": "http://s"}
     assert main([str(path), "--horizon", "nope"]) == 2
+
+
+SOLANA_REF = (
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC"
+    ":HrV3o4gmWbjBD52tudx5RAMyJu9tJz5mrJDJMwXtTT8o"
+)
+
+
+@pytest.mark.parametrize("network", ["eip155:84532", "xrpl:1", "stellar:testnet", "eip155:8453"])
+@pytest.mark.parametrize("reference", [SOLANA_REF, "0x" + "11" * 32])
+def test_solana_escrow_rail_on_another_network_fails(network, reference):
+    # Review round 4: escrow:receptum-solana is dispatched by rail first, so a non-Solana
+    # payment.network is a contradiction (fail -> NOT VERIFIED), with no RPC query — the same
+    # result as the TypeScript verifier.
+    signed = signed_with(rail="escrow:receptum-solana", network=network, reference=reference,
+                         payer=None, payee=None)
+    res = check_settlement(signed, rpcs={})
+    assert res.status == "fail"
+    assert ("receipt says " + network) in res.detail or "invalid Solana escrowId" in res.detail
+    report = verify(signed, None, allow_unbound=True)
+    assert report.status == "NOT VERIFIED"

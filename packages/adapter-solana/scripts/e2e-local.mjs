@@ -2,7 +2,7 @@
 // own transaction builder, SolanaEscrowRail, SolanaAnchor and the @receptum/verify Solana checks.
 //
 //   solana-test-validator --reset --upgradeable-program \
-//     6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv packages/adapter-solana/program/receptum_escrow.so none
+//     4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC packages/adapter-solana/program/receptum_escrow.so none
 //   pnpm build && node packages/adapter-solana/scripts/e2e-local.mjs
 //
 // Uses throwaway keys generated in memory. The verifier's cluster check is pointed at the local
@@ -12,6 +12,7 @@ import { randomBytes } from "node:crypto";
 import {
   associatedTokenAddress,
   createAtaIdempotentInstruction,
+  RECEPTUM_SOLANA_PROGRAM_ID,
   SolanaAnchor,
   SolanaEscrowRail,
   sendAndConfirm,
@@ -25,7 +26,11 @@ import { verifySolanaAnchor, verifySolanaEscrowPayment } from "../../verify/dist
 
 const URL_ = process.env.SOLANA_LOCAL_RPC ?? "http://127.0.0.1:8899";
 const raw = solanaJsonRpc(URL_);
-// Pretend to be devnet for the verifier's genesis check only.
+// Pretend to be devnet: the local validator is a disposable 127.0.0.1 cluster, so it is presented
+// as devnet both to the adapter's signing gate (which verifies the RPC's genesis hash before every
+// signature) and to the verifier's cluster check. Never point SOLANA_LOCAL_RPC at a real cluster.
+if (!/^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(URL_))
+  throw new Error("e2e-local only runs against a local solana-test-validator");
 const rpc = async (m, p) =>
   m === "getGenesisHash" ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1xxxxxxxxxxxx" : raw(m, p);
 const kp = () => solanaKeypair(randomBytes(32));
@@ -59,7 +64,7 @@ const mintTo = Buffer.alloc(9);
 mintTo[0] = 7;
 mintTo.writeBigUInt64LE(10_000_000n, 1);
 await sendAndConfirm(
-  raw,
+  rpc,
   buyer,
   [
     {
@@ -86,11 +91,11 @@ await sendAndConfirm(
       data: mintTo,
     },
   ],
-  [mintKp],
+  { network: SOLANA_DEVNET, extraSigners: [mintKp] },
 );
 console.log("mint", MINT);
 
-const rail = (signer) => new SolanaEscrowRail({ network: SOLANA_DEVNET, rpc: raw, signer });
+const rail = (signer) => new SolanaEscrowRail({ network: SOLANA_DEVNET, rpc, signer });
 const HASH = randomBytes(32).toString("hex");
 const signedFor = (escrowId, acceptance) => ({
   receiptHash: HASH,
@@ -107,7 +112,7 @@ const signedFor = (escrowId, acceptance) => ({
     },
   },
 });
-const TRUSTED = ["6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv"];
+const TRUSTED = [RECEPTUM_SOLANA_PROGRAM_ID];
 const results = [];
 async function flow(name, window, evaluated, act, want) {
   const { escrowId } = await rail(buyer).open({
@@ -197,7 +202,7 @@ await flow(
   "pass",
 );
 
-const a = await new SolanaAnchor({ network: SOLANA_DEVNET, rpc: raw, signer: seller }).anchor(HASH);
+const a = await new SolanaAnchor({ network: SOLANA_DEVNET, rpc, signer: seller }).anchor(HASH);
 await sleep(1000);
 const av = await verifySolanaAnchor(HASH, SOLANA_DEVNET, a.reference, { rpc });
 results.push(["anchor", a.reference, av.status, av.detail]);

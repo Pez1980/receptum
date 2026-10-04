@@ -1,7 +1,9 @@
 import { createPrivateKey, createPublicKey, sign, type KeyObject } from "node:crypto";
+import { assertNetworkAllowed } from "@receptum/core";
 import { addressBytes } from "./address.js";
 import { encodeBase58 } from "./base58.js";
-import type { SolanaRpc } from "./rpc.js";
+import { assertSolanaNetwork } from "./network.js";
+import { rpcNetwork, type SolanaRpc } from "./rpc.js";
 
 /** An Ed25519 keypair. The secret never leaves the process and is never serialized. */
 export interface SolanaKeypair {
@@ -103,7 +105,32 @@ export function compileMessage(
   return { message: Uint8Array.from(out), signers: keys.slice(0, numSigners) };
 }
 
-/** Signs a compiled message with every required signer and serializes the transaction. */
+/**
+ * The signing gate (SPEC §2.1 mainnet opt-in, review round 4): checks the declared `network`, asks
+ * the RPC for its genesis hash, requires the CAIP-2 network it maps to to equal `network`, then
+ * applies the mainnet opt-in to that verified network. Throws (before anything is signed) when
+ * the RPC serves another cluster — an `rpc`/`rpcUrl` override cannot smuggle a mainnet endpoint
+ * past a devnet declaration — or when a mainnet/unknown cluster lacks the opt-in. Returns the
+ * verified network.
+ */
+export async function assertRpcNetwork(
+  rpc: SolanaRpc,
+  network: string,
+  allowMainnet?: boolean,
+): Promise<string> {
+  assertSolanaNetwork(network, allowMainnet);
+  const served = await rpcNetwork(rpc);
+  if (served !== network)
+    throw new Error(`refusing to sign: the RPC serves ${served}, not ${network}`);
+  assertNetworkAllowed(served, allowMainnet, "sign");
+  return served;
+}
+
+/**
+ * Signs a compiled message with every required signer and serializes the transaction. A pure
+ * function: it does not know which cluster the message is for — use `sendAndConfirm`, which
+ * verifies the RPC's network first, rather than sending its output yourself.
+ */
 export function signTransaction(
   message: Uint8Array,
   signerOrder: readonly string[],
@@ -135,17 +162,32 @@ export class SolanaTxError extends Error {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export interface SendOptions {
+  /** CAIP-2 network the transaction is meant for; the RPC must serve exactly this cluster. */
+  network: string;
+  /** Mainnet (or unknown-cluster) opt-in; see `assertRpcNetwork`. */
+  allowMainnet?: boolean;
+  /** Co-signers besides the fee payer. */
+  extraSigners?: readonly SolanaKeypair[];
+  commitment?: "confirmed" | "finalized";
+  timeoutMs?: number;
+}
+
 /**
- * Builds, signs, sends and waits for a transaction to be `confirmed` (or `finalized`).
+ * Builds, signs, sends and waits for a transaction to be `confirmed` (or `finalized`). Before
+ * signing it runs `assertRpcNetwork(rpc, options.network, options.allowMainnet)` — every time.
  * Throws `SolanaTxError` when it fails or is not confirmed before its blockhash expires.
  */
 export async function sendAndConfirm(
   rpc: SolanaRpc,
   feePayer: SolanaKeypair,
   instructions: readonly TransactionInstruction[],
-  extraSigners: readonly SolanaKeypair[] = [],
-  options: { commitment?: "confirmed" | "finalized"; timeoutMs?: number } = {},
+  options: SendOptions,
 ): Promise<{ signature: string; slot: number }> {
+  if (!options || typeof options.network !== "string")
+    throw new TypeError("sendAndConfirm needs options.network (the CAIP-2 cluster to sign for)");
+  await assertRpcNetwork(rpc, options.network, options.allowMainnet);
+  const extraSigners = options.extraSigners ?? [];
   const { value } = (await rpc("getLatestBlockhash", [{ commitment: "confirmed" }])) as {
     value: { blockhash: string; lastValidBlockHeight: number };
   };

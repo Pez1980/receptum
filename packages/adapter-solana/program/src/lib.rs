@@ -24,7 +24,8 @@
 //! - vault:  PDA `["vault", escrow]`, an SPL Token account for `mint` whose owner is the escrow.
 //!
 //! Only the classic SPL Token program is accepted (no Token-2022: transfer fees and hooks would
-//! break the exact-amount invariant).
+//! break the exact-amount invariant at open). Payouts move the whole vault balance, so tokens
+//! anyone donates to a vault go to the escrow's recipient and can never lock it.
 //!
 //! **Unaudited. Devnet use only until an independent audit is published.**
 #![allow(unexpected_cfgs)]
@@ -57,8 +58,8 @@ pub enum EscrowError {
     TooLate = 4,
     /// Invalid arguments or accounts.
     InvalidArgs = 5,
-    /// The token program, mint or token account is not supported, or the vault did not receive
-    /// exactly `amount`.
+    /// The token program, mint or token account is not supported, the vault did not receive
+    /// exactly `amount` at open, or holds less than `amount` at payout.
     UnsupportedToken = 6,
     /// No escrow at this account.
     NotFound = 7,
@@ -502,8 +503,9 @@ fn deliver(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progra
 
 // ─── payouts ─────────────────────────────────────────────────────────────────
 
-/// Moves the whole vault to `dest` (a token account owned by `recipient`), closes the vault
-/// (rent to the buyer) and records the final state.
+/// Moves the whole vault balance (`amount` plus anything donated to the vault) to `dest` (a
+/// token account owned by the recipient), closes the vault (rent to the buyer) and records the
+/// final state.
 #[allow(clippy::too_many_arguments)]
 fn pay_out<'a>(
     escrow_ai: &AccountInfo<'a>,
@@ -524,8 +526,12 @@ fn pay_out<'a>(
     }
     let recipient = if to_seller { e.seller } else { e.buyer };
     token_account(dest, &e.mint, &recipient)?;
+    // Anyone can send tokens to the vault, so it may hold more than `amount`: the whole balance
+    // goes to the recipient (requiring an exact balance would let a 1-unit donation lock the
+    // escrow forever). Less than `amount` cannot happen with the classic Token program (only the
+    // escrow can move vault funds) and is refused.
     let held = token_account(vault, &e.mint, escrow_ai.key)?;
-    if held != e.amount {
+    if held < e.amount {
         return Err(UnsupportedToken.into());
     }
     let decimals = mint_decimals(mint)?;
@@ -535,7 +541,7 @@ fn pay_out<'a>(
 
     let id_le = e.id.to_le_bytes();
     let seeds: &[&[u8]] = &[b"escrow", e.buyer.as_ref(), &id_le, &[e.bump]];
-    transfer_checked(token_program, vault, mint, dest, escrow_ai, e.amount, decimals, Some(seeds))?;
+    transfer_checked(token_program, vault, mint, dest, escrow_ai, held, decimals, Some(seeds))?;
     // CloseAccount(vault → buyer), authority = escrow.
     invoke_signed(
         &Instruction {

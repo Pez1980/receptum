@@ -1,6 +1,7 @@
 import {
   assertNetworkAllowed,
   checkPayeeBinding,
+  isCaip2,
   parseXrplIssuedAsset,
   sha256Hex,
   verifySignedReceipt,
@@ -211,13 +212,13 @@ export interface ReceptumFetchOptions extends BindingOptions {
   /** What you expect to pay for; checked against the receipt. */
   expected?: Expected;
   /**
-   * The CAIP-2 networks your `paidFetch` is registered to pay on (the schemes you registered with
-   * `@x402/fetch`, e.g. `["eip155:8453"]`). Declaring them lets `createReceptumFetch` refuse — at
-   * construction, before any request is paid — a mainnet (or unknown) network without the opt-in,
-   * and rejects a receipt on any network outside the list.
+   * Required: the CAIP-2 networks your `paidFetch` is registered to pay on (the schemes you
+   * registered with `@x402/fetch`, e.g. `["eip155:84532"]`). `createReceptumFetch` refuses — at
+   * construction, before any request is paid — a missing or empty list, and a mainnet (or unknown)
+   * network without the opt-in; it rejects a receipt on any network outside the list.
    */
-  networks?: readonly string[];
-  /** Required (or `RECEPTUM_ALLOW_MAINNET=1`) when `networks` names a mainnet. */
+  networks: readonly string[];
+  /** Required (or `RECEPTUM_ALLOW_MAINNET=1`) when `networks` or `expected.network` is a mainnet. */
   allowMainnet?: boolean;
 }
 
@@ -235,7 +236,21 @@ export class ReceiptError extends Error {
  * successful settlement and a valid Receptum receipt matching the exact bytes delivered.
  */
 export function createReceptumFetch(options: ReceptumFetchOptions) {
-  for (const n of options.networks ?? []) assertNetworkAllowed(n, options.allowMainnet, "pay");
+  // Without declared networks nothing could be gated before `paidFetch` pays (review round 4).
+  const networks = options.networks as readonly string[] | undefined;
+  if (!Array.isArray(networks) || networks.length === 0 || !networks.every(isCaip2))
+    throw new TypeError(
+      'createReceptumFetch needs `networks`: the CAIP-2 networks your paidFetch pays on, e.g. ["eip155:84532"]',
+    );
+  for (const n of networks) assertNetworkAllowed(n, options.allowMainnet, "pay");
+  const expectedNetwork = options.expected?.network;
+  if (expectedNetwork !== undefined) {
+    assertNetworkAllowed(expectedNetwork, options.allowMainnet, "pay");
+    if (!networks.includes(expectedNetwork))
+      throw new TypeError(
+        `expected.network ${expectedNetwork} is not one of the declared networks (${networks.join(", ")})`,
+      );
+  }
   return async (input: string | URL | Request, init?: RequestInit): Promise<ReceiptedResponse> => {
     const response = await options.paidFetch(input, init);
     const body = new Uint8Array(await response.arrayBuffer());
@@ -251,7 +266,7 @@ export function createReceptumFetch(options: ReceptumFetchOptions) {
       ...(options.requireBinding ? { requireBinding: true } : {}),
       ...(options.bindingVerifiers ? { bindingVerifiers: options.bindingVerifiers } : {}),
     });
-    if (options.networks && !options.networks.includes(receipt?.receipt?.payment?.network)) {
+    if (!networks.includes(receipt?.receipt?.payment?.network)) {
       check.ok = false;
       check.expectationsMet = false;
       check.reasons.push("receipt is on a network this client is not registered to pay on");

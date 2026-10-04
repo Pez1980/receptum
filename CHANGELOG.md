@@ -4,7 +4,7 @@ All packages are versioned together. Testnet only; contracts are unaudited.
 
 ## 0.2.0 — October 2026
 
-Not yet published; this release ships everything below. Testnets stay the default; nothing has been deployed to a mainnet.
+Published on npm 4 Oct 2026 (nine `@receptum/*` packages). Testnets stay the default; nothing has been deployed to a mainnet.
 
 ### Added
 

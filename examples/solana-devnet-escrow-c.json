@@ -1,0 +1,111 @@
+{
+  "flow": "C: refund after missed deadline",
+  "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  "programId": "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv",
+  "escrowId": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv:CCYPqipBAoeCfxr1cBM2wTnqYbrMzo8rojEMuEBrRT12",
+  "escrowUrl": "https://explorer.solana.com/address/CCYPqipBAoeCfxr1cBM2wTnqYbrMzo8rojEMuEBrRT12?cluster=devnet",
+  "deliverable": "examples/deliverables/solana-devnet-escrow-c.txt",
+  "transactions": [
+    {
+      "step": "open (buyer)",
+      "signature": "hHuAvE1JcZWVW6nwWcqaSdnDruzL51SbgramV8uguUMotoJjVFbD1nPphddiP2wv6EJ1uRBq2uqNKwaTswN291j",
+      "url": "https://explorer.solana.com/tx/hHuAvE1JcZWVW6nwWcqaSdnDruzL51SbgramV8uguUMotoJjVFbD1nPphddiP2wv6EJ1uRBq2uqNKwaTswN291j?cluster=devnet"
+    },
+    {
+      "step": "refund after deliverBy (buyer)",
+      "signature": "2EaXx63X8MgReDjz9jbicmKoYzazE52LVQxFyFiNPjrCpftoYeyNmSUibArKPUzHDtYkXT5hPcTo5M5jpdTRiQKE",
+      "url": "https://explorer.solana.com/tx/2EaXx63X8MgReDjz9jbicmKoYzazE52LVQxFyFiNPjrCpftoYeyNmSUibArKPUzHDtYkXT5hPcTo5M5jpdTRiQKE?cluster=devnet"
+    }
+  ],
+  "finalState": {
+    "status": "refunded",
+    "settledBy": null,
+    "receiptHash": null
+  },
+  "note": "Nothing was delivered: the receipt was signed but never committed, so it cannot verify.",
+  "signedReceipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-SMHW-KF9T",
+      "jobIdHash": "592c978e885f79b95e00e46c7ae8c49d36896369c1c6fcfc7fc3a20157e90087",
+      "seller": {
+        "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "name": "receptum e2e seller (solana)"
+      },
+      "inputSha256": ["36f334cb3ca46a07fa1b78fc56348d6dce2886f14bd1e58afc4f82e36a753d8d"],
+      "outputSha256": "2fd5e108b2d5b4661fbb26293f9f9a17db5b1dc3a96de7ef40c6ca787578e999",
+      "payment": {
+        "rail": "escrow:receptum-solana",
+        "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        "asset": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        "amount": "100000",
+        "reference": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv:CCYPqipBAoeCfxr1cBM2wTnqYbrMzo8rojEMuEBrRT12",
+        "payer": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:H1QWkpBSkGndggiLQqu7Eosuupu6oxFFzHK5HofUf4yc",
+        "payee": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe"
+      },
+      "acceptance": {
+        "mode": "buyer",
+        "reviewWindowSeconds": 600
+      },
+      "deliveredAt": "2026-10-04T00:09:24.944Z",
+      "buyer": {
+        "id": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:H1QWkpBSkGndggiLQqu7Eosuupu6oxFFzHK5HofUf4yc"
+      }
+    },
+    "receiptHash": "fc84abd59eb5d4bf75af56eca7c321a64f669f4c4e5b651a067816bc43f880e5",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..KflnL4zp8bGuxZk_sEcjattgB9anKziJaDS5Z2vP2kJwkm7yKDDAI6VaNtaYJYZQ752IK0T8nU7VXVf5-Rp5CA"
+    },
+    "bindings": [
+      {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "account": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe",
+          "issuedAt": "2026-10-04T00:07:48.997Z",
+          "expiresAt": "2027-10-04T00:07:48.997Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..uxn_tq57q73WJMU8wpvrc1Pj7EW0Pv0D58UxWcFJcnNIWIuPPqhP9rw7OxbS6AarQJe5ZzSa2NEi0nDsepDSCQ"
+        },
+        "accountProof": {
+          "type": "solana",
+          "signature": "3ANm1dVL0dRboyByPalMBTB55jbo1jlDq/7mjS84r2MaZhDxHmcyZnV9loj3mOoD/U+V8gzKi1kJ3mmZpxltDg=="
+        }
+      }
+    ]
+  },
+  "verify": {
+    "verdict": "NOT VERIFIED",
+    "checks": [
+      {
+        "level": 1,
+        "name": "File matches receipt",
+        "status": "pass",
+        "detail": "SHA-256 2fd5e108b2d5b4661fbb26293f9f9a17db5b1dc3a96de7ef40c6ca787578e999 = outputSha256"
+      },
+      {
+        "level": 2,
+        "name": "Seller signature",
+        "status": "pass",
+        "detail": "signed by did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t"
+      },
+      {
+        "level": 2.5,
+        "name": "Seller controls payee",
+        "status": "pass",
+        "detail": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t ↔ solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe: Ed25519 signature by 8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe (offline)"
+      },
+      {
+        "level": 3,
+        "name": "Payment on solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        "status": "fail",
+        "detail": "escrow refunded: committed receiptHash differs"
+      }
+    ]
+  }
+}

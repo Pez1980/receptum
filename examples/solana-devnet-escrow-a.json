@@ -1,0 +1,115 @@
+{
+  "flow": "A: buyer accepts",
+  "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  "programId": "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv",
+  "escrowId": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv:5sDPyVWQeisNg2LRnkuPN2LovjjAVfEtDjwpe2t1k44r",
+  "escrowUrl": "https://explorer.solana.com/address/5sDPyVWQeisNg2LRnkuPN2LovjjAVfEtDjwpe2t1k44r?cluster=devnet",
+  "deliverable": "examples/deliverables/solana-devnet-escrow-a.txt",
+  "transactions": [
+    {
+      "step": "open (buyer)",
+      "signature": "4mVzhqhSvJBb9Dw2rVkCVH8cPtQtGAWT1F4FZcXy6Ym7VYPiKaJ7a7nTV8stQcaZCGispkaMjKnEYRUvfqW6NjVB",
+      "url": "https://explorer.solana.com/tx/4mVzhqhSvJBb9Dw2rVkCVH8cPtQtGAWT1F4FZcXy6Ym7VYPiKaJ7a7nTV8stQcaZCGispkaMjKnEYRUvfqW6NjVB?cluster=devnet"
+    },
+    {
+      "step": "deliver(receiptHash) (seller)",
+      "signature": "2Cghz1RHzu4Cy1daziEbZdGX4dbmM384XCpVbNx2uaPDLXjbUE7ANcPnuDVhqwGcwbzfuBB1u8kcHAgKY8Yc4cSk",
+      "url": "https://explorer.solana.com/tx/2Cghz1RHzu4Cy1daziEbZdGX4dbmM384XCpVbNx2uaPDLXjbUE7ANcPnuDVhqwGcwbzfuBB1u8kcHAgKY8Yc4cSk?cluster=devnet"
+    },
+    {
+      "step": "accept (buyer)",
+      "signature": "5mzTZJwbGcKhQQYNefeaKn6KQusbDdMXdhdMng9aZmN99QV8EvUdHcLThudgVAXgNu25W3EurM3jasX3nuH1sSrW",
+      "url": "https://explorer.solana.com/tx/5mzTZJwbGcKhQQYNefeaKn6KQusbDdMXdhdMng9aZmN99QV8EvUdHcLThudgVAXgNu25W3EurM3jasX3nuH1sSrW?cluster=devnet"
+    }
+  ],
+  "finalState": {
+    "status": "released",
+    "settledBy": "H1QWkpBSkGndggiLQqu7Eosuupu6oxFFzHK5HofUf4yc",
+    "receiptHash": "c4e9fba13874beebb8f276e3834a949e16300c1e52e7362b8fb9a0ef0e9c2d21"
+  },
+  "signedReceipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-2557-DVR6",
+      "jobIdHash": "c88b612a17ccff2db67af718d5552f057306ad0c4be3c3414baa2cc77c167d7f",
+      "seller": {
+        "id": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+        "name": "receptum e2e seller (solana)"
+      },
+      "inputSha256": ["dbb0fc1fa1b342e8ee00e9ba366303d08cd0776a151d904b644aec0ab60d8f18"],
+      "outputSha256": "65b28cb5dd1bc24c2ba50ac0bc5a03b9cb8a8710f95298e39ee26bd225d8aa21",
+      "payment": {
+        "rail": "escrow:receptum-solana",
+        "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        "asset": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        "amount": "100000",
+        "reference": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv:5sDPyVWQeisNg2LRnkuPN2LovjjAVfEtDjwpe2t1k44r",
+        "payer": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:H1QWkpBSkGndggiLQqu7Eosuupu6oxFFzHK5HofUf4yc",
+        "payee": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe"
+      },
+      "acceptance": {
+        "mode": "buyer",
+        "reviewWindowSeconds": 600
+      },
+      "deliveredAt": "2026-10-04T00:08:42.741Z",
+      "buyer": {
+        "id": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:H1QWkpBSkGndggiLQqu7Eosuupu6oxFFzHK5HofUf4yc"
+      }
+    },
+    "receiptHash": "c4e9fba13874beebb8f276e3834a949e16300c1e52e7362b8fb9a0ef0e9c2d21",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..A5SHhEFEzEtEYX7uTOBWPbUuD-GlTri0ncwpVmI7BbXZ72uILXVfJjcKk-dBraBw1WTe4lOnU0DxztHd3BElCA"
+    },
+    "bindings": [
+      {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "account": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe",
+          "issuedAt": "2026-10-04T00:07:48.997Z",
+          "expiresAt": "2027-10-04T00:07:48.997Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..uxn_tq57q73WJMU8wpvrc1Pj7EW0Pv0D58UxWcFJcnNIWIuPPqhP9rw7OxbS6AarQJe5ZzSa2NEi0nDsepDSCQ"
+        },
+        "accountProof": {
+          "type": "solana",
+          "signature": "3ANm1dVL0dRboyByPalMBTB55jbo1jlDq/7mjS84r2MaZhDxHmcyZnV9loj3mOoD/U+V8gzKi1kJ3mmZpxltDg=="
+        }
+      }
+    ]
+  },
+  "verify": {
+    "verdict": "VERIFIED",
+    "checks": [
+      {
+        "level": 1,
+        "name": "File matches receipt",
+        "status": "pass",
+        "detail": "SHA-256 65b28cb5dd1bc24c2ba50ac0bc5a03b9cb8a8710f95298e39ee26bd225d8aa21 = outputSha256"
+      },
+      {
+        "level": 2,
+        "name": "Seller signature",
+        "status": "pass",
+        "detail": "signed by did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t"
+      },
+      {
+        "level": 2.5,
+        "name": "Seller controls payee",
+        "status": "pass",
+        "detail": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t ↔ solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe: Ed25519 signature by 8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe (offline)"
+      },
+      {
+        "level": 3,
+        "name": "Payment on solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        "status": "pass",
+        "detail": "Solana escrow released to the payee (accepted by H1QWkpBSkGndggiLQqu7Eosuupu6oxFFzHK5HofUf4yc); committed receiptHash and terms match"
+      }
+    ]
+  }
+}

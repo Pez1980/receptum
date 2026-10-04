@@ -1,0 +1,1 @@
+output for A-job (solana devnet)

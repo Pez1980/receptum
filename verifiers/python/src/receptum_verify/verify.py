@@ -10,7 +10,14 @@ from .binding import DEFAULT_XRPL_RPCS, check_payee_binding
 from .evm import DEFAULT_RPCS, CheckResult, check_evm_anchor, check_x402_exact, parse_anchor
 from .evm_escrow import check_evm_escrow
 from .jws import verify_signed_receipt
-from .networks import network_class
+from .networks import TRUSTED_ESCROWS, network_class
+from .solana import (
+    DEFAULT_SOLANA_RPCS,
+    SOLANA_ESCROW_RAIL,
+    check_solana_anchor,
+    check_solana_escrow,
+    check_solana_x402_exact,
+)
 from .soroban import DEFAULT_SOROBAN_RPCS, check_soroban_escrow
 from .stellar import STELLAR_NETWORKS, check_stellar_anchor, check_stellar_x402_exact
 from .stellar_claimable import check_stellar_claimable
@@ -39,7 +46,13 @@ NOT_VERIFIED = "NOT VERIFIED"
 # Rails that commit receiptHash themselves (SPEC §7). Every other rail (x402) needs a mined
 # anchor before level 3 can pass.
 COMMITTING_RAILS = frozenset(
-    {"escrow:receptum-evm", "escrow:receptum-soroban", "escrow:xrpl", "escrow:stellar-claimable"}
+    {
+        "escrow:receptum-evm",
+        "escrow:receptum-soroban",
+        "escrow:xrpl",
+        "escrow:stellar-claimable",
+        SOLANA_ESCROW_RAIL,
+    }
 )
 
 
@@ -176,6 +189,11 @@ def check_settlement(
         return check_stellar_claimable(signed, payer, payee, horizons=horizons)
     if rail.startswith("x402:") and rail != "x402:exact":
         return CheckResult("unavailable", f'only the x402 "exact" scheme is recognised, not {rail}')
+    if rail == SOLANA_ESCROW_RAIL:
+        trusted = (*TRUSTED_ESCROWS.get(network, ()), *trusted_escrows)
+        return check_solana_escrow(signed, payer, payee, trusted=trusted, rpcs=rpcs)
+    if rail == "x402:exact" and network.startswith("solana:"):
+        return check_solana_x402_exact(receipt, rpcs)
     if rail == "x402:exact" and network.startswith("xrpl:"):
         return check_xrpl_x402_exact(receipt, rpcs)
     if rail == "x402:exact" and network in STELLAR_NETWORKS:
@@ -204,6 +222,8 @@ def check_anchor(
         return CheckResult("fail", str(exc))
     if network.startswith("eip155:"):
         return check_evm_anchor(ref, receipt_hash, rpcs)
+    if network.startswith("solana:"):
+        return check_solana_anchor(network, tx, receipt_hash, rpcs)
     if network in DEFAULT_XRPL_JSON_RPCS or (network.startswith("xrpl:") and network in (user_rpcs or {})):
         return check_xrpl_anchor(ref, receipt_hash, rpcs)
     if network in STELLAR_NETWORKS or network in (horizons or {}):
@@ -231,7 +251,7 @@ def verify(
     ``trusted_escrows`` adds escrow deployments (EVM addresses or Soroban contract ids) to the
     built-in trusted registry."""
     user_rpcs = dict(rpcs or {})
-    rpcs = {**DEFAULT_RPCS, **DEFAULT_XRPL_RPCS, **DEFAULT_SOROBAN_RPCS, **user_rpcs}
+    rpcs = {**DEFAULT_RPCS, **DEFAULT_XRPL_RPCS, **DEFAULT_SOROBAN_RPCS, **DEFAULT_SOLANA_RPCS, **user_rpcs}
     anchors = [anchor] if isinstance(anchor, str) else list(dict.fromkeys(anchor or []))
     sig = verify_signed_receipt(signed)
     levels: dict[str, CheckResult] = {}

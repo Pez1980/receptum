@@ -1,0 +1,59 @@
+{
+  "name": "@receptum/adapter-solana",
+  "version": "0.2.0",
+  "description": "Solana rail: x402 exact settlement checks, the receptum_escrow program, SPL Memo anchors and account bindings.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "program/src",
+    "program/Cargo.toml",
+    "program/Cargo.lock",
+    "program/receptum_escrow.so",
+    "program/deployment.devnet.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@receptum/core": "workspace:*"
+  },
+  "devDependencies": {
+    "litesvm": "1.5.0"
+  },
+  "author": "Swiftleads AI, Inc.",
+  "homepage": "https://receptum-ai.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pez1980/receptum.git",
+    "directory": "packages/adapter-solana"
+  },
+  "bugs": {
+    "url": "https://github.com/Pez1980/receptum/issues"
+  },
+  "keywords": [
+    "agents",
+    "escrow",
+    "proof-of-delivery",
+    "receipts",
+    "receptum",
+    "solana",
+    "x402"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
+}

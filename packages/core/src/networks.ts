@@ -19,6 +19,7 @@ export const TESTNET_NETWORKS: readonly string[] = [
   "eip155:1337", // ganache / geth dev (local)
   "xrpl:1", // XRPL testnet
   "stellar:testnet",
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana devnet
 ];
 
 /** CAIP-2 ids of the mainnets Receptum knows. Using any of them for signing needs the opt-in. */
@@ -28,6 +29,7 @@ export const MAINNET_NETWORKS: readonly string[] = [
   "eip155:42161", // Arbitrum One
   "xrpl:0", // XRPL mainnet
   "stellar:pubnet",
+  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", // Solana mainnet-beta
 ];
 
 export type NetworkClass = "mainnet" | "testnet" | "unknown";

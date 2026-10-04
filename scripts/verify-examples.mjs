@@ -152,6 +152,48 @@ const cases = [
     "NOT VERIFIED",
   ],
   [
+    "x402 · Solana devnet, memo anchor",
+    wrapper(json("examples/x402-solana-devnet.json")),
+    "examples/x402-solana-devnet-output.svg",
+    "VERIFIED",
+  ],
+  [
+    "receptum_escrow · Solana devnet · buyer accepts",
+    wrapper(json("examples/solana-devnet-escrow-a.json")),
+    "examples/deliverables/solana-devnet-escrow-a.txt",
+    "VERIFIED",
+  ],
+  [
+    "receptum_escrow · Solana devnet · auto-release",
+    wrapper(json("examples/solana-devnet-escrow-b.json")),
+    "examples/deliverables/solana-devnet-escrow-b.txt",
+    "VERIFIED",
+  ],
+  [
+    "receptum_escrow · Solana devnet · evaluator accepts",
+    wrapper(json("examples/solana-devnet-escrow-f.json")),
+    "examples/deliverables/solana-devnet-escrow-f.txt",
+    "VERIFIED",
+  ],
+  [
+    "receptum_escrow · Solana devnet · missed deadline (refunded, nothing delivered)",
+    wrapper(json("examples/solana-devnet-escrow-c.json")),
+    "examples/deliverables/solana-devnet-escrow-c.txt",
+    "NOT VERIFIED",
+  ],
+  [
+    "receptum_escrow · Solana devnet · evaluator rejected (refunded)",
+    wrapper(json("examples/solana-devnet-escrow-d.json")),
+    "examples/deliverables/solana-devnet-escrow-d.txt",
+    "NOT VERIFIED",
+  ],
+  [
+    "receptum_escrow · Solana devnet · seller refunded voluntarily",
+    wrapper(json("examples/solana-devnet-escrow-e.json")),
+    "examples/deliverables/solana-devnet-escrow-e.txt",
+    "NOT VERIFIED",
+  ],
+  [
     "Tampered x402 receipt (amount edited)",
     wrapper(json("examples/x402-base-sepolia-tampered.json")),
     "examples/x402-base-sepolia-output.svg",

@@ -197,6 +197,7 @@ console.log(`wrote ${out.vectors.length} vectors (+${invalid.length} invalid) fo
 // ─── Account binding vectors (SPEC §4.1) ────────────────────────────────────
 const evm = await import("../packages/adapter-evm/dist/index.js");
 const xrpl = await import("../packages/adapter-xrpl/dist/index.js");
+const solana = await import("../packages/adapter-solana/dist/index.js");
 const fromEvm = createRequire(new URL("../packages/adapter-evm/package.json", import.meta.url));
 const fromXrpl = createRequire(new URL("../packages/adapter-xrpl/package.json", import.meta.url));
 const { privateKeyToAccount } = await import(fromEvm.resolve("viem/accounts"));
@@ -258,6 +259,14 @@ const bindingCases = [
     chainKey: { kind: "Ed25519 seed (RFC 8032 TEST 1)", value: stellarSeedHex },
     signer: stellarAccountSigner(strkeySeed(Buffer.from(stellarSeedHex, "hex")), "stellar:testnet"),
   },
+  {
+    name: 'solana (Ed25519 over SHA-256("Solana Signed Message:\\n" ‖ m)), devnet',
+    chainKey: { kind: "Ed25519 seed (RFC 8032 TEST 1)", value: testSeedHex },
+    signer: solana.solanaAccountSigner(
+      solana.solanaKeypair(Buffer.from(testSeedHex, "hex")),
+      solana.SOLANA_DEVNET,
+    ),
+  },
 ];
 
 const bindingVectors = [];
@@ -274,7 +283,7 @@ neg.didProof = signDetachedJws(bindingBytes(neg.statement), key, BINDING_JWS_TYP
 
 const bindingOut = {
   description:
-    "Receptum account binding (receptum/account-binding/1) test vectors, SPEC §4.1. Every key here is a PUBLIC TEST VALUE: the RFC 8032 §7.1 TEST 1 seed (did:key and Stellar), anvil default account #0 (EVM), and the XRPL genesis key (passphrase masterpassphrase). Never use them for real funds.",
+    "Receptum account binding (receptum/account-binding/1) test vectors, SPEC §4.1. Every key here is a PUBLIC TEST VALUE: the RFC 8032 §7.1 TEST 1 seed (did:key, Stellar and Solana), anvil default account #0 (EVM), and the XRPL genesis key (passphrase masterpassphrase). Never use them for real funds.",
   testSeedHex,
   sellerDid: key.did,
   vectors: bindingVectors,

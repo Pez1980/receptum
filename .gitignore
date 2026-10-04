@@ -33,3 +33,6 @@ __pycache__/
 # Soroban (Rust)
 packages/adapter-stellar/contracts/*/target/
 packages/adapter-stellar/contracts/*/test_snapshots/
+
+# Solana (Rust)
+packages/adapter-solana/program/target/

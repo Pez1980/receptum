@@ -6,7 +6,7 @@
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
 - **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec — check receipts on every rail without trusting the TypeScript code
-- **Status:** v0.2.0, working end to end on **five testnets** (October 2026): x402 payments on Base, Stellar and the XRP Ledger, escrow on Arc, Arbitrum Sepolia, Stellar (Soroban) and the XRP Ledger. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
+- **Status:** v0.2.0, working end to end on **six testnets** (October 2026): x402 payments on Base, Stellar, the XRP Ledger and Solana, escrow on Arc, Arbitrum Sepolia, Stellar (Soroban), the XRP Ledger and Solana. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
 
 ## Install
 
@@ -27,16 +27,17 @@ All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0
 
 ## Packages
 
-| Package                                                 | What it does                                                                                                           |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [`@receptum/core`](packages/core)                       | RRF v1 receipts, JCS (RFC 8785) hashing, Ed25519 `did:key` signatures, lifecycle, rail interfaces                      |
-| [`@receptum/server`](packages/server)                   | Sell a job over x402: verify → work → settle → return the output with a signed receipt                                 |
-| [`@receptum/client`](packages/client)                   | Pay over x402 and reject results whose receipt, output hash or settlement don't match                                  |
-| [`@receptum/mcp`](packages/mcp)                         | Signed receipts for x402-paid MCP tools (`@x402/mcp`)                                                                  |
-| [`@receptum/verify`](packages/verify)                   | Library + `receptum-verify` CLI: file, signature, settlement and anchor checks                                         |
-| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet, Arbitrum Sepolia and Base Sepolia                               |
-| [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRPL native Escrow with crypto-conditions + memo anchors                                                               |
-| [`@receptum/adapter-stellar`](packages/adapter-stellar) | Soroban `ReceptumEscrow` contract + rail, claimable-balance escrow (USDC), `MEMO_HASH` anchors, x402 settlement checks |
+| Package                                                 | What it does                                                                                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [`@receptum/core`](packages/core)                       | RRF v1 receipts, JCS (RFC 8785) hashing, Ed25519 `did:key` signatures, lifecycle, rail interfaces                                 |
+| [`@receptum/server`](packages/server)                   | Sell a job over x402: verify → work → settle → return the output with a signed receipt                                            |
+| [`@receptum/client`](packages/client)                   | Pay over x402 and reject results whose receipt, output hash or settlement don't match                                             |
+| [`@receptum/mcp`](packages/mcp)                         | Signed receipts for x402-paid MCP tools (`@x402/mcp`)                                                                             |
+| [`@receptum/verify`](packages/verify)                   | Library + `receptum-verify` CLI: file, signature, settlement and anchor checks                                                    |
+| [`@receptum/adapter-evm`](packages/adapter-evm)         | `ReceptumEscrow` contract + viem rail for Arc testnet, Arbitrum Sepolia and Base Sepolia                                          |
+| [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRPL native Escrow with crypto-conditions + memo anchors                                                                          |
+| [`@receptum/adapter-stellar`](packages/adapter-stellar) | Soroban `ReceptumEscrow` contract + rail, claimable-balance escrow (USDC), `MEMO_HASH` anchors, x402 settlement checks            |
+| [`@receptum/adapter-solana`](packages/adapter-solana)   | `receptum_escrow` program (immutable on devnet) + rail, SPL Memo anchors, Solana account bindings, x402 `exact` settlement checks |
 
 ## Live on testnets
 
@@ -64,9 +65,12 @@ pnpm build && node scripts/verify-examples.mjs
 | Soroban escrow: evaluator rejected · seller refunded (also missed deadline)      | Stellar testnet            | NOT VERIFIED (correct: the seller wasn't paid) | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md)                                                        |
 | Claimable-balance escrow (USDC): auto-release · buyer accepts                    | Stellar testnet            | VERIFIED                                       | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md#claimable-balance-escrow-escrowstellar-claimable)       |
 | Claimable-balance escrow: buyer rejected (also refund of an undelivered escrow)  | Stellar testnet            | NOT VERIFIED (correct: the seller wasn't paid) | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md#claimable-balance-escrow-escrowstellar-claimable)       |
+| x402 render, 0.01 devnet USDC (`@x402/svm`), SPL Memo anchor                     | Solana devnet              | VERIFIED                                       | [packages/adapter-solana/E2E_RESULTS.md](packages/adapter-solana/E2E_RESULTS.md)                                                          |
+| `receptum_escrow` (USDC): buyer accepts · auto-release · evaluator accepts       | Solana devnet              | VERIFIED                                       | [packages/adapter-solana/E2E_RESULTS.md](packages/adapter-solana/E2E_RESULTS.md)                                                          |
+| `receptum_escrow`: evaluator rejected · seller refunded · missed deadline        | Solana devnet              | NOT VERIFIED (correct: the seller wasn't paid) | [packages/adapter-solana/E2E_RESULTS.md](packages/adapter-solana/E2E_RESULTS.md)                                                          |
 | Tampered receipt (amount edited)                                                 | —                          | NOT VERIFIED                                   | [examples/x402-base-sepolia-tampered.json](examples/x402-base-sepolia-tampered.json)                                                      |
 
-Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them — the same 23 cases, every rail included — and prints the same lines (`python verifiers/python/scripts/verify_examples.py`).
+Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them — the same 30 cases, every rail included — and prints the same lines (`python verifiers/python/scripts/verify_examples.py`).
 
 ## Quick look
 
@@ -123,7 +127,7 @@ node examples/toy-renderer/server.mjs        # sells renders for $0.25 on Base S
 node examples/agent-buyer/buyer.mjs           # pays, then verifies the receipt before trusting the result
 ```
 
-Testnet wallets are read from `~/.config/receptum/wallets` (override with `RECEPTUM_WALLETS_DIR`). Fund them from the Circle testnet faucet, the XRPL testnet faucet or Stellar friendbot. Keys never live in this repository.
+Testnet wallets are read from `~/.config/receptum/wallets` (override with `RECEPTUM_WALLETS_DIR`). Fund them from the Circle testnet faucet, the XRPL testnet faucet, Stellar friendbot or the Solana devnet airdrop (`solana airdrop`). Keys never live in this repository.
 
 ## Development
 

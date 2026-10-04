@@ -6,9 +6,12 @@
 //
 // Needs the Agave CLI (`solana`, pinned v4.3.0) on PATH, the payer keypair
 // $RECEPTUM_WALLETS_DIR/solana-devnet-deployer.json (~1.1 SOL: program rent + the temporary
-// buffer) and the program address keypair solana-devnet-program-v2.json. Neither is ever printed.
-// (solana-devnet-program.json is the superseded first deployment 6VdZ7E96…, review round 4: an
-// immutable program can't be fixed in place, so the fixed build is a new program.)
+// buffer) and the program address keypair solana-devnet-program-v3.json. Neither is ever printed.
+// An immutable program can't be replaced in place, so each new build is a new program:
+// solana-devnet-program.json is 6VdZ7E96… (superseded, review round 4) and
+// solana-devnet-program-v2.json is 4iUzsYkr… (superseded: a macOS build that Linux CI can't
+// reproduce). The .so deployed here must be the canonical Linux x86_64 build (CI job
+// `solana-program`); the hash check below refuses anything else.
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -33,8 +36,8 @@ import {
   walletsDir,
 } from "./devnet-common.mjs";
 
-const PROGRAM_ROLE = "program-v2";
-const BUFFER_ROLE = "buffer-v2";
+const PROGRAM_ROLE = "program-v3";
+const BUFFER_ROLE = "buffer-v3";
 const so = new URL("../program/receptum_escrow.so", import.meta.url);
 if (elfHash(readFileSync(so)) !== RECEPTUM_SOLANA_PROGRAM_HASH)
   throw new Error("program/receptum_escrow.so is not the published build");
@@ -149,14 +152,23 @@ const deployment = {
   build: {
     toolchain: "Agave 4.3.0 cargo-build-sbf, platform-tools v1.57 (rustc 1.95.0-sbpf-solana-v1.57)",
     crate: "solana-program =4.0.0 (Cargo.lock committed)",
-    command: "cd packages/adapter-solana/program && cargo-build-sbf",
+    command: "cd packages/adapter-solana/program && cargo-build-sbf -- --locked",
+    host: "Linux x86_64 (GitHub Actions ubuntu-latest, CI job solana-program); a macOS build differs",
   },
-  supersedes: {
-    programId: "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv",
-    executableHash: "b3964928ffc08a5a6266957944d03deb62b206d9dfc356c126dedea229e5d93b",
-    reason:
-      "Review round 4 (Codex, 4 Oct 2026), HIGH: payouts required the vault balance to equal the escrow amount, so donating 1 token unit to a vault locked that escrow forever. The fixed build pays out the whole vault. The superseded program is immutable, no longer trusted, and its build no longer verifies.",
-  },
+  supersedes: [
+    {
+      programId: "4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC",
+      executableHash: "e20b63d342e98ed1856e1d1df54fa7aaa9fabf8c2b26ac8f3e638e281d3e451b",
+      reason:
+        "Same source and pinned toolchain, but built on macOS arm64: platform-tools codegen differs by host, so CI (Linux x86_64, Agave 4.3.0) builds different bytes (b270e984…) and the deployed build could not be reproduced. The canonical build is the deterministic Linux one. The superseded program is immutable, no longer trusted, and its build no longer verifies.",
+    },
+    {
+      programId: "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv",
+      executableHash: "b3964928ffc08a5a6266957944d03deb62b206d9dfc356c126dedea229e5d93b",
+      reason:
+        "Review round 4 (Codex, 4 Oct 2026), HIGH: payouts required the vault balance to equal the escrow amount, so donating 1 token unit to a vault locked that escrow forever. The fixed build pays out the whole vault. The superseded program is immutable, no longer trusted, and its build no longer verifies.",
+    },
+  ],
   note: "Unaudited. Devnet only. Deployed with --final: there is no upgrade authority.",
 };
 const json = JSON.stringify(deployment, null, 2) + "\n";

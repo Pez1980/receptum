@@ -44,13 +44,27 @@ export class HorizonClient {
     this.allowMainnet = options.allowMainnet;
   }
 
-  /** Builds a transaction from `signer`'s account, signs it and submits it. */
+  /**
+   * Refuses a Horizon whose network passphrase (its root resource) isn't this client's network —
+   * e.g. a custom `horizonUrl` proxying pubnet behind a testnet client. Run before every signature.
+   */
+  async assertNetwork(): Promise<void> {
+    const { network_passphrase: served } = await this.server.root();
+    if (served !== this.network.networkPassphrase)
+      throw new Error(`refusing to sign: Horizon serves "${served}", not ${this.network.caip2}`);
+  }
+
+  /**
+   * Builds a transaction from `signer`'s account, signs it and submits it. Before signing: the
+   * mainnet opt-in, then the Horizon's passphrase must be this client's network.
+   */
   async submit(
     signer: StellarSigner,
     operations: xdr.Operation[],
     memo?: Memo,
   ): Promise<{ hash: string; tx: Transaction }> {
     assertStellarSigningAllowed(this.network, this.allowMainnet);
+    await this.assertNetwork();
     const account = await this.server.loadAccount(signer.publicKey);
     const builder = new TransactionBuilder(account, {
       fee: this.fee,

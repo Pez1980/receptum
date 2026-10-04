@@ -124,6 +124,7 @@ describe("checkDelivery: XRPL issued tokens (integer 10^-15 units)", () => {
 });
 
 describe("createReceptumFetch", () => {
+  const NETS = ["eip155:84532"];
   const fake = (h: Record<string, string>, b: Uint8Array = body) =>
     (async () => new Response(b, { status: 200, headers: h })) as unknown as typeof fetch;
   const paid = {
@@ -132,22 +133,26 @@ describe("createReceptumFetch", () => {
   };
 
   it("returns the verified result", async () => {
-    const r = await createReceptumFetch({ paidFetch: fake(paid) })("https://x");
+    const r = await createReceptumFetch({ paidFetch: fake(paid), networks: NETS })("https://x");
     expect(r.check.ok).toBe(true);
   });
   it("refuses responses without a receipt", async () => {
-    await expect(createReceptumFetch({ paidFetch: fake({}) })("https://x")).rejects.toThrow(
-      ReceiptError,
-    );
+    await expect(
+      createReceptumFetch({ paidFetch: fake({}), networks: NETS })("https://x"),
+    ).rejects.toThrow(ReceiptError);
   });
   it("refuses responses without a settlement", async () => {
     await expect(
-      createReceptumFetch({ paidFetch: fake({ "Receptum-Receipt": header }) })("https://x"),
+      createReceptumFetch({ paidFetch: fake({ "Receptum-Receipt": header }), networks: NETS })(
+        "https://x",
+      ),
     ).rejects.toThrow(/no settlement/);
   });
   it("refuses tampered output", async () => {
     await expect(
-      createReceptumFetch({ paidFetch: fake(paid, new Uint8Array([1])) })("https://x"),
+      createReceptumFetch({ paidFetch: fake(paid, new Uint8Array([1])), networks: NETS })(
+        "https://x",
+      ),
     ).rejects.toThrow(/output hash/);
   });
 });

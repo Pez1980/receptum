@@ -144,6 +144,7 @@ try {
   });
   const buy = createReceptumFetch({
     paidFetch,
+    networks: [NETWORK], // what paidFetch is registered to pay on (required)
     allowedSellers: [sellerKey.did],
     requireBinding: true,
     bindingVerifiers: [solanaBindingVerifier],

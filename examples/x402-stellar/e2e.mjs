@@ -113,6 +113,7 @@ try {
   });
   const buy = createReceptumFetch({
     paidFetch,
+    networks: [NETWORK], // what paidFetch is registered to pay on (required)
     allowedSellers: [sellerKey.did],
     expected: {
       network: NETWORK,

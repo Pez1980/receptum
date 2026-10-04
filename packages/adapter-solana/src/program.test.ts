@@ -159,6 +159,118 @@ describe("receptum_escrow build", () => {
   });
 });
 
+/** Anyone sends `n` units of the mint straight to `vault` (a real SPL Token transferChecked). */
+function donate(vault: string, n: bigint) {
+  const from = ata(stranger.address);
+  if (balance(from) < 0n)
+    setAccount(
+      from,
+      TOKEN_PROGRAM_ID,
+      tokenAccountData(MINT, stranger.address, 1_000_000n),
+      2_039_280n,
+    );
+  const d = Buffer.alloc(10);
+  d[0] = 12;
+  d.writeBigUInt64LE(n, 1);
+  d[9] = 6;
+  const err = send(
+    [
+      {
+        programId: TOKEN_PROGRAM_ID,
+        accounts: [
+          { address: from, signer: false, writable: true },
+          { address: MINT, signer: false, writable: false },
+          { address: vault, signer: false, writable: true },
+          { address: stranger.address, signer: true, writable: false },
+        ],
+        data: d,
+      },
+    ],
+    stranger,
+  );
+  expect(err).toBeNull();
+}
+
+describe("receptum_escrow vault donations (review round 4)", () => {
+  // Anyone can send tokens to the vault. A payout must still settle — moving the WHOLE vault
+  // (amount + donation) to the authorized recipient — instead of locking the escrow forever.
+  const DONATION = 1n;
+  const funded = (over: Partial<Parameters<typeof openInstruction>[0]> = {}) => {
+    const { escrow, err } = open(over);
+    expect(err).toBeNull();
+    return { escrow, vault: state(escrow).vault };
+  };
+
+  it("accept pays the seller the whole vault", () => {
+    const { escrow, vault } = funded();
+    expect(send([deliverInstruction(escrow, seller.address, HASH)], seller)).toBeNull();
+    donate(vault, DONATION);
+    expect(balance(vault)).toBe(2_500_001n);
+    expect(payout("accept", escrow, buyer)).toBeNull();
+    expect(state(escrow).status).toBe("released");
+    expect(state(escrow).amount).toBe(2_500_000n);
+    expect(balance(ata(seller.address))).toBe(2_500_001n);
+    expect(balance(vault)).toBe(-1n);
+  });
+
+  it("reject refunds the buyer the whole vault", () => {
+    const { escrow, vault } = funded({ evaluator: evaluator.address });
+    expect(send([deliverInstruction(escrow, seller.address, HASH)], seller)).toBeNull();
+    donate(vault, 7n);
+    expect(payout("reject", escrow, evaluator)).toBeNull();
+    expect(state(escrow).status).toBe("refunded");
+    expect(balance(ata(buyer.address))).toBe(10_000_007n);
+    expect(balance(vault)).toBe(-1n);
+  });
+
+  it("release (anyone, after the window) pays the seller the whole vault", () => {
+    const { escrow, vault } = funded();
+    expect(send([deliverInstruction(escrow, seller.address, HASH)], seller)).toBeNull();
+    donate(vault, DONATION);
+    setClock(now + 600n);
+    expect(payout("release", escrow, stranger)).toBeNull();
+    expect(state(escrow).status).toBe("released");
+    expect(balance(ata(seller.address))).toBe(2_500_001n);
+    expect(balance(vault)).toBe(-1n);
+  });
+
+  it("refund (anyone, after the deadline) returns the whole vault to the buyer", () => {
+    const { escrow, vault } = funded();
+    donate(vault, DONATION);
+    setClock(now + 3601n);
+    expect(payout("refund", escrow, stranger)).toBeNull();
+    expect(state(escrow).status).toBe("refunded");
+    expect(balance(ata(buyer.address))).toBe(10_000_001n);
+    expect(balance(vault)).toBe(-1n);
+  });
+
+  it("sellerRefund returns the whole vault to the buyer, before or after delivery", () => {
+    const a = funded();
+    donate(a.vault, DONATION);
+    expect(payout("sellerRefund", a.escrow, seller)).toBeNull();
+    expect(balance(a.vault)).toBe(-1n);
+    const b = funded();
+    expect(send([deliverInstruction(b.escrow, seller.address, HASH)], seller)).toBeNull();
+    donate(b.vault, 3n);
+    expect(payout("sellerRefund", b.escrow, seller)).toBeNull();
+    expect(state(b.escrow).status).toBe("refunded");
+    expect(balance(ata(buyer.address))).toBe(10_000_004n);
+    expect(balance(b.vault)).toBe(-1n);
+  });
+
+  it("a donation never redirects funds: the recipient is still fixed by the escrow", () => {
+    const { escrow, vault } = funded();
+    expect(send([deliverInstruction(escrow, seller.address, HASH)], seller)).toBeNull();
+    donate(vault, 1_000n);
+    const evil = ata(stranger.address);
+    const pay = payoutInstruction("accept", escrow, state(escrow), buyer.address);
+    pay.accounts[3]!.address = evil;
+    expect(send([pay], buyer)).toBe("InvalidArgs");
+    expect(payout("accept", escrow, buyer)).toBeNull();
+    expect(balance(ata(seller.address))).toBe(2_501_000n);
+  });
+});
+
 describe("receptum_escrow state machine", () => {
   it("A: buyer accepts → released to the seller, vault closed", () => {
     const { err, escrow } = open();

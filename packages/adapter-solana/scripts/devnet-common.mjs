@@ -22,6 +22,8 @@ import {
 export const NETWORK = SOLANA_DEVNET;
 export const RPC_URL = process.env.SOLANA_DEVNET_RPC ?? "https://api.devnet.solana.com";
 export const rpc = solanaJsonRpc(RPC_URL);
+/** sendAndConfirm options: every signature first checks that the RPC serves devnet. */
+const SEND = { network: NETWORK };
 export const walletsDir =
   process.env.RECEPTUM_WALLETS_DIR ?? join(homedir(), ".config/receptum/wallets");
 
@@ -97,25 +99,33 @@ export async function topUp(from, to, min) {
   const d = Buffer.alloc(12);
   d.writeUInt32LE(2, 0);
   d.writeBigUInt64LE(min - have, 4);
-  const { signature } = await sendAndConfirm(rpc, from, [
-    {
-      programId: SYSTEM_PROGRAM_ID,
-      accounts: [
-        { address: from.address, signer: true, writable: true },
-        { address: to, signer: false, writable: true },
-      ],
-      data: d,
-    },
-  ]);
+  const { signature } = await sendAndConfirm(
+    rpc,
+    from,
+    [
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        accounts: [
+          { address: from.address, signer: true, writable: true },
+          { address: to, signer: false, writable: true },
+        ],
+        data: d,
+      },
+    ],
+    SEND,
+  );
   return signature;
 }
 
 /** Creates `owner`'s devnet-USDC associated token account if it does not exist. */
 export async function ensureUsdcAccount(payer, owner) {
   if ((await tokenBalance(owner)) !== null) return null;
-  const { signature } = await sendAndConfirm(rpc, payer, [
-    createAtaIdempotentInstruction(payer.address, owner, DEVNET_USDC_MINT),
-  ]);
+  const { signature } = await sendAndConfirm(
+    rpc,
+    payer,
+    [createAtaIdempotentInstruction(payer.address, owner, DEVNET_USDC_MINT)],
+    SEND,
+  );
   return signature;
 }
 
@@ -125,26 +135,31 @@ export async function transferUsdc(from, toOwner, amount) {
   d[0] = 12;
   d.writeBigUInt64LE(BigInt(amount), 1);
   d[9] = 6;
-  const { signature } = await sendAndConfirm(rpc, from, [
-    createAtaIdempotentInstruction(from.address, toOwner, DEVNET_USDC_MINT),
-    {
-      programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-      accounts: [
-        {
-          address: associatedTokenAddress(from.address, DEVNET_USDC_MINT),
-          signer: false,
-          writable: true,
-        },
-        { address: DEVNET_USDC_MINT, signer: false, writable: false },
-        {
-          address: associatedTokenAddress(toOwner, DEVNET_USDC_MINT),
-          signer: false,
-          writable: true,
-        },
-        { address: from.address, signer: true, writable: false },
-      ],
-      data: d,
-    },
-  ]);
+  const { signature } = await sendAndConfirm(
+    rpc,
+    from,
+    [
+      createAtaIdempotentInstruction(from.address, toOwner, DEVNET_USDC_MINT),
+      {
+        programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        accounts: [
+          {
+            address: associatedTokenAddress(from.address, DEVNET_USDC_MINT),
+            signer: false,
+            writable: true,
+          },
+          { address: DEVNET_USDC_MINT, signer: false, writable: false },
+          {
+            address: associatedTokenAddress(toOwner, DEVNET_USDC_MINT),
+            signer: false,
+            writable: true,
+          },
+          { address: from.address, signer: true, writable: false },
+        ],
+        data: d,
+      },
+    ],
+    SEND,
+  );
   return signature;
 }

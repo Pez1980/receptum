@@ -15,9 +15,12 @@ import type { TransactionInstruction } from "./transaction.js";
 
 /**
  * The `receptum_escrow` program (packages/adapter-solana/program). Deployed immutable (no upgrade
- * authority) on devnet; see program/deployment.devnet.json.
+ * authority) on devnet; see program/deployment.devnet.json. Supersedes the first immutable
+ * deployment `6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv` (build `b3964928…`), whose payouts
+ * required an exact vault balance, so a 1-unit donation to a vault could lock that escrow forever
+ * (review round 4). That deployment is no longer trusted and its build no longer verifies.
  */
-export const RECEPTUM_SOLANA_PROGRAM_ID = "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv";
+export const RECEPTUM_SOLANA_PROGRAM_ID = "4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC";
 
 /**
  * SHA-256 of the published build (program/receptum_escrow.so) with trailing zero bytes removed —
@@ -25,7 +28,7 @@ export const RECEPTUM_SOLANA_PROGRAM_ID = "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1m
  * deployed ProgramData (§7.4 of SPEC).
  */
 export const RECEPTUM_SOLANA_PROGRAM_HASH =
-  "b3964928ffc08a5a6266957944d03deb62b206d9dfc356c126dedea229e5d93b";
+  "e20b63d342e98ed1856e1d1df54fa7aaa9fabf8c2b26ac8f3e638e281d3e451b";
 
 /** Published deployments by network (mainnet: none — escrows go to mainnet only after an audit). */
 export const RECEPTUM_SOLANA_DEPLOYMENTS: Readonly<Record<string, readonly string[]>> = {

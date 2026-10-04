@@ -46,8 +46,10 @@ DEFAULT_SOLANA_RPCS = {
 }
 SOLANA_ESCROW_RAIL = "escrow:receptum-solana"
 # The published receptum_escrow build (packages/adapter-solana/program/deployment.devnet.json).
-RECEPTUM_SOLANA_PROGRAM_ID = "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv"
-RECEPTUM_SOLANA_PROGRAM_HASH = "b3964928ffc08a5a6266957944d03deb62b206d9dfc356c126dedea229e5d93b"
+# Supersedes 6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv (build b3964928…): its payouts needed
+# an exact vault balance, so a 1-unit donation could lock an escrow (review round 4).
+RECEPTUM_SOLANA_PROGRAM_ID = "4iUzsYkrzcUdc3aFsgXg5aocHWShMjQ3dCNSyg6dwgYC"
+RECEPTUM_SOLANA_PROGRAM_HASH = "e20b63d342e98ed1856e1d1df54fa7aaa9fabf8c2b26ac8f3e638e281d3e451b"
 
 BPF_LOADER_UPGRADEABLE = "BPFLoaderUpgradeab1e11111111111111111111111"
 MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"

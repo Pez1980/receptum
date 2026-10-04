@@ -79,6 +79,7 @@ export {
   getAccount,
   getParsedTransaction,
   rpcFor,
+  rpcNetwork,
   servesNetwork,
   solanaJsonRpc,
   SolanaRpcError,
@@ -89,12 +90,14 @@ export {
   type TokenBalance,
 } from "./rpc.js";
 export {
+  assertRpcNetwork,
   compileMessage,
   sendAndConfirm,
   signTransaction,
   solanaKeypair,
   SolanaTxError,
   type AccountMeta,
+  type SendOptions,
   type SolanaKeypair,
   type TransactionInstruction,
 } from "./transaction.js";

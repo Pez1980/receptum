@@ -6,7 +6,9 @@
 //
 // Needs the Agave CLI (`solana`, pinned v4.3.0) on PATH, the payer keypair
 // $RECEPTUM_WALLETS_DIR/solana-devnet-deployer.json (~1.1 SOL: program rent + the temporary
-// buffer) and the program address keypair solana-devnet-program.json. Neither is ever printed.
+// buffer) and the program address keypair solana-devnet-program-v2.json. Neither is ever printed.
+// (solana-devnet-program.json is the superseded first deployment 6VdZ7E96…, review round 4: an
+// immutable program can't be fixed in place, so the fixed build is a new program.)
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -31,14 +33,16 @@ import {
   walletsDir,
 } from "./devnet-common.mjs";
 
+const PROGRAM_ROLE = "program-v2";
+const BUFFER_ROLE = "buffer-v2";
 const so = new URL("../program/receptum_escrow.so", import.meta.url);
 if (elfHash(readFileSync(so)) !== RECEPTUM_SOLANA_PROGRAM_HASH)
   throw new Error("program/receptum_escrow.so is not the published build");
 if (!(await servesNetwork(rpc, NETWORK))) throw new Error(`${RPC_URL} is not Solana devnet`);
 const deployer = loadKeypair("deployer");
-const program = loadKeypair("program");
+const program = loadKeypair(PROGRAM_ROLE);
 if (program.address !== RECEPTUM_SOLANA_PROGRAM_ID)
-  throw new Error("solana-devnet-program.json is not the published program address");
+  throw new Error(`solana-devnet-${PROGRAM_ROLE}.json is not the published program address`);
 
 // The CLI prints a recovery seed phrase for any buffer keypair it generates itself, so the
 // buffer keypair is created here (in the wallets dir, mode 600) and the CLI's stderr is never
@@ -72,14 +76,14 @@ const common = ["--keypair", wallet("deployer"), "--url", RPC_URL, "--commitment
 let signature = process.env.DEPLOY_SIGNATURE ?? null;
 const existing = await getAccount(rpc, RECEPTUM_SOLANA_PROGRAM_ID);
 if (!existing) {
-  const bufferFile = wallet("buffer");
+  const bufferFile = wallet(BUFFER_ROLE);
   if (!existsSync(bufferFile)) {
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
     const d = Buffer.from(privateKey.export({ format: "jwk" }).d, "base64url");
     const x = Buffer.from(publicKey.export({ format: "jwk" }).x, "base64url");
     writeFileSync(bufferFile, JSON.stringify([...d, ...x]), { mode: 0o600 });
   }
-  loadKeypair("buffer"); // registers it for the secret screen
+  loadKeypair(BUFFER_ROLE); // registers it for the secret screen
   // Write (or resume writing) the buffer; retried because public RPCs drop write transactions.
   for (let attempt = 1; ; attempt++) {
     try {
@@ -108,7 +112,7 @@ if (!existing) {
     "--buffer",
     bufferFile,
     "--program-id",
-    wallet("program"),
+    wallet(PROGRAM_ROLE),
     "--final",
     "--use-rpc",
     "--with-compute-unit-price",
@@ -146,6 +150,12 @@ const deployment = {
     toolchain: "Agave 4.3.0 cargo-build-sbf, platform-tools v1.57 (rustc 1.95.0-sbpf-solana-v1.57)",
     crate: "solana-program =4.0.0 (Cargo.lock committed)",
     command: "cd packages/adapter-solana/program && cargo-build-sbf",
+  },
+  supersedes: {
+    programId: "6VdZ7E96YbZig648NFQ9sHwKTHQtY7cntYU1mZmv77wv",
+    executableHash: "b3964928ffc08a5a6266957944d03deb62b206d9dfc356c126dedea229e5d93b",
+    reason:
+      "Review round 4 (Codex, 4 Oct 2026), HIGH: payouts required the vault balance to equal the escrow amount, so donating 1 token unit to a vault locked that escrow forever. The fixed build pays out the whole vault. The superseded program is immutable, no longer trusted, and its build no longer verifies.",
   },
   note: "Unaudited. Devnet only. Deployed with --final: there is no upgrade authority.",
 };

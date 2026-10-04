@@ -1,6 +1,6 @@
 import { isSha256Hex, type Anchor, type AnchorRecord, type Sha256Hex } from "@receptum/core";
 import { MEMO_PROGRAM_ID } from "./address.js";
-import { assertSolanaNetwork, SOLANA_DEVNET } from "./network.js";
+import { SOLANA_DEVNET } from "./network.js";
 import { getParsedTransaction, rpcFor, type ParsedTransaction, type SolanaRpc } from "./rpc.js";
 import { sendAndConfirm, type SolanaKeypair, type TransactionInstruction } from "./transaction.js";
 
@@ -40,7 +40,10 @@ export function txAnchors(tx: ParsedTransaction, receiptHash: Sha256Hex): boolea
 }
 
 export interface SolanaAnchorOptions {
-  /** CAIP-2 network. Default devnet; mainnet needs `allowMainnet`. */
+  /**
+   * CAIP-2 network. Default devnet; mainnet needs `allowMainnet`. Before every signature the RPC
+   * (default, `rpc` or `rpcUrl`) must report this cluster's genesis hash.
+   */
   network?: string;
   /** JSON-RPC transport; defaults to the public endpoint for `network`. */
   rpc?: SolanaRpc;
@@ -68,10 +71,15 @@ export class SolanaAnchor implements Anchor {
     const memo = anchorMemo(receiptHash);
     const signer = this.opts.signer;
     if (!signer) throw new Error("anchor needs a signer");
-    assertSolanaNetwork(this.network, this.opts.allowMainnet);
-    const { signature } = await sendAndConfirm(this.rpc, signer, [
-      memoInstruction(memo, signer.address),
-    ]);
+    const { signature } = await sendAndConfirm(
+      this.rpc,
+      signer,
+      [memoInstruction(memo, signer.address)],
+      {
+        network: this.network,
+        ...(this.opts.allowMainnet !== undefined ? { allowMainnet: this.opts.allowMainnet } : {}),
+      },
+    );
     return {
       rail: SOLANA_ANCHOR_RAIL,
       network: this.network,

@@ -7,7 +7,7 @@ import type {
   Sha256Hex,
 } from "@receptum/core";
 import { isSolanaAddress } from "./base58.js";
-import { assertSolanaNetwork, SOLANA_DEVNET } from "./network.js";
+import { SOLANA_DEVNET } from "./network.js";
 import {
   createAtaIdempotentInstruction,
   decodeEscrowAccount,
@@ -23,7 +23,12 @@ import {
   type SolanaEscrowAccount,
 } from "./program.js";
 import { getAccount, rpcFor, type SolanaRpc } from "./rpc.js";
-import { sendAndConfirm, type SolanaKeypair } from "./transaction.js";
+import {
+  assertRpcNetwork,
+  sendAndConfirm,
+  type SolanaKeypair,
+  type TransactionInstruction,
+} from "./transaction.js";
 
 /** Same hybrid machine as `escrow:receptum-evm` / `escrow:receptum-soroban` (SPEC §7.4). */
 export const SOLANA_ESCROW_CAPABILITIES: EscrowCapabilities = {
@@ -33,7 +38,10 @@ export const SOLANA_ESCROW_CAPABILITIES: EscrowCapabilities = {
 };
 
 export interface SolanaEscrowRailOptions {
-  /** CAIP-2 network. Default devnet; mainnet needs `allowMainnet` before anything is signed. */
+  /**
+   * CAIP-2 network. Default devnet; mainnet needs `allowMainnet` before anything is signed. Before
+   * every signature the RPC (default, `rpc` or `rpcUrl`) must report this cluster's genesis hash.
+   */
   network?: string;
   rpc?: SolanaRpc;
   rpcUrl?: string;
@@ -78,11 +86,21 @@ export class SolanaEscrowRail implements EscrowRail {
     this.rpc = opts.rpc ?? rpcFor(this.network, opts.rpcUrl);
   }
 
-  private signer(): SolanaKeypair {
+  private get allow() {
+    return this.opts.allowMainnet !== undefined ? { allowMainnet: this.opts.allowMainnet } : {};
+  }
+
+  /** The signer, once the RPC is verified to serve `network` and the opt-in allows it. */
+  private async signer(): Promise<SolanaKeypair> {
     const s = this.opts.signer;
     if (!s) throw new Error("this call needs a signer");
-    assertSolanaNetwork(this.network, this.opts.allowMainnet);
+    await assertRpcNetwork(this.rpc, this.network, this.opts.allowMainnet);
     return s;
+  }
+
+  /** Signs and sends; `sendAndConfirm` re-checks the RPC's network before the signature. */
+  private send(signer: SolanaKeypair, ixs: TransactionInstruction[]) {
+    return sendAndConfirm(this.rpc, signer, ixs, { network: this.network, ...this.allow });
   }
 
   private parse(escrowId: string) {
@@ -95,7 +113,7 @@ export class SolanaEscrowRail implements EscrowRail {
 
   /** Buyer (the signer) locks `amount` of `mint` for `seller`. */
   async open(params: OpenEscrowParams): Promise<{ escrowId: string; reference: string }> {
-    const buyer = this.signer();
+    const buyer = await this.signer();
     if (!isSolanaAddress(params.seller) || !isSolanaAddress(params.mint))
       throw new TypeError("seller and mint must be Solana addresses");
     if (params.evaluator !== undefined && !isSolanaAddress(params.evaluator))
@@ -112,7 +130,7 @@ export class SolanaEscrowRail implements EscrowRail {
       id,
       programId: this.programId,
     });
-    const { signature } = await sendAndConfirm(this.rpc, buyer, [ix]);
+    const { signature } = await this.send(buyer, [ix]);
     const escrow = escrowAddress(buyer.address, id, this.programId).address;
     return {
       escrowId: formatSolanaEscrowId(this.network, this.programId, escrow),
@@ -148,20 +166,21 @@ export class SolanaEscrowRail implements EscrowRail {
 
   /** Seller (the signer) commits `receiptHash`. */
   async deliver(escrowId: string, receiptHash: Sha256Hex): Promise<{ reference: string }> {
-    const seller = this.signer();
     const { escrow } = this.parse(escrowId);
-    const { signature } = await sendAndConfirm(this.rpc, seller, [
+    const seller = await this.signer();
+    const { signature } = await this.send(seller, [
       deliverInstruction(escrow, seller.address, receiptHash, this.programId),
     ]);
     return { reference: signature };
   }
 
   private async payout(escrowId: string, kind: PayoutKind): Promise<{ reference: string }> {
-    const signer = this.signer();
+    this.parse(escrowId);
+    const signer = await this.signer();
     const state = await this.getEscrow(escrowId);
     const e = state.solana;
     const toSeller = kind === "accept" || kind === "release";
-    const { signature } = await sendAndConfirm(this.rpc, signer, [
+    const { signature } = await this.send(signer, [
       // The payout goes to the recipient's associated token account; create it if needed.
       createAtaIdempotentInstruction(signer.address, toSeller ? e.seller : e.buyer, e.mint),
       payoutInstruction(kind, e.escrow, e, signer.address, this.programId),

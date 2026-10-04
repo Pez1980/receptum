@@ -1,0 +1,18 @@
+{
+  "statement": {
+    "type": "receptum/account-binding/1",
+    "did": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+    "account": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:8WTJMfDjmYXm5q4Hy7B55wbQGXYeJzKmY9taRF91HtWe",
+    "issuedAt": "2026-10-04T00:07:48.997Z",
+    "expiresAt": "2027-10-04T00:07:48.997Z"
+  },
+  "didProof": {
+    "type": "jws",
+    "kid": "did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t#z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t",
+    "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3FjN1JHTm1tZmJHNEhlVUY2VWRlZUJYdVJpWGZVazFmTWY5c2cxQWRieTR0I3o2TWtxYzdSR05tbWZiRzRIZVVGNlVkZWVCWHVSaVhmVWsxZk1mOXNnMUFkYnk0dCIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..uxn_tq57q73WJMU8wpvrc1Pj7EW0Pv0D58UxWcFJcnNIWIuPPqhP9rw7OxbS6AarQJe5ZzSa2NEi0nDsepDSCQ"
+  },
+  "accountProof": {
+    "type": "solana",
+    "signature": "3ANm1dVL0dRboyByPalMBTB55jbo1jlDq/7mjS84r2MaZhDxHmcyZnV9loj3mOoD/U+V8gzKi1kJ3mmZpxltDg=="
+  }
+}

@@ -71,7 +71,7 @@ open ──deliver (seller, ≤ deliver_by)──▶ delivered ──accept (buy
 - `open` works even if someone pre-funds the escrow address (transfer + allocate + assign rather than `CreateAccount`). The escrow id is chosen by the buyer (random by default).
 - Errors (custom codes, numbered like the Soroban escrow): 1 BadState, 2 NotAllowed, 3 TooEarly, 4 TooLate, 5 InvalidArgs, 6 UnsupportedToken, 7 NotFound, 8 Overflow.
 
-Tests: `src/program.test.ts` runs the published `.so` in [LiteSVM](https://github.com/LiteSVM/litesvm) with the real SPL Token and ATA programs — every flow plus negative cases (wrong signer, double delivery, early/late calls, wrong token program, foreign payout account, wrong rent recipient, fake escrow accounts, pre-funded address, overflow) and vault donations on every settlement path (accept, reject, release, refund, sellerRefund). `scripts/e2e-local.mjs` runs the rail, anchor and verifier against a local `solana-test-validator`; `scripts/e2e-devnet.mjs` runs flows A–F on devnet; `scripts/deploy-devnet.mjs` deploys and records `program/deployment.devnet.json`.
+Tests: `src/program.test.ts` runs the published `.so` in [LiteSVM](https://github.com/LiteSVM/litesvm) with the real SPL Token and ATA programs — every flow plus negative cases (wrong signer, double delivery, early/late calls, wrong token program, foreign payout account, wrong rent recipient, fake escrow accounts, pre-funded address, overflow) and vault donations on every settlement path (accept, reject, release, refund, sellerRefund). `scripts/e2e-local.mjs` runs the rail, anchor and verifier against a local `solana-test-validator`; `scripts/e2e-devnet.mjs` runs flows A–F on devnet; `scripts/deploy-devnet.mjs` deploys and records `program/deployment.devnet.json`; `scripts/deploy-mainnet.test.mjs` covers every refusal of the mainnet deploy script with a mocked RPC and CLI.
 
 ## x402 `exact` on Solana
 
@@ -84,3 +84,12 @@ The public facilitator (`https://x402.org/facilitator`) advertises `exact` on `s
 ## Mainnet
 
 `SOLANA_MAINNET`, `MAINNET_USDC_MINT` and the mainnet RPC are defined, but nothing is deployed and `TRUSTED_ESCROWS` has no mainnet program. See [docs/MAINNET.md](../../docs/MAINNET.md).
+
+`scripts/deploy-mainnet.mjs` deploys the program to mainnet-beta once the independent audit is published, with the same guard rails as the EVM and Soroban mainnet scripts:
+
+```sh
+RECEPTUM_ALLOW_MAINNET=1 RECEPTUM_MAINNET_DEPLOYER_KEYPAIR=/abs/path/fresh-mainnet-deployer.json \
+  node packages/adapter-solana/scripts/deploy-mainnet.mjs --audit-report https://… [--so <ci-artifact.so>] [--rpc <url>] --dry-run
+```
+
+It refuses without `RECEPTUM_ALLOW_MAINNET=1` or an `https` audit report; takes the deployer keypair only from the path in `RECEPTUM_MAINNET_DEPLOYER_KEYPAIR` (read by the Agave CLI, never by the script; testnet wallet directories, `~/.config/solana` and devnet/testnet-named files are refused); requires the RPC's genesis hash to be mainnet-beta's (`5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d`); refuses a `.so` that isn't the canonical CI build (`b270e984…1467c3`; use the CI artifact `receptum_escrow-ci-build`, never a macOS build); prints the plan (network, deployer, balance, program size, estimated rent and fees, hash) and refuses an underfunded deployer; and needs the typed phrase `deploy receptum_escrow to solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` on a terminal (`--dry-run` stops after the plan). It deploys with `--final`, then checks the on-chain ProgramData hash and that there is no upgrade authority before writing `deployment.mainnet.json`. Raw CLI output is never printed. Tests: `scripts/deploy-mainnet.test.mjs` (mocked RPC and CLI).

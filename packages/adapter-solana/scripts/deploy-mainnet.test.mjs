@@ -42,8 +42,26 @@ function programDataBytes({ authority = null, elf = so } = {}) {
   return Buffer.concat([h, elf, Buffer.alloc(64)]);
 }
 
+/** An upgradeable-loader Buffer account: tag 1, Some(authority), then the written bytes. */
+function bufferBytes({ authority = DEPLOYER, elf = so } = {}) {
+  const h = Buffer.alloc(37);
+  h.writeUInt32LE(1, 0);
+  h[4] = 1;
+  Buffer.from(lib.decodeBase58(authority)).copy(h, 5);
+  return Buffer.concat([h, elf, Buffer.alloc(16)]);
+}
+
+const TMP = "/tmp/receptum-solana-mainnet-x";
+const SNAPSHOT = `${TMP}/receptum_escrow.so`;
+
 function deps(over = {}, { genesis = MAINNET_GENESIS, cliGenesis = MAINNET_GENESIS } = {}) {
-  const state = { deployed: false, balance: 10n * 1_000_000_000n, programData: programDataBytes() };
+  const state = {
+    deployed: false,
+    balance: 10n * 1_000_000_000n,
+    programData: programDataBytes(),
+    buffer: null,
+    bufferWritten: bufferBytes(),
+  };
   const account = (data, executable) => ({
     value: {
       owner: lib.BPF_LOADER_UPGRADEABLE_ID,
@@ -61,6 +79,8 @@ function deps(over = {}, { genesis = MAINNET_GENESIS, cliGenesis = MAINNET_GENES
       case "getMinimumBalanceForRentExemption":
         return (params[0] + 128) * 6960;
       case "getAccountInfo": {
+        if (params[0] === BUFFER)
+          return state.buffer ? account(state.buffer, false) : { value: null };
         if (!state.deployed) return { value: null };
         if (params[0] === PROGRAM_ID) {
           const p = Buffer.alloc(36);
@@ -79,8 +99,10 @@ function deps(over = {}, { genesis = MAINNET_GENESIS, cliGenesis = MAINNET_GENES
     if (args[0] === "genesis-hash") return `${cliGenesis}\n`;
     if (args[0] === "address") return `${DEPLOYER}\n`;
     if (args[0] === "--version") return "solana-cli 4.3.0 (src:00000000; feat:1, client:Agave)\n";
-    if (args[0] === "program" && args[1] === "write-buffer")
+    if (args[0] === "program" && args[1] === "write-buffer") {
+      state.buffer = state.bufferWritten;
       return `Save this seed phrase to recover the buffer: ${SEED}\n`;
+    }
     if (args[0] === "program" && args[1] === "deploy") {
       state.deployed = true;
       return JSON.stringify({ programId: PROGRAM_ID, signature: SIGNATURE });
@@ -95,15 +117,17 @@ function deps(over = {}, { genesis = MAINNET_GENESIS, cliGenesis = MAINNET_GENES
     programCalls,
     d: {
       lib,
-      readFile: async (u) => (String(u).endsWith(".so") ? so : devnetRecord),
+      readFile: vi.fn(async (u) => (String(u).endsWith(".so") ? so : devnetRecord)),
       makeRpc: vi.fn(() => rpc),
       cli,
       keyFileExists: (p) => p === KEY,
       realpath: (p) => p,
+      isRegularFile: vi.fn(() => true),
+      writePrivateFile: vi.fn(),
       makeTempKeypairs: vi.fn(() => ({
-        dir: "/tmp/receptum-solana-mainnet-x",
-        program: { path: "/tmp/receptum-solana-mainnet-x/program.json", address: PROGRAM_ID },
-        buffer: { path: "/tmp/receptum-solana-mainnet-x/buffer.json", address: BUFFER },
+        dir: TMP,
+        program: { path: `${TMP}/program.json`, address: PROGRAM_ID },
+        buffer: { path: `${TMP}/buffer.json`, address: BUFFER },
       })),
       removeDir: vi.fn(),
       isTTY: true,
@@ -214,6 +238,54 @@ describe("deploy-mainnet.mjs (Solana) refusals (before any signature)", () => {
       call([...ARGS, "--so", "/home/op/.config/receptum/wallets/x.so"], okEnv, wallet.d),
     ).rejects.toThrow(/wallet directory/);
     for (const m of [local, drift, wallet]) expect(m.programCalls()).toHaveLength(0);
+  });
+
+  it("canonicalizes --so before reading it: relative, `..`, symlinked and non-regular paths", async () => {
+    const soReads = (m) => m.d.readFile.mock.calls.filter(([u]) => !(u instanceof URL));
+    const rel = deps();
+    await expect(call([...ARGS, "--so", "build/receptum_escrow.so"], okEnv, rel.d)).rejects.toThrow(
+      /--so must be an absolute path/,
+    );
+    // `..` that textually starts outside the wallet dir but resolves into it.
+    const dots = deps();
+    await expect(
+      call([...ARGS, "--so", "/secure/../wallets/solana-devnet.json"], okEnv, dots.d),
+    ).rejects.toThrow(/wallet directory/);
+    // A symlink to the CLI's default wallet.
+    const link = deps({
+      realpath: (p) => (p === "/secure/escrow.so" ? "/home/op/.config/solana/id.json" : p),
+    });
+    await expect(call([...ARGS, "--so", "/secure/escrow.so"], okEnv, link.d)).rejects.toThrow(
+      /wallet directory/,
+    );
+    // The wallet directory itself is a symlink: compare against its real path too.
+    const dirLink = deps({ realpath: (p) => (p === "/wallets" ? "/private/wallets" : p) });
+    await expect(
+      call([...ARGS, "--so", "/private/wallets/x.so"], okEnv, dirLink.d),
+    ).rejects.toThrow(/wallet directory/);
+    const fifo = deps({ isRegularFile: vi.fn(() => false) });
+    await expect(call([...ARGS, "--so", "/secure/escrow.so"], okEnv, fifo.d)).rejects.toThrow(
+      /not a regular file/,
+    );
+    const missing = deps({
+      realpath: (p) => {
+        if (p === "/secure/missing.so")
+          throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+        return p;
+      },
+    });
+    await expect(call([...ARGS, "--so", "/secure/missing.so"], okEnv, missing.d)).rejects.toThrow(
+      /--so names no file/,
+    );
+    for (const m of [rel, dots, link, dirLink, fifo, missing]) {
+      expect(soReads(m)).toHaveLength(0);
+      expect(m.rpc).not.toHaveBeenCalled();
+      expect(m.programCalls()).toHaveLength(0);
+    }
+    // A clean absolute path is read through its real path, once.
+    const ok = deps({ realpath: (p) => (p === "/secure/ci/escrow.so" ? "/data/ci/escrow.so" : p) });
+    await call([...ARGS, "--so", "/secure/ci/escrow.so", "--dry-run"], okEnv, ok.d);
+    expect(soReads(ok).map(([u]) => u)).toEqual(["/data/ci/escrow.so"]);
   });
 
   it("refuses an underfunded deployer, a missing TTY or a wrong phrase", async () => {
@@ -328,7 +400,52 @@ describe("deploy-mainnet.mjs (Solana) plan and confirmed deploy (mocked)", () =>
       deployTransaction: SIGNATURE,
       auditReport: AUDIT,
     });
-    expect(m.d.removeDir).toHaveBeenCalledWith("/tmp/receptum-solana-mainnet-x");
+    expect(m.d.removeDir).toHaveBeenCalledWith(TMP);
+  });
+
+  it("uploads a private snapshot of the validated bytes, never the --so path (TOCTOU)", async () => {
+    const m = deps();
+    let reads = 0;
+    // The file is swapped for other bytes after it was hashed (e.g. while the prompt waits).
+    m.d.readFile.mockImplementation(async (u) => {
+      if (!String(u).endsWith(".so")) return devnetRecord;
+      reads++;
+      return reads === 1 ? so : Buffer.from("swapped, malicious program");
+    });
+    await call([...ARGS, "--so", "/secure/ci/receptum_escrow.so"], okEnv, m.d);
+    expect(reads).toBe(1);
+    expect(m.d.writePrivateFile).toHaveBeenCalledOnce();
+    const [path, data] = m.d.writePrivateFile.mock.calls[0];
+    expect(path).toBe(SNAPSHOT);
+    expect(Buffer.compare(Buffer.from(data), so)).toBe(0);
+    const [write] = m.programCalls().map(([a]) => a);
+    expect(write[2]).toBe(SNAPSHOT);
+    expect(write).not.toContain("/secure/ci/receptum_escrow.so");
+    // The snapshot is written before the CLI reads it.
+    expect(m.d.writePrivateFile.mock.invocationCallOrder[0]).toBeLessThan(
+      m.cli.mock.invocationCallOrder[m.cli.mock.calls.findIndex(([a]) => a[1] === "write-buffer")],
+    );
+  });
+
+  it("verifies the uploaded buffer before deploy --final and keeps the keys if it differs", async () => {
+    for (const bufferWritten of [
+      bufferBytes({ elf: Buffer.from("swapped, malicious program") }),
+      bufferBytes({ authority: addr(9) }),
+      Buffer.from(programDataBytes()), // not a Buffer account
+    ]) {
+      const m = deps();
+      m.state.bufferWritten = bufferWritten;
+      await expect(call(ARGS, okEnv, m.d)).rejects.toThrow(
+        /buffer [1-9A-HJ-NP-Za-km-z]+ .*not deployed[\s\S]*kept in \/tmp\/receptum-solana-mainnet-x/,
+      );
+      expect(m.programCalls().map(([a]) => a[1])).toEqual(["write-buffer"]);
+      expect(m.d.removeDir).not.toHaveBeenCalled();
+      expect(m.d.writeFile).not.toHaveBeenCalled();
+    }
+    const gone = deps();
+    gone.state.bufferWritten = null;
+    await expect(call(ARGS, okEnv, gone.d)).rejects.toThrow(/not deployed[\s\S]*kept in/);
+    expect(gone.programCalls().map(([a]) => a[1])).toEqual(["write-buffer"]);
   });
 
   it("fails (and publishes nothing) if the deployed program is upgradeable or runs other bytes", async () => {
@@ -356,6 +473,7 @@ describe("deploy-mainnet.mjs (Solana) plan and confirmed deploy (mocked)", () =>
       /kept in \/tmp\/receptum-solana-mainnet-x/,
     );
     expect(m.programCalls()).toHaveLength(5); // write-buffer retried, never deployed
+    expect(m.d.removeDir).not.toHaveBeenCalled();
     expect(m.d.writeFile).not.toHaveBeenCalled();
   });
 });

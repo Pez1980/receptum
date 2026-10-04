@@ -16,6 +16,7 @@ function deps(over = {}) {
     getBalance: vi.fn(async () => 10n ** 18n),
     estimateGas: vi.fn(async () => 1_500_000n),
     getGasPrice: vi.fn(async () => 1_000_000n),
+    getCode: vi.fn(async () => "0x6000"),
   };
   const deployEscrow = vi.fn(async () => "0x2222222222222222222222222222222222222222");
   const clientsFor = vi.fn((network, account, opts) => ({
@@ -38,7 +39,7 @@ function deps(over = {}) {
       deployEscrow,
       bytecode: "0x6000",
       deployedBytecode: "0x6000",
-      keccak256: () => "0xcodehash",
+      keccak256: (code) => (code === "0x6000" ? "0xcodehash" : "0xother"),
       formatEther: (v) => String(v),
       isTTY: true,
       ask: vi.fn(async () => confirmationPhrase("eip155:8453")),
@@ -83,6 +84,11 @@ describe("deploy-mainnet.mjs refusals (before any signature)", () => {
     await expect(
       call(["eip155:8453", "--audit-report", AUDIT, "--key-file", "x"], okEnv, m.d),
     ).rejects.toThrow(/unknown option --key-file/);
+    // The bytecode is compiled in: no artifact path to swap or alias.
+    for (const opt of ["--bytecode", "--artifact"])
+      await expect(
+        call(["eip155:8453", "--audit-report", AUDIT, opt, "/x.json"], okEnv, m.d),
+      ).rejects.toThrow(new RegExp(`unknown option ${opt}`));
   });
 
   it("never reads wallet files", () => {
@@ -159,5 +165,17 @@ describe("deploy-mainnet.mjs plan and confirmed deploy (mocked)", () => {
       "deployment.eip155-8453.json",
       expect.stringContaining('"contract": "0x2222'),
     );
+  });
+
+  it("fails (and publishes nothing) if the deployed runtime code is not the planned code", async () => {
+    const m = deps();
+    m.publicClient.getCode.mockResolvedValue("0xdead");
+    await expect(call(["eip155:8453", "--audit-report", AUDIT], okEnv, m.d)).rejects.toThrow(
+      /runs code 0xother, expected 0xcodehash/,
+    );
+    expect(m.publicClient.getCode).toHaveBeenCalledWith({
+      address: "0x2222222222222222222222222222222222222222",
+    });
+    expect(m.d.writeFile).not.toHaveBeenCalled();
   });
 });

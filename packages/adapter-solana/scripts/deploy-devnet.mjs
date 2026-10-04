@@ -57,7 +57,12 @@ function cli(args) {
       .filter(
         (l) => /error|insufficient|failed/i.test(l) && !/seed phrase|keygen recover/i.test(l),
       );
-    throw new Error(`solana ${args[0]} ${args[1]} failed: ${lines.join(" | ").slice(0, 500)}`);
+    // The original error carries the CLI's raw output (possibly a seed phrase): strip it first.
+    for (const k of ["stderr", "stdout", "output"]) err[k] = undefined;
+    err.message = `solana exited with status ${err.status}`;
+    throw new Error(`solana ${args[0]} ${args[1]} failed: ${lines.join(" | ").slice(0, 500)}`, {
+      cause: err,
+    });
   }
 }
 const wallet = (role) => join(walletsDir, `solana-devnet-${role}.json`);

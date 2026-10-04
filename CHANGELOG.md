@@ -29,7 +29,7 @@ Not yet published; this release ships everything below. Testnets stay the defaul
   - `@receptum/verify` and the Python verifier: read-only mainnet endpoints, empty mainnet `TRUSTED_ESCROWS` entries (a genuine mainnet escrow is `pending`, `untrusted deployment`), `network`/`networkClass` in reports and a MAINNET/TESTNET header line in both CLIs.
   - `@receptum/server`: `facilitatorUrlFor` (no default mainnet facilitator) and `allowMainnet` in `handlePaidJob`. `@receptum/client`: `networks` + `allowMainnet` in `createReceptumFetch`.
 - Negative test vectors (`spec/vectors/rrf-v1.json` `invalid`), account-binding vectors, XRPL currency and issued-amount vectors.
-- `scripts/verify-examples.mjs` and `verifiers/python/scripts/verify_examples.py`: re-verify every published testnet receipt (23 cases, identical lists and output) against live chains.
+- `scripts/verify-examples.mjs` and `verifiers/python/scripts/verify_examples.py`: re-verify every published testnet receipt (30 cases, identical lists and output) against live chains.
 - Published deliverables and seller bindings for every escrow receipt: the Stellar claimable-balance and XRPL escrow e2e runs were repeated so their released flows are VERIFIED (`packages/adapter-stellar/e2e-claimable-results.json`, `examples/xrpl-testnet-escrow-{a,c}.json`, `examples/deliverables/`).
 
 ### Changed (verifier behaviour)

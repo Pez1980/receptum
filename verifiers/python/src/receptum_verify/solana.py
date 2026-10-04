@@ -13,6 +13,7 @@ import binascii
 import hashlib
 import re
 import struct
+import time
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature
@@ -178,11 +179,25 @@ def verify_solana_proof(
 # --- RPC ----------------------------------------------------------------------
 
 
+class _RetryingRpc(JsonRpc):
+    """Public Solana endpoints rate-limit (HTTP 429): retry a few times with backoff."""
+
+    def call(self, method: str, params: list[Any]) -> Any:
+        for attempt in range(5):
+            try:
+                return super().call(method, params)
+            except RpcError as exc:
+                if "429" not in str(exc) and "Too Many" not in str(exc) or attempt == 4:
+                    raise
+                time.sleep(0.5 * 2**attempt)
+        raise AssertionError("unreachable")  # pragma: no cover
+
+
 def _connect(network: str, rpcs: dict[str, str]) -> JsonRpc | CheckResult:
     url = rpcs.get(network)
     if not url:
         return CheckResult("unavailable", f"no Solana RPC endpoint configured for {network}")
-    rpc = JsonRpc(url, timeout=30.0)
+    rpc = _RetryingRpc(url, timeout=30.0)
     try:
         genesis = rpc.call("getGenesisHash", [])
     except RpcError as exc:

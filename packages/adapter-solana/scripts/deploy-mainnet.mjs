@@ -16,6 +16,9 @@
 //     under $RECEPTUM_WALLETS_DIR, ~/.config/receptum or ~/.config/solana (the CLI's default
 //     wallet) and any devnet/testnet-named file are refused;
 //   - checks the RPC's genesis hash (over JSON-RPC and through the CLI) is Solana mainnet-beta's;
+//   - `--so` must be an absolute path; it is canonicalized (realpath: symlinks and `..` resolved)
+//     and refused, before it is read, when it lies under a wallet directory above (compared with
+//     those directories' real paths too) or is not a regular file;
 //   - refuses a .so whose hash (SHA-256 with trailing zero bytes removed) differs from the
 //     canonical CI build, RECEPTUM_SOLANA_PROGRAM_HASH = program/deployment.devnet.json
 //     executableHash. Use the CI artifact `receptum_escrow-ci-build` of the audited commit (or
@@ -25,6 +28,11 @@
 //     hash) and refuses an underfunded deployer;
 //   - requires typing the exact confirmation phrase on an interactive terminal; `--dry-run` stops
 //     after the plan.
+// The validated bytes are read once and never again from --so: after confirmation they are written
+// to a private snapshot (mode 600, in the script's private temporary directory) and only that
+// snapshot is given to `solana program write-buffer`. Before `deploy --final`, the uploaded buffer
+// account must be a loader Buffer owned by the deployer whose bytes hash to the canonical hash;
+// otherwise nothing is deployed (the temporary keys are kept to resume or close the buffer).
 // It deploys with `--final` (no upgrade authority, ever), then checks the on-chain ProgramData:
 // hash = the canonical hash and no upgrade authority. The raw Solana CLI output is never printed
 // (it can contain a recovery seed phrase); only validated addresses, hashes and signatures are.
@@ -32,12 +40,12 @@
 // TRUSTED_ESCROWS["solana:5eykt4…"] (packages/verify and verifiers/python) in a reviewed change.
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
-import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, sep } from "node:path";
+import { isAbsolute, join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const KEYPAIR_ENV = "RECEPTUM_MAINNET_DEPLOYER_KEYPAIR";
 /** Full genesis hash of Solana mainnet-beta (CAIP-2 `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`). */
@@ -52,6 +60,8 @@ const LAMPORTS = 1_000_000_000n;
 const PROGRAM_LEN = 36;
 const BUFFER_HEADER = 37;
 const PROGRAMDATA_HEADER = 45;
+/** Name of the private snapshot of the validated .so in the temporary directory. */
+const SNAPSHOT = "receptum_escrow.so";
 /** Conservative fee model: bytes per write-buffer tx, base fee, priority fee (µlamports/CU). */
 const WRITE_CHUNK = 900;
 const BASE_FEE = 5_000n;
@@ -89,6 +99,50 @@ function forbiddenKeyDirs(env) {
 }
 
 const inside = (path, dir) => path === dir || path.startsWith(dir.endsWith(sep) ? dir : dir + sep);
+
+/** `realpath`, or null when the path does not exist (or cannot be resolved). */
+function realOrNull(d, path) {
+  try {
+    return d.realpath(path);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The canonical path of the .so to read: absolute, resolved through symlinks and `..`, outside
+ * every forbidden directory and a regular file — all checked before the file is opened.
+ */
+function canonicalSoPath(d, so, dirs) {
+  if (!isAbsolute(so)) throw new Refusal("refusing: --so must be an absolute path");
+  const lexical = resolve(so);
+  const real = realOrNull(d, lexical);
+  if (!real) throw new Refusal("refusing: --so names no file");
+  if ([so, lexical, real].some((p) => dirs.some((dir) => inside(p, dir))))
+    throw new Refusal("refusing: --so points into a wallet directory");
+  if (!d.isRegularFile(real)) throw new Refusal("refusing: --so is not a regular file");
+  return real;
+}
+
+/**
+ * Checks the uploaded Buffer account: upgradeable-loader owned, tag 1, authority = the deployer and
+ * bytes hashing (trailing zeros stripped) to `canonical`. Returns an error message, or null.
+ */
+function bufferProblem(lib, acc, deployer, canonical) {
+  if (!acc) return "was not found";
+  const b = Buffer.from(acc.data);
+  if (
+    acc.owner !== lib.BPF_LOADER_UPGRADEABLE_ID ||
+    b.length < BUFFER_HEADER ||
+    b.readUInt32LE(0) !== 1
+  )
+    return "is not an upgradeable-loader Buffer account";
+  if (b[4] !== 1 || lib.encodeBase58(b.subarray(5, BUFFER_HEADER)) !== deployer)
+    return "is not owned by the deployer";
+  const hash = lib.elfHash(b.subarray(BUFFER_HEADER));
+  if (hash !== canonical) return `holds ${hash}, not the canonical ${canonical}`;
+  return null;
+}
 
 /**
  * A `solana` CLI runner whose output never reaches the terminal: stdout is returned to the caller
@@ -139,6 +193,8 @@ async function defaultDeps() {
     cli: makeCli(),
     keyFileExists: (path) => existsSync(path),
     realpath: (path) => realpathSync(path),
+    isRegularFile: (path) => statSync(path).isFile(),
+    writePrivateFile: (path, data) => writeFileSync(path, data, { mode: 0o600, flag: "wx" }),
     // Program-id and buffer keypairs, generated here (the CLI prints a seed phrase for keypairs it
     // generates itself) in a private temporary directory, removed after a verified deploy.
     makeTempKeypairs: () => {
@@ -186,12 +242,19 @@ export async function run({ argv, env, log = console.log, deps }) {
   const real = d.realpath(keypair);
   const dirs = forbiddenKeyDirs(env).flatMap((dir) => [
     dir,
-    d.keyFileExists(dir) ? d.realpath(dir) : dir,
+    resolve(dir),
+    realOrNull(d, dir) ?? dir,
   ]);
   if (dirs.some((dir) => inside(keypair, dir) || inside(real, dir)) || /devnet|testnet/i.test(real))
     throw new Refusal(
       `refusing: ${KEYPAIR_ENV} points at a testnet wallet or the CLI's default wallet; use a fresh mainnet-only keypair`,
     );
+  // The .so path, canonicalized and checked before anything (the file included) is read.
+  const soPath = canonicalSoPath(
+    d,
+    args.so ?? fileURLToPath(new URL("../program/receptum_escrow.so", import.meta.url)),
+    dirs,
+  );
 
   // The cluster, before anything else touches the key: JSON-RPC and the CLI must both be mainnet-beta.
   const rpcUrl = args.rpc ?? lib.SOLANA_RPC_ENDPOINTS[NETWORK];
@@ -213,10 +276,8 @@ export async function run({ argv, env, log = console.log, deps }) {
     throw new Refusal(
       `refusing: program/deployment.devnet.json (${record.executableHash}) and RECEPTUM_SOLANA_PROGRAM_HASH (${canonical}) disagree`,
     );
-  const soPath = args.so ?? new URL("../program/receptum_escrow.so", import.meta.url).pathname;
-  if (dirs.some((dir) => inside(soPath, dir)))
-    throw new Refusal("refusing: --so points into a wallet directory");
-  const so = await d.readFile(soPath);
+  // Read once: from here on only these validated bytes are used, never the file again.
+  const so = Buffer.from(await d.readFile(soPath));
   const soHash = lib.elfHash(so);
   if (soHash !== canonical)
     throw new Refusal(
@@ -278,12 +339,15 @@ export async function run({ argv, env, log = console.log, deps }) {
   const priority = ["--with-compute-unit-price", String(CU_PRICE)];
   let signature;
   try {
+    // write-buffer reads a path: give it a private snapshot of the validated bytes, not --so.
+    const snapshot = join(keys.dir, SNAPSHOT);
+    d.writePrivateFile(snapshot, so);
     for (let attempt = 1; ; attempt++) {
       try {
         d.cli([
           "program",
           "write-buffer",
-          soPath,
+          snapshot,
           "--buffer",
           keys.buffer.path,
           "--use-rpc",
@@ -298,7 +362,15 @@ export async function run({ argv, env, log = console.log, deps }) {
         log(`write-buffer attempt ${attempt} failed, resuming: ${err.message}`);
       }
     }
-    log(`buffer ${keys.buffer.address} written`);
+    // The uploaded bytes, not the file, decide: deploy --final only the canonical program.
+    const problem = bufferProblem(
+      lib,
+      await lib.getAccount(rpc, keys.buffer.address),
+      deployer,
+      canonical,
+    );
+    if (problem) throw new Error(`buffer ${keys.buffer.address} ${problem}; not deployed`);
+    log(`buffer ${keys.buffer.address} written and verified (${canonical})`);
     const out = d.cli([
       "program",
       "deploy",

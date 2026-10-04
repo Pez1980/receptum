@@ -23,7 +23,11 @@ function deps(over = {}, passphrase = sdk.Networks.PUBLIC) {
   });
   const invoke = vi
     .fn()
-    .mockResolvedValueOnce({ hash: "aa".repeat(32), ledger: 1 })
+    .mockResolvedValueOnce({
+      hash: "aa".repeat(32),
+      ledger: 1,
+      returnValue: sdk.xdr.ScVal.scvBytes(Buffer.from(lib.RECEPTUM_SOROBAN_WASM_HASH, "hex")),
+    })
     .mockResolvedValueOnce({
       hash: "bb".repeat(32),
       ledger: 2,
@@ -39,7 +43,7 @@ function deps(over = {}, passphrase = sdk.Networks.PUBLIC) {
     d: {
       sdk,
       lib,
-      readWasm: async () => wasm,
+      readWasm: vi.fn(async () => wasm),
       makeRpc,
       nativeBalance: async () => 1_000_000_000n,
       isTTY: true,
@@ -77,6 +81,10 @@ describe("deploy-soroban-mainnet.mjs refusals (before any signature)", () => {
     ).rejects.toThrow(Refusal);
     await expect(call(["--audit-report", AUDIT, "--wallet", "x"], okEnv, m.d)).rejects.toThrow(
       /unexpected argument --wallet/,
+    );
+    // The wasm path is fixed (no path argument to alias into a wallet directory).
+    await expect(call(["--audit-report", AUDIT, "--wasm", "/x.wasm"], okEnv, m.d)).rejects.toThrow(
+      /unexpected argument --wasm/,
     );
   });
 
@@ -141,9 +149,34 @@ describe("deploy-soroban-mainnet.mjs plan and confirmed deploy (mocked)", () => 
     const r = await call(["--audit-report", AUDIT], okEnv, m.d);
     expect(r).toMatchObject({ deployed: true, contractId });
     expect(m.invoke).toHaveBeenCalledTimes(2);
+    // The upload carries exactly the validated bytes, read once.
+    expect(m.d.readWasm).toHaveBeenCalledOnce();
+    const uploaded = m.invoke.mock.calls[0][1].body.invokeHostFunctionOp.hostFunction.wasm;
+    expect(Buffer.compare(Buffer.from(uploaded), wasm)).toBe(0);
     expect(m.d.writeFile).toHaveBeenCalledWith(
       "deployment.pubnet.json",
       expect.stringContaining(`"contractId": "${contractId}"`),
     );
+  });
+
+  it("verifies the uploaded wasm hash before creating the contract", async () => {
+    for (const returnValue of [
+      sdk.xdr.ScVal.scvBytes(Buffer.alloc(32, 7)),
+      undefined,
+      sdk.xdr.ScVal.scvU32(1),
+    ]) {
+      const m = deps();
+      m.invoke.mockReset();
+      m.invoke.mockResolvedValueOnce({
+        hash: "aa".repeat(32),
+        ledger: 1,
+        ...(returnValue ? { returnValue } : {}),
+      });
+      await expect(call(["--audit-report", AUDIT], okEnv, m.d)).rejects.toThrow(
+        /uploaded wasm .*not RECEPTUM_SOROBAN_WASM_HASH.*no contract created/,
+      );
+      expect(m.invoke).toHaveBeenCalledOnce();
+      expect(m.d.writeFile).not.toHaveBeenCalled();
+    }
   });
 });

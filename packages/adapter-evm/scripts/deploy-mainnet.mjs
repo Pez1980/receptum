@@ -15,6 +15,9 @@
 //   - prints the plan (network, chain id, RPC, deployer, balance, estimated gas and cost, code
 //     hash) and requires typing the exact confirmation phrase on an interactive terminal;
 //   - `--dry-run` prints the plan and exits without signing.
+// The bytecode is compiled into the package (no artifact file or path argument, so nothing can be
+// swapped or aliased between the plan and the signature); after deploying, the contract's runtime
+// code must hash to the planned runtimeCodeHash before the record is written.
 // After deploying, publish the deployment record and only then add the address to
 // TRUSTED_ESCROWS in packages/verify (and verifiers/python) in a reviewed change.
 import { createInterface } from "node:readline/promises";
@@ -140,6 +143,11 @@ export async function run({ argv, env, log = console.log, deps }) {
   if (answer.trim() !== phrase) throw new Refusal("refusing: confirmation did not match");
 
   const address = await d.deployEscrow(c);
+  const onChain = d.keccak256((await c.publicClient.getCode({ address })) ?? "0x");
+  if (onChain !== plan.runtimeCodeHash)
+    throw new Error(
+      `deployed contract ${address} runs code ${onChain}, expected ${plan.runtimeCodeHash}; not recorded`,
+    );
   const record = { ...plan, contract: address, deployedAt: new Date().toISOString() };
   log(`deployed ${address} — ${c.network.explorer}/address/${address}`);
   const out = args.out ?? `deployment.${network.replace(":", "-")}.json`;

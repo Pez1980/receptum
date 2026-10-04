@@ -17,6 +17,9 @@
 //   - checks the RPC's passphrase is the public network's, prints the plan (network, RPC,
 //     deployer, balance, simulated fees, wasm hash) and requires typing the exact confirmation
 //     phrase on an interactive terminal; `--dry-run` stops after the plan.
+// The wasm is read once from the package's fixed path (there is no path argument to alias); only
+// those validated bytes are uploaded, and the hash the upload returns must equal the validated
+// hash before the contract is created from it.
 // The contract has no admin and no upgrade path; the deployer gets no special rights.
 // After deploying, publish deployment.pubnet.json and only then add the contract id to
 // TRUSTED_ESCROWS["stellar:pubnet"] in a reviewed change.
@@ -126,7 +129,8 @@ export async function run({ argv, env, log = console.log, deps }) {
       `refusing: ${SECRET_ENV} must hold the fresh mainnet deployer secret (S…). Wallet files are never read.`,
     );
 
-  const wasm = await d.readWasm();
+  // Read once: the upload carries exactly these validated bytes, never a re-read of the file.
+  const wasm = Buffer.from(await d.readWasm());
   const wasmHash = createHash("sha256").update(wasm).digest("hex");
   if (wasmHash !== lib.RECEPTUM_SOROBAN_WASM_HASH)
     throw new Refusal(
@@ -180,6 +184,18 @@ export async function run({ argv, env, log = console.log, deps }) {
 
   const signer = lib.keypairSigner(deployer);
   const upload = await client.invoke(signer, uploadOp);
+  // The ledger's hash of what was uploaded, not the local file, decides what the contract runs.
+  let uploaded = null;
+  try {
+    const v = sdk.scValToNative(upload.returnValue);
+    if (v instanceof Uint8Array) uploaded = Buffer.from(v).toString("hex");
+  } catch {
+    uploaded = null;
+  }
+  if (uploaded !== wasmHash)
+    throw new Error(
+      `uploaded wasm ${uploaded ?? "(no hash returned)"} is not RECEPTUM_SOROBAN_WASM_HASH (${wasmHash}); no contract created (upload tx ${upload.hash})`,
+    );
   log(`uploaded wasm ${wasmHash} (tx ${upload.hash})`);
   const createOp = sdk.Operation.createCustomContract({
     address: new sdk.Address(deployer.publicKey()),

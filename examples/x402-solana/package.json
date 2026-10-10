@@ -11,7 +11,7 @@
     "@receptum/core": "workspace:*",
     "@receptum/server": "workspace:*",
     "@receptum/verify": "workspace:*",
-    "@solana/kit": "^6.1.0",
+    "@solana/kit": "^8.4.0",
     "@x402/core": "^2.28.0",
     "@x402/fetch": "^2.28.0",
     "@x402/svm": "2.28.0"

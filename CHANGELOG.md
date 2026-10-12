@@ -2,7 +2,9 @@
 
 All packages are versioned together. Testnet only; contracts are unaudited.
 
-## Unreleased
+## 0.2.1 — October 2026
+
+Patch release of all nine `@receptum/*` packages and the Python verifier. Nothing else changed: no receipt, anchor, contract or published example.
 
 ### Fixed
 

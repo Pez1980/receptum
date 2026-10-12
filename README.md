@@ -6,7 +6,7 @@
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
 - **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec — check receipts on every rail without trusting the TypeScript code
-- **Status:** v0.2.0, working end to end on **six testnets** (October 2026): x402 payments on Base, Stellar, the XRP Ledger and Solana, escrow on Arc, Arbitrum Sepolia, Stellar (Soroban), the XRP Ledger and Solana. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
+- **Status:** v0.2.1, working end to end on **six testnets** (October 2026): x402 payments on Base, Stellar, the XRP Ledger and Solana, escrow on Arc, Arbitrum Sepolia, Stellar (Soroban), the XRP Ledger and Solana. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
 
 ## Install
 
@@ -16,7 +16,7 @@ npm install @receptum/server @receptum/client   # x402 paid jobs
 npx @receptum/verify receipt.json delivered-file # verify any receipt
 ```
 
-All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0.2.0 · testnet-only, unaudited.
+All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0.2.1 · testnet-only, unaudited.
 
 ## How it works
 

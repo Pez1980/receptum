@@ -1,6 +1,6 @@
 {
   "name": "@receptum/adapter-solana",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Solana rail: x402 exact settlement checks, the receptum_escrow program, SPL Memo anchors and account bindings.",
   "license": "Apache-2.0",
   "type": "module",

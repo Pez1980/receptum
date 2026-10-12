@@ -7,7 +7,6 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,10 +31,11 @@ DEFAULT_RPCS: dict[str, str] = {
     "eip155:5042": "https://rpc.mainnet.arc.io",
     "eip155:42161": "https://arb1.arbitrum.io/rpc",
 }
-# History RPCs per network, tried in order when the primary RPC does not know a transaction
-# (EVM_HISTORY_RPCS in @receptum/adapter-evm). Some public RPCs prune old transactions: since
+# History RPCs per network, tried in order when the primary RPC's transaction index does not know
+# a hash (EVM_HISTORY_RPCS in @receptum/adapter-evm). Some public RPCs prune that index: since
 # October 2026 Arc testnet's own endpoints (rpc.testnet.arc.io, rpc.testnet.arc.network and its
-# mirrors) answer null for older transactions, while dRPC still serves them.
+# mirrors) answer null for older transaction hashes, although they still serve the blocks and
+# block receipts; dRPC still indexes them. History RPCs are only locators (_locate_in_history).
 HISTORY_RPCS: dict[str, tuple[str, ...]] = {
     "eip155:5042002": ("https://rpc.drpc.testnet.arc.network", "https://arc-testnet.drpc.org"),
 }
@@ -116,33 +116,65 @@ def _mined(tx_receipt: Any) -> bool:
     return isinstance(tx_receipt, dict) and bool(tx_receipt.get("blockNumber"))
 
 
-def _from_history(
+_QUANTITY = re.compile(r"^0x[0-9a-fA-F]{1,16}\Z")
+
+
+def _locate_in_history(
+    primary: JsonRpc,
     network: str,
     chain_id: int,
-    lookup: Callable[[JsonRpc], Any],
+    tx_hash: str,
     history_rpcs: dict[str, tuple[str, ...]] | None,
-) -> tuple[Any, str] | None:
-    """Retries a lookup the primary RPC answered "not found" on the network's history RPCs, in
-    order. SPEC §7.3: an answer is used only from an RPC that serves ``chain_id``; ``lookup``
-    returns None unless that RPC returned the very transaction asked for, mined. RPC errors and
-    other chains are ignored. Returns (answer, url) from the first RPC that finds it, else None,
-    so a fallback can never turn "not found" into anything but that same mined transaction."""
-    urls = (HISTORY_RPCS if history_rpcs is None else history_rpcs).get(network, ())
-    for url in urls:
-        rpc = JsonRpc(url)
+) -> tuple[dict, dict, str] | None:
+    """Finds ``tx_hash`` in the PRIMARY RPC's blocks with the help of the network's history RPCs.
+
+    Trust model (SPEC §7.3): a history RPC is only a locator. It must serve ``chain_id``, and its
+    receipt for ``tx_hash`` gives a block number and block hash — nothing else from it is used.
+    The block (with full transactions) and its receipts are then read from ``primary``; the
+    primary's block hash must equal the located one and the transaction must be in that block.
+    Returns (transaction, receipt, url) — both from the primary — or None when no history RPC
+    leads to the transaction on the primary (another chain, an error, no answer, a lie)."""
+    for url in (HISTORY_RPCS if history_rpcs is None else history_rpcs).get(network, ()):
+        history = JsonRpc(url)
         try:
-            if _check_chain(rpc, chain_id) is not None:
+            if _check_chain(history, chain_id) is not None:
                 continue
-            found = lookup(rpc)
+            pointer = history.call("eth_getTransactionReceipt", [tx_hash])
         except (RpcError, ValueError, TypeError, AttributeError):
             continue
-        if found is not None:
-            return found, url
+        if not isinstance(pointer, dict) or not _same_hash(pointer.get("transactionHash"), tx_hash):
+            continue
+        number, block_hash = pointer.get("blockNumber"), pointer.get("blockHash")
+        if not isinstance(number, str) or not _QUANTITY.match(number) or not isinstance(block_hash, str):
+            continue
+        number = hex(int(number, 16))
+        # From here on, only the primary RPC's data is used.
+        try:
+            block = primary.call("eth_getBlockByNumber", [number, True])
+            if not isinstance(block, dict) or not _same_hash(block.get("hash"), block_hash):
+                continue
+            txs = block.get("transactions")
+            tx = next(
+                (t for t in txs if isinstance(t, dict) and _same_hash(t.get("hash"), tx_hash)),
+                None,
+            ) if isinstance(txs, list) else None
+            if tx is None:
+                continue
+            receipts = primary.call("eth_getBlockReceipts", [number])
+            receipt = next(
+                (r for r in receipts if isinstance(r, dict) and _same_hash(r.get("transactionHash"), tx_hash)),
+                None,
+            ) if isinstance(receipts, list) else None
+            if not _mined(receipt) or not _same_hash(receipt.get("blockHash"), block_hash):
+                continue
+        except (RpcError, ValueError, TypeError, AttributeError):
+            continue
+        return tx, receipt, url
     return None
 
 
 def _via(url: str) -> str:
-    return f" (via history RPC {urllib.parse.urlsplit(url).netloc})"
+    return f" (block located via history RPC {urllib.parse.urlsplit(url).netloc})"
 
 
 _WORD = re.compile(r"^0x[0-9a-fA-F]{64}\Z")
@@ -171,8 +203,9 @@ def check_x402_exact(
 ) -> CheckResult:
     """x402 `exact` on an EVM chain: the settlement transaction at payment.reference
     succeeded and emitted an ERC-20 Transfer of exactly payment.amount of token
-    payment.asset from payment.payer (when stated) to payment.payee. A settlement the RPC
-    does not know is looked up on the network's history RPCs (``HISTORY_RPCS``)."""
+    payment.asset from payment.payer (when stated) to payment.payee. When the RPC's index does
+    not know the settlement, history RPCs (``HISTORY_RPCS``) may locate its block, which is then
+    read from the RPC itself."""
     rpcs = DEFAULT_RPCS if rpcs is None else rpcs
     pay = receipt["payment"]
     network = pay["network"]
@@ -216,15 +249,11 @@ def check_x402_exact(
         return CheckResult("unavailable", str(exc))
     via = ""
     if not _mined(tx_receipt):
-
-        def lookup(h: JsonRpc) -> Any:
-            r = h.call("eth_getTransactionReceipt", [ref])
-            return r if _mined(r) and _same_hash(r.get("transactionHash"), ref) else None
-
-        found = _from_history(network, chain_id, lookup, history_rpcs)
+        # History RPCs only locate the block; the receipt checked is the primary's (SPEC §7.3).
+        found = _locate_in_history(rpc, network, chain_id, ref, history_rpcs)
         if found is None:
             return CheckResult("fail", f"settlement transaction {ref} not found or not mined")
-        tx_receipt, url = found
+        _, tx_receipt, url = found
         via = _via(url)
     if tx_receipt.get("status") != "0x1":
         return CheckResult("fail", f"settlement transaction {ref} reverted")
@@ -285,8 +314,9 @@ def check_evm_anchor(
     history_rpcs: dict[str, tuple[str, ...]] | None = None,
 ) -> CheckResult:
     """anchor:evm — a mined, successful, zero-value transaction whose calldata is
-    exactly utf8("receptum/1") || receiptHash (32 raw bytes). A transaction the RPC does
-    not know is looked up on the network's history RPCs (``HISTORY_RPCS``)."""
+    exactly utf8("receptum/1") || receiptHash (32 raw bytes). When the RPC's index does not
+    know the transaction, history RPCs (``HISTORY_RPCS``) may locate its block, which is then
+    read from the RPC itself."""
     rpcs = DEFAULT_RPCS if rpcs is None else rpcs
     try:
         network, tx_hash = parse_anchor(anchor)
@@ -316,20 +346,11 @@ def check_evm_anchor(
         return CheckResult("unavailable", str(exc))
     via = ""
     if not isinstance(tx, dict) or not _mined(tx_receipt):
-
-        def lookup(h: JsonRpc) -> Any:
-            # The transaction and its receipt come from the same RPC, for this very hash.
-            t = h.call("eth_getTransactionByHash", [tx_hash])
-            if not isinstance(t, dict) or not _same_hash(t.get("hash"), tx_hash):
-                return None
-            r = h.call("eth_getTransactionReceipt", [tx_hash])
-            if not _mined(r) or not _same_hash(r.get("transactionHash"), tx_hash):
-                return None
-            return t, r
-
-        found = _from_history(network, chain_id, lookup, history_rpcs)
+        # History RPCs only locate the block; the transaction and receipt checked are the
+        # primary's (SPEC §7.3).
+        found = _locate_in_history(rpc, network, chain_id, tx_hash, history_rpcs)
         if found is not None:
-            (tx, tx_receipt), url = found
+            tx, tx_receipt, url = found
             via = _via(url)
     if not isinstance(tx, dict) or not isinstance(tx_receipt, dict):
         return CheckResult("fail", f"anchor transaction {tx_hash} not found")

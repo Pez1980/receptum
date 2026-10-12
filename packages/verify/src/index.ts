@@ -14,7 +14,8 @@ import {
 import {
   anchorCalldata,
   evmBindingVerifier,
-  lookupWithHistory,
+  getMinedReceipt,
+  getMinedTransaction,
   NETWORKS,
   receptumEscrowAbi,
   receptumEscrowDeployedBytecode,
@@ -174,8 +175,13 @@ function evmClient(network: string) {
   };
 }
 
-/** " (via history RPC <host>)" when a history RPC answered (EVM_HISTORY_RPCS), else "". */
-const viaHistory = (rpc?: string) => (rpc ? ` (via history RPC ${new URL(rpc).host})` : "");
+/**
+ * " (block located via history RPC <host>)" when the primary RPC's transaction index didn't know
+ * the hash and a history RPC (EVM_HISTORY_RPCS) located its block; every checked field still
+ * comes from the primary RPC.
+ */
+const viaHistory = (rpc?: string) =>
+  rpc ? ` (block located via history RPC ${new URL(rpc).host})` : "";
 
 /** SPEC §7.3: the RPC's chain id MUST equal the CAIP-2 reference, or nothing can be checked. */
 async function assertChain(client: { getChainId(): Promise<number> }, network: string) {
@@ -505,13 +511,12 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       if (!evm) return unavailable(`unsupported network ${network}`);
       if (!payeeAddr) return noPayee();
       await assertChain(evm.client, network);
-      // An RPC that doesn't know the transaction is retried on the network's history RPCs.
-      const { value: tx, historyRpc } = await lookupWithHistory(
+      // History RPCs only locate the block when the primary's index lacks the hash; the receipt
+      // is the primary's (SPEC §7.3).
+      const { receipt: tx, locatedBy } = await getMinedReceipt(
         evm.net,
         evm.client,
-        reference,
-        (client) => client.getTransactionReceipt({ hash: reference as Hex }),
-        (r) => [r.transactionHash],
+        reference as Hex,
       );
       if (tx.status !== "success") return fail("settlement transaction reverted");
       const paid = tx.logs.some((log) =>
@@ -519,7 +524,7 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       );
       return paid
         ? pass(
-            `${amount} base units paid to ${payeeAddr} in block ${tx.blockNumber}${viaHistory(historyRpc)}`,
+            `${amount} base units paid to ${payeeAddr} in block ${tx.blockNumber}${viaHistory(locatedBy)}`,
           )
         : fail("no transfer of that amount to the payee in the settlement transaction");
     }
@@ -587,21 +592,13 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
       const evm = evmClient(network);
       if (!evm) return unavailable(`unsupported network ${network}`);
       await assertChain(evm.client, network);
-      // An RPC that doesn't know the transaction is retried on the network's history RPCs;
-      // the transaction and its receipt always come from the same RPC.
+      // History RPCs only locate the block when the primary's index lacks the hash; the
+      // transaction and its receipt are the primary's (SPEC §7.3).
       const {
-        value: { tx, mined },
-        historyRpc,
-      } = await lookupWithHistory(
-        evm.net,
-        evm.client,
-        reference,
-        async (client) => ({
-          tx: await client.getTransaction({ hash: reference as Hex }),
-          mined: await client.getTransactionReceipt({ hash: reference as Hex }),
-        }),
-        ({ tx, mined }) => [tx.hash, mined.transactionHash],
-      );
+        transaction: tx,
+        receipt: mined,
+        locatedBy,
+      } = await getMinedTransaction(evm.net, evm.client, reference as Hex);
       if (mined.status !== "success") return fail("anchor transaction reverted");
       if (tx.input.toLowerCase() !== anchorCalldata(hash).toLowerCase())
         return fail("anchor calldata is not utf8('receptum/1') ‖ receiptHash");
@@ -610,7 +607,7 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
       if (txChain !== undefined && txChain !== evm.net.chain.id)
         return fail("anchor transaction chainId does not match the anchor network");
       return pass(
-        `receiptHash anchored in ${reference} (block ${mined.blockNumber}, from ${tx.from})${viaHistory(historyRpc)}`,
+        `receiptHash anchored in ${reference} (block ${mined.blockNumber}, from ${tx.from})${viaHistory(locatedBy)}`,
       );
     }
     if (xrplWss(network)) {

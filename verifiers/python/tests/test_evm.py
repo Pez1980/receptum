@@ -207,13 +207,16 @@ def test_transfer_address_topic_with_dirty_upper_bytes_fails(rpc):
     assert check_x402_exact(RECEIPT).status == "fail"
 
 
-# History RPCs (HISTORY_RPCS): a transaction the primary RPC does not know is looked up on the
-# network's history RPCs, used only when they serve the CAIP-2 chain id and return that very
-# transaction, mined.
+# History RPCs (HISTORY_RPCS) are only locators: when the primary RPC's transaction index does not
+# know a hash, a history RPC on the right chain may say which block holds it; the block and its
+# receipts are then read from the PRIMARY RPC, and every checked field is the primary's.
 PRIMARY = evm.DEFAULT_RPCS["eip155:5042002"]
 DRPC, DRPC_ORG = evm.HISTORY_RPCS["eip155:5042002"]
 ARC_CHAIN = "0x4cef52"
 ANCHOR_TX = ANCHOR.rpartition(":")[2]
+BLOCK_NO = "0x3e4abfc"  # 65317884
+BLOCK_HASH = "0x" + "2a" * 32
+OTHER_HASH = "0x" + "ee" * 32
 
 
 class Node:
@@ -248,21 +251,47 @@ def nodes(monkeypatch):
     return install
 
 
-def arc_node(chain=ARC_CHAIN, knows=False, tx_hash=ANCHOR_TX, settlement=None):
-    tx = {"hash": tx_hash, "input": CALLDATA, "value": "0x0", "chainId": ARC_CHAIN, "from": PAYEE}
-    rec = {"transactionHash": tx_hash, "status": "0x1", "blockNumber": "0x3e4a8fc", "logs": []}
+def arc_node(chain=ARC_CHAIN, index=False, blocks=False, block_hash=BLOCK_HASH, without_anchor=False,
+             anchor_tx=None, anchor_receipt=None, settlement=None):
+    """One node's view: block BLOCK_NO holds the settlement TX and the anchor transaction.
+    ``index`` answers by-hash lookups; ``blocks`` serves the block and its receipts."""
+    where = {"blockHash": block_hash, "blockNumber": BLOCK_NO}
+    txs = [{"hash": TX, "input": "0x", "value": "0x0", "from": PAYER, **where}]
+    receipts = [{**settled(), "transactionHash": TX, **where, **(settlement or {})}]
+    if not without_anchor:
+        txs.append({"hash": ANCHOR_TX, "input": CALLDATA, "value": "0x0", "chainId": ARC_CHAIN,
+                    "from": PAYEE, **where, **(anchor_tx or {})})
+        receipts.append({"transactionHash": ANCHOR_TX, "status": "0x1", "logs": [], **where,
+                         **(anchor_receipt or {})})
 
     def by_hash(params):
-        return tx if knows and params[0] == ANCHOR_TX else None
+        return next((t for t in txs if t["hash"] == params[0]), None) if index else None
 
     def receipt(params):
-        if knows and params[0] == ANCHOR_TX:
-            return rec
-        if settlement is not None and params[0] == TX:
-            return settlement
+        return next((r for r in receipts if r["transactionHash"] == params[0]), None) if index else None
+
+    def block(params):
+        if blocks and params[0] == BLOCK_NO and params[1] is True:
+            return {"number": BLOCK_NO, "hash": block_hash, "transactions": txs}
         return None
 
-    return {"eth_chainId": chain, "eth_getTransactionByHash": by_hash, "eth_getTransactionReceipt": receipt}
+    def block_receipts(params):
+        return receipts if blocks and params[0] == BLOCK_NO else None
+
+    return {"eth_chainId": chain, "eth_getTransactionByHash": by_hash, "eth_getTransactionReceipt": receipt,
+            "eth_getBlockByNumber": block, "eth_getBlockReceipts": block_receipts}
+
+
+def pruned(**kw):
+    """The usual case: the primary serves the block but its transaction index lost the hashes."""
+    return arc_node(blocks=True, **kw)
+
+
+def history(**kw):
+    return arc_node(index=True, **kw)
+
+
+LOCATED = "block located via history RPC rpc.drpc.testnet.arc.network"
 
 
 def test_history_rpcs_for_arc_testnet():
@@ -272,47 +301,81 @@ def test_history_rpcs_for_arc_testnet():
     )
 
 
-def test_anchor_found_on_a_history_rpc_passes(nodes):
-    log = nodes({PRIMARY: arc_node(), DRPC: arc_node(knows=True)})
+def test_honest_history_rpc_and_primary_block_pass(nodes):
+    log = nodes({PRIMARY: pruned(), DRPC: history()})
     res = check_evm_anchor(ANCHOR, RH)
     assert res.status == "pass"
-    assert "via history RPC rpc.drpc.testnet.arc.network" in res.detail
-    assert (DRPC, "eth_chainId") in log
+    assert LOCATED in res.detail
+    # The history RPC is only asked for the locator; block data comes from the primary.
+    assert [m for url, m in log if url == DRPC] == ["eth_chainId", "eth_getTransactionReceipt"]
+    assert (PRIMARY, "eth_getBlockByNumber") in log and (PRIMARY, "eth_getBlockReceipts") in log
     assert not any(url == DRPC_ORG for url, _ in log)
 
 
-def test_history_rpc_on_another_chain_is_ignored(nodes):
-    nodes({PRIMARY: arc_node(), DRPC: arc_node(chain="0x14a34", knows=True), DRPC_ORG: arc_node()})
+@pytest.mark.parametrize(
+    "primary_view,detail",
+    [
+        ({"anchor_tx": {"input": "0x"}}, "calldata"),
+        ({"anchor_tx": {"value": "0x1"}}, "zero-value"),
+        ({"anchor_receipt": {"status": "0x0"}}, "reverted"),
+    ],
+)
+def test_checked_fields_come_from_the_primary(nodes, primary_view, detail):
+    # The history RPC's own view would pass; the primary's block says otherwise.
+    nodes({PRIMARY: pruned(**primary_view), DRPC: history()})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "fail"
+    assert detail in res.detail
+
+
+def test_history_rpc_with_another_block_hash_is_rejected(nodes):
+    nodes({PRIMARY: pruned(), DRPC: history(block_hash=OTHER_HASH), DRPC_ORG: history(block_hash=OTHER_HASH)})
     res = check_evm_anchor(ANCHOR, RH)
     assert res.status == "fail"
     assert "not found" in res.detail
 
 
-def test_next_history_rpc_after_wrong_chain_or_network_error(nodes):
-    nodes({PRIMARY: arc_node(), DRPC: arc_node(chain="0x1", knows=True), DRPC_ORG: arc_node(knows=True)})
+def test_located_block_without_the_transaction_on_the_primary_fails(nodes):
+    nodes({PRIMARY: pruned(without_anchor=True), DRPC: history(), DRPC_ORG: history()})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "fail"
+    assert "not found" in res.detail
+
+
+def test_primary_not_serving_the_block_stays_not_found(nodes):
+    nodes({PRIMARY: arc_node(), DRPC: history(), DRPC_ORG: history()})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "fail"
+    assert "not found" in res.detail
+
+
+def test_history_rpc_on_another_chain_is_ignored(nodes):
+    nodes({PRIMARY: pruned(), DRPC: history(chain="0x14a34"), DRPC_ORG: arc_node()})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "fail"
+    assert "not found" in res.detail
+
+
+def test_next_history_rpc_after_wrong_chain_a_lie_or_network_error(nodes):
+    nodes({PRIMARY: pruned(), DRPC: history(chain="0x1"), DRPC_ORG: history()})
     res = check_evm_anchor(ANCHOR, RH)
     assert res.status == "pass"
-    assert "via history RPC arc-testnet.drpc.org" in res.detail
-    nodes({PRIMARY: arc_node(), DRPC_ORG: arc_node(knows=True)})  # DRPC unreachable
+    assert "block located via history RPC arc-testnet.drpc.org" in res.detail
+    nodes({PRIMARY: pruned(), DRPC: history(block_hash=OTHER_HASH), DRPC_ORG: history()})
+    assert check_evm_anchor(ANCHOR, RH).status == "pass"
+    nodes({PRIMARY: pruned(), DRPC_ORG: history()})  # DRPC unreachable
     assert check_evm_anchor(ANCHOR, RH).status == "pass"
 
 
-def test_history_rpc_answering_another_transaction_is_ignored(nodes):
-    nodes({PRIMARY: arc_node(), DRPC: arc_node(knows=True, tx_hash="0x" + "ee" * 32), DRPC_ORG: arc_node()})
-    assert check_evm_anchor(ANCHOR, RH).status == "fail"
-
-
 def test_not_found_on_every_rpc_still_fails(nodes):
-    nodes({PRIMARY: arc_node(), DRPC: arc_node(), DRPC_ORG: arc_node()})
+    nodes({PRIMARY: pruned(), DRPC: arc_node(), DRPC_ORG: arc_node()})
     res = check_evm_anchor(ANCHOR, RH)
     assert res.status == "fail"
     assert "not found" in res.detail
 
 
-def test_primary_answer_is_never_replaced(nodes):
-    primary = arc_node(knows=True)
-    primary["eth_getTransactionByHash"] = lambda params: {"hash": ANCHOR_TX, "input": "0x", "value": "0x0", "from": PAYEE}
-    log = nodes({PRIMARY: primary, DRPC: arc_node(knows=True)})
+def test_primary_index_answer_is_never_replaced(nodes):
+    log = nodes({PRIMARY: arc_node(index=True, anchor_tx={"input": "0x"}), DRPC: history()})
     res = check_evm_anchor(ANCHOR, RH)
     assert res.status == "fail"
     assert "calldata" in res.detail
@@ -320,9 +383,9 @@ def test_primary_answer_is_never_replaced(nodes):
 
 
 def test_primary_rpc_error_stays_unavailable(nodes):
-    primary = arc_node()
+    primary = pruned()
     primary["eth_getTransactionByHash"] = evm.RpcError("down")
-    log = nodes({PRIMARY: primary, DRPC: arc_node(knows=True)})
+    log = nodes({PRIMARY: primary, DRPC: history()})
     assert check_evm_anchor(ANCHOR, RH).status == "unavailable"
     assert not any(url == DRPC for url, _ in log)
 
@@ -337,20 +400,23 @@ ARC_RECEIPT = {
 }
 
 
-def test_settlement_found_on_a_history_rpc_passes(nodes):
-    found = {**settled(), "transactionHash": TX}
-    nodes({PRIMARY: arc_node(), DRPC: arc_node(settlement=found)})
+def test_settlement_located_by_a_history_rpc_passes_with_the_primary_receipt(nodes):
+    nodes({PRIMARY: pruned(), DRPC: history()})
     res = check_x402_exact(ARC_RECEIPT)
     assert res.status == "pass"
-    assert "via history RPC rpc.drpc.testnet.arc.network" in res.detail
+    assert LOCATED in res.detail
 
 
-def test_settlement_history_rpc_on_another_chain_or_hash_is_ignored(nodes):
-    nodes({
-        PRIMARY: arc_node(),
-        DRPC: arc_node(chain="0x14a34", settlement={**settled(), "transactionHash": TX}),
-        DRPC_ORG: arc_node(settlement={**settled(), "transactionHash": "0x" + "ee" * 32}),
-    })
+def test_settlement_logs_come_from_the_primary(nodes):
+    # The history RPC's receipt has the transfer; the primary's receipt in that block doesn't.
+    nodes({PRIMARY: pruned(settlement={"logs": [transfer_log(amount=1)]}), DRPC: history()})
+    res = check_x402_exact(ARC_RECEIPT)
+    assert res.status == "fail"
+    assert "no Transfer" in res.detail
+
+
+def test_settlement_history_rpc_on_another_chain_or_block_is_ignored(nodes):
+    nodes({PRIMARY: pruned(), DRPC: history(chain="0x14a34"), DRPC_ORG: history(block_hash=OTHER_HASH)})
     res = check_x402_exact(ARC_RECEIPT)
     assert res.status == "fail"
     assert "not found" in res.detail

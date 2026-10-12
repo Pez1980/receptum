@@ -1,6 +1,6 @@
-// lookupWithHistory / EvmAnchor.find: a transaction the configured RPC doesn't know is looked up
-// on the network's history RPCs (EVM_HISTORY_RPCS), which must serve the CAIP-2 chain id and
-// return that same transaction. RPCs are mocked (global fetch keyed by URL); nothing is sent.
+// EvmAnchor.find / locateWithHistory: when the configured RPC's transaction index doesn't know a
+// hash, a history RPC (EVM_HISTORY_RPCS) on the right chain may only locate the block, which is then
+// read from the configured RPC. RPCs are mocked (global fetch keyed by URL); nothing is sent.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { privateKeyToAccount } from "viem/accounts";
 import { anchorCalldata, clientsFor, EVM_HISTORY_RPCS, EvmAnchor } from "./index.js";
@@ -48,7 +48,7 @@ function stubRpcs(byUrl: Record<string, Handlers>) {
 const tx = (hash: string) => ({
   accessList: [],
   blockHash: BLOCK,
-  blockNumber: "0x3e4a8fc",
+  blockNumber: "0x3e4abfc",
   chainId: ARC_CHAIN,
   from: account.address,
   gas: "0x5208",
@@ -79,7 +79,7 @@ const block = {
   miner: account.address,
   mixHash: BLOCK,
   nonce: "0x0000000000000000",
-  number: "0x3e4a8fc",
+  number: "0x3e4abfc",
   parentHash: BLOCK,
   receiptsRoot: BLOCK,
   sha3Uncles: BLOCK,
@@ -92,47 +92,91 @@ const block = {
   uncles: [],
 };
 
-const node = (chainId: string, knows?: string): Handlers => ({
-  eth_chainId: () => chainId,
-  eth_getTransactionByHash: ([h]) => (h === TX && knows ? tx(knows) : null),
-  eth_getBlockByHash: () => block,
+const receipt = (hash: string, blockHash = BLOCK) => ({
+  blockHash,
+  blockNumber: "0x3e4abfc",
+  contractAddress: null,
+  cumulativeGasUsed: "0x1",
+  effectiveGasPrice: "0x1",
+  from: account.address,
+  gasUsed: "0x1",
+  logs: [],
+  logsBloom: `0x${"00".repeat(256)}`,
+  status: "0x1",
+  to: account.address,
+  transactionHash: hash,
+  transactionIndex: "0x0",
+  type: "0x2",
 });
+
+/**
+ * One node: `index` = its transaction index knows TX (by hash); `blocks` = it serves block
+ * 0x3e4abfc (holding TX unless `without`) and its receipts; `blockHash` = its hash for that block.
+ */
+const node = (
+  chainId: string,
+  o: { index?: boolean; blocks?: boolean; blockHash?: string; without?: boolean } = {},
+): Handlers => {
+  const blockHash = o.blockHash ?? BLOCK;
+  const txs = o.without ? [] : [{ ...tx(TX), blockHash }];
+  return {
+    eth_chainId: () => chainId,
+    eth_getTransactionByHash: ([h]) => (o.index && h === TX ? { ...tx(TX), blockHash } : null),
+    eth_getTransactionReceipt: ([h]) => (o.index && h === TX ? receipt(TX, blockHash) : null),
+    eth_getBlockByNumber: ([n]) =>
+      o.blocks && n === "0x3e4abfc" ? { ...block, hash: blockHash, transactions: txs } : null,
+    eth_getBlockReceipts: ([n]) =>
+      o.blocks && n === "0x3e4abfc" ? txs.map((t) => receipt(t.hash, blockHash)) : null,
+    eth_getBlockByHash: () => block,
+  };
+};
 
 const find = () =>
   new EvmAnchor(clientsFor(ARC, account)).find(H, {
     reference: TX,
   });
 
-describe("EvmAnchor.find with history RPCs", () => {
-  it("finds an anchor the configured RPC no longer serves on a history RPC", async () => {
+describe("EvmAnchor.find with history RPCs as locators", () => {
+  it("finds an anchor in the configured RPC's block, located by a history RPC", async () => {
     const calls = stubRpcs({
-      [PRIMARY]: node(ARC_CHAIN),
-      [DRPC]: node(ARC_CHAIN, TX),
+      [PRIMARY]: node(ARC_CHAIN, { blocks: true }),
+      [DRPC]: node(ARC_CHAIN, { index: true }),
     });
     await expect(find()).resolves.toMatchObject({
       rail: "anchor:evm",
       network: ARC,
       reference: TX,
+      anchoredAt: new Date(0x6a1f5e40 * 1000).toISOString(),
     });
     expect(calls).toEqual([
       `${PRIMARY} eth_getTransactionByHash`,
       `${DRPC} eth_chainId`,
-      `${DRPC} eth_getTransactionByHash`,
-      `${DRPC} eth_getBlockByHash`,
+      `${DRPC} eth_getTransactionReceipt`,
+      `${PRIMARY} eth_getBlockByNumber`,
+      `${PRIMARY} eth_getBlockReceipts`,
     ]);
   });
 
-  it("ignores history RPCs on another chain or answering for another transaction", async () => {
+  it("rejects history RPCs on another chain, with another block hash, or a block without it", async () => {
     stubRpcs({
-      [PRIMARY]: node(ARC_CHAIN),
-      [DRPC]: node("0x14a34", TX),
-      [DRPC_ORG]: node(ARC_CHAIN, `0x${"ee".repeat(32)}`),
+      [PRIMARY]: node(ARC_CHAIN, { blocks: true }),
+      [DRPC]: node("0x14a34", { index: true }),
+      [DRPC_ORG]: node(ARC_CHAIN, { index: true, blockHash: `0x${"ee".repeat(32)}` }),
+    });
+    await expect(find()).rejects.toMatchObject({ name: "TransactionNotFoundError" });
+    stubRpcs({
+      [PRIMARY]: node(ARC_CHAIN, { blocks: true, without: true }),
+      [DRPC]: node(ARC_CHAIN, { index: true }),
     });
     await expect(find()).rejects.toMatchObject({ name: "TransactionNotFoundError" });
   });
 
-  it("rethrows the primary's not-found error when no RPC knows the transaction", async () => {
-    stubRpcs({ [PRIMARY]: node(ARC_CHAIN), [DRPC]: node(ARC_CHAIN), [DRPC_ORG]: node(ARC_CHAIN) });
+  it("rethrows the primary's not-found error when no RPC leads to the transaction", async () => {
+    stubRpcs({
+      [PRIMARY]: node(ARC_CHAIN),
+      [DRPC]: node(ARC_CHAIN, { index: true }), // the primary doesn't serve the block
+      [DRPC_ORG]: node(ARC_CHAIN),
+    });
     await expect(find()).rejects.toMatchObject({ name: "TransactionNotFoundError" });
   });
 });

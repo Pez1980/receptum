@@ -19,6 +19,7 @@ import {
   type Chain,
   type Hex,
   type PublicClient,
+  type Transaction,
   type WalletClient,
 } from "viem";
 import { arbitrum, arbitrumSepolia, arc, arcTestnet, base, baseSepolia } from "viem/chains";
@@ -27,7 +28,7 @@ import {
   receptumEscrowBytecode,
   receptumEscrowDeployedBytecode,
 } from "./artifact.js";
-import { lookupWithHistory } from "./history.js";
+import { isTransactionNotFound, locateWithHistory } from "./history.js";
 
 export { receptumEscrowAbi, receptumEscrowBytecode, receptumEscrowDeployedBytecode };
 
@@ -423,29 +424,32 @@ export class EvmAnchor implements Anchor {
   }
 
   /**
-   * Reads the anchor transaction at `hint.reference`. When the configured RPC does not know it,
-   * the network's history RPCs are asked too (`lookupWithHistory`, SPEC §7.3).
+   * Reads the anchor transaction at `hint.reference` from the configured RPC. When its
+   * transaction index does not know the hash, the network's history RPCs only locate the block,
+   * which is then read from the configured RPC (`locateWithHistory`, SPEC §7.3).
    */
   async find(receiptHash: Sha256Hex, hint?: { reference?: string }): Promise<AnchorRecord | null> {
     if (!hint?.reference) return null;
     const hash = hint.reference as Hex;
-    const {
-      value: { client, tx },
-    } = await lookupWithHistory(
-      this.c.network,
-      this.c.publicClient,
-      hash,
-      async (client) => ({ client, tx: await client.getTransaction({ hash }) }),
-      ({ tx }) => [tx.hash],
-    );
+    let tx: Transaction;
+    let timestamp: bigint | undefined;
+    try {
+      tx = await this.c.publicClient.getTransaction({ hash });
+    } catch (err) {
+      if (!isTransactionNotFound(err)) throw err;
+      const found = await locateWithHistory(this.c.network, this.c.publicClient, hash);
+      if (!found) throw err;
+      tx = found.transaction;
+      timestamp = found.block.timestamp;
+    }
     if (tx.input.toLowerCase() !== anchorCalldata(receiptHash).toLowerCase()) return null;
-    const block = await client.getBlock({ blockHash: tx.blockHash! });
+    timestamp ??= (await this.c.publicClient.getBlock({ blockHash: tx.blockHash! })).timestamp;
     return {
       rail: this.id,
       network: this.c.network.caip2,
       receiptHash,
       reference: hint.reference,
-      anchoredAt: new Date(Number(block.timestamp) * 1000).toISOString(),
+      anchoredAt: new Date(Number(timestamp) * 1000).toISOString(),
     };
   }
 }
@@ -453,8 +457,10 @@ export class EvmAnchor implements Anchor {
 export { evmAccountSigner, evmBindingVerifier } from "./binding.js";
 export {
   EVM_HISTORY_RPCS,
+  getMinedReceipt,
+  getMinedTransaction,
   isTransactionNotFound,
-  lookupWithHistory,
-  type HistoryLookup,
+  locateWithHistory,
   type HistoryLookupOptions,
+  type MinedTransaction,
 } from "./history.js";

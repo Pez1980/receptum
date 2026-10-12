@@ -1,6 +1,7 @@
-// History RPC fallback (EVM_HISTORY_RPCS): when the primary RPC doesn't know a transaction, the
-// lookup is retried on the network's history RPCs — used only when they serve the CAIP-2 chain id
-// and return that same transaction. Every RPC is mocked (global fetch keyed by URL).
+// History RPCs (EVM_HISTORY_RPCS) are only locators: when the primary RPC's transaction index
+// doesn't know a hash, a history RPC on the right chain may say which block holds it, and the
+// block and its receipts are then read from the PRIMARY RPC — every checked field is the
+// primary's. Every RPC is mocked (global fetch keyed by URL).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createReceipt, generateSellerKey, sha256Hex, signReceipt } from "@receptum/core";
 import { anchorCalldata, EVM_HISTORY_RPCS } from "@receptum/adapter-evm";
@@ -17,6 +18,9 @@ const PAYER = "0x1111111111111111111111111111111111111111";
 const PAYEE = "0x2222222222222222222222222222222222222222";
 const TX = `0x${"ab".repeat(32)}`;
 const ANCHOR_TX = `0x${"a5".repeat(32)}`;
+const BLOCK_NO = "0x3e4abfc"; // 65317884
+const BLOCK_HASH = `0x${"2a".repeat(32)}`;
+const OTHER_HASH = `0x${"ee".repeat(32)}`;
 
 const seller = generateSellerKey();
 const file = new TextEncoder().encode("delivered bytes");
@@ -57,10 +61,9 @@ function stubRpcs(byUrl: Record<string, Handlers>) {
     vi.fn(async (url: string, init: { body: string }) => {
       const found = nodes.get(href(String(url)));
       if (!found) throw new TypeError(`fetch failed: ${String(url)}`);
-      const handlers = found.h;
       const body = JSON.parse(init.body) as { id: number; method: string; params: unknown[] };
       calls.push(`${found.url} ${body.method}`);
-      const h = handlers[body.method];
+      const h = found.h[body.method];
       const out = h
         ? { jsonrpc: "2.0", id: body.id, result: h(body.params) }
         : { jsonrpc: "2.0", id: body.id, error: { code: -32601, message: body.method } };
@@ -70,10 +73,10 @@ function stubRpcs(byUrl: Record<string, Handlers>) {
   return calls;
 }
 
-const txFields = (hash: string, input: string) => ({
+const txFields = (hash: string, input: string, over: Record<string, unknown> = {}) => ({
   accessList: [],
-  blockHash: `0x${"cd".repeat(32)}`,
-  blockNumber: "0x3e4a8fc",
+  blockHash: BLOCK_HASH,
+  blockNumber: BLOCK_NO,
   chainId: ARC_CHAIN,
   from: PAYEE,
   gas: "0x5208",
@@ -91,11 +94,12 @@ const txFields = (hash: string, input: string) => ({
   v: "0x0",
   value: "0x0",
   yParity: "0x0",
+  ...over,
 });
 
-const receiptFields = (hash: string, logs: unknown[] = []) => ({
-  blockHash: `0x${"cd".repeat(32)}`,
-  blockNumber: "0x3e4a8fc",
+const receiptFields = (hash: string, logs: unknown[] = [], over: Record<string, unknown> = {}) => ({
+  blockHash: BLOCK_HASH,
+  blockNumber: BLOCK_NO,
   contractAddress: null,
   cumulativeGasUsed: "0x1",
   effectiveGasPrice: "0x1",
@@ -108,40 +112,88 @@ const receiptFields = (hash: string, logs: unknown[] = []) => ({
   transactionHash: hash,
   transactionIndex: "0x0",
   type: "0x2",
+  ...over,
 });
 
-const transfer = {
+const transfer = (amount = 250000n) => ({
   address: USDC,
   topics: [TRANSFER_TOPIC, pad(PAYER), pad(PAYEE)],
-  data: pad(toHex(250000n)),
-  blockHash: `0x${"cd".repeat(32)}`,
-  blockNumber: "0x3e4a8fc",
+  data: pad(toHex(amount)),
+  blockHash: BLOCK_HASH,
+  blockNumber: BLOCK_NO,
   logIndex: "0x0",
   transactionHash: TX,
   transactionIndex: "0x0",
   removed: false,
-};
+});
 
-/** A node that serves `chainId` and knows the settlement and anchor transactions given. */
-function node(
-  chainId: string,
-  known: { anchor?: boolean; settlement?: boolean; anchorHash?: string } = {},
-): Handlers {
-  const anchorHash = known.anchorHash ?? ANCHOR_TX;
+const blockFields = (hash: string, transactions: unknown[]) => ({
+  baseFeePerGas: "0x1",
+  difficulty: "0x0",
+  extraData: "0x",
+  gasLimit: "0x1",
+  gasUsed: "0x1",
+  hash,
+  logsBloom: `0x${"00".repeat(256)}`,
+  miner: PAYEE,
+  mixHash: hash,
+  nonce: "0x0000000000000000",
+  number: BLOCK_NO,
+  parentHash: hash,
+  receiptsRoot: hash,
+  sha3Uncles: hash,
+  size: "0x1",
+  stateRoot: hash,
+  timestamp: "0x6a1f5e40",
+  totalDifficulty: "0x0",
+  transactions,
+  transactionsRoot: hash,
+  uncles: [],
+});
+
+interface View {
+  chainId?: string;
+  /** Answers eth_getTransactionByHash / eth_getTransactionReceipt for the two hashes. */
+  index?: boolean;
+  /** Serves block BLOCK_NO (with transactions) and its receipts. */
+  blocks?: boolean;
+  /** This node's hash for block BLOCK_NO. */
+  blockHash?: string;
+  /** Block BLOCK_NO without the anchor transaction. */
+  withoutAnchor?: boolean;
+  anchorTx?: Record<string, unknown>;
+  anchorReceipt?: Record<string, unknown>;
+  settlementReceipt?: Record<string, unknown>;
+}
+
+/** One node's view of the chain: block BLOCK_NO holds the settlement and the anchor transaction. */
+function node(v: View = {}): Handlers {
+  const blockHash = v.blockHash ?? BLOCK_HASH;
+  const inBlock = { blockHash, blockNumber: BLOCK_NO };
+  const txs = [
+    txFields(TX, "0x", { ...inBlock, to: USDC }),
+    ...(v.withoutAnchor
+      ? []
+      : [txFields(ANCHOR_TX, anchorCalldata(signed.receiptHash), { ...inBlock, ...v.anchorTx })]),
+  ];
+  const receipts = [
+    receiptFields(TX, [{ ...transfer(), blockHash }], { ...inBlock, ...v.settlementReceipt }),
+    ...(v.withoutAnchor ? [] : [receiptFields(ANCHOR_TX, [], { ...inBlock, ...v.anchorReceipt })]),
+  ];
   return {
-    eth_chainId: () => chainId,
-    eth_getTransactionByHash: ([h]) =>
-      h === ANCHOR_TX && known.anchor
-        ? txFields(anchorHash, anchorCalldata(signed.receiptHash))
-        : null,
+    eth_chainId: () => v.chainId ?? ARC_CHAIN,
+    eth_getTransactionByHash: ([h]) => (v.index ? (txs.find((t) => t.hash === h) ?? null) : null),
     eth_getTransactionReceipt: ([h]) =>
-      h === ANCHOR_TX && known.anchor
-        ? receiptFields(anchorHash)
-        : h === TX && known.settlement
-          ? receiptFields(TX, [transfer])
-          : null,
+      v.index ? (receipts.find((r) => r.transactionHash === h) ?? null) : null,
+    eth_getBlockByNumber: ([n]) =>
+      v.blocks && n === BLOCK_NO ? blockFields(blockHash, txs) : null,
+    eth_getBlockReceipts: ([n]) => (v.blocks && n === BLOCK_NO ? receipts : null),
   };
 }
+
+/** The usual case: the primary serves the block but its transaction index lost the hashes. */
+const prunedPrimary = (v: View = {}) => node({ blocks: true, ...v });
+const historyNode = (v: View = {}) => node({ index: true, ...v });
 
 const NOT_FOUND = { status: "fail", detail: "transaction not found or not mined" };
 const run = () => verify(signed, { file, anchors: [`${ARC}:${ANCHOR_TX}`], allowUnbound: true });
@@ -149,8 +201,11 @@ const anchorOf = (r: Awaited<ReturnType<typeof run>>) =>
   r.checks.find((c) => c.name === `Anchor on ${ARC}`);
 const paymentOf = (r: Awaited<ReturnType<typeof run>>) =>
   r.checks.find((c) => c.name === `Payment on ${ARC}`);
+const LOCATED_BY_DRPC = expect.stringMatching(
+  /block located via history RPC rpc\.drpc\.testnet\.arc\.network/,
+);
 
-describe("EVM history RPC fallback (Arc testnet)", () => {
+describe("EVM history RPCs are only locators (Arc testnet)", () => {
   it("lists the dRPC endpoints for Arc testnet, in order", () => {
     expect(EVM_HISTORY_RPCS[ARC]).toEqual([
       "https://rpc.drpc.testnet.arc.network",
@@ -158,30 +213,55 @@ describe("EVM history RPC fallback (Arc testnet)", () => {
     ]);
   });
 
-  it("primary doesn't know the transactions, a history RPC does: pass", async () => {
-    const calls = stubRpcs({
-      [PRIMARY]: node(ARC_CHAIN),
-      [DRPC]: node(ARC_CHAIN, { anchor: true, settlement: true }),
-    });
+  it("honest history RPC + the primary's block: pass, with the primary's data", async () => {
+    const calls = stubRpcs({ [PRIMARY]: prunedPrimary(), [DRPC]: historyNode() });
     const r = await run();
-    expect(anchorOf(r)).toMatchObject({
-      status: "pass",
-      detail: expect.stringMatching(/via history RPC rpc\.drpc\.testnet\.arc\.network/),
-    });
-    expect(paymentOf(r)).toMatchObject({
-      status: "pass",
-      detail: expect.stringMatching(/via history RPC rpc\.drpc\.testnet\.arc\.network/),
-    });
+    expect(anchorOf(r)).toMatchObject({ status: "pass", detail: LOCATED_BY_DRPC });
+    expect(paymentOf(r)).toMatchObject({ status: "pass", detail: LOCATED_BY_DRPC });
     expect(r.verdict).toBe("VERIFIED");
-    expect(calls).toContain(`${DRPC} eth_chainId`);
+    // The history RPC is asked for the receipt (the locator) only; block data is the primary's.
+    expect(calls.filter((c) => c.startsWith(DRPC)).map((c) => c.split(" ")[1])).toEqual(
+      expect.arrayContaining(["eth_chainId", "eth_getTransactionReceipt"]),
+    );
+    expect(calls.some((c) => c.startsWith(DRPC) && /getBlock/.test(c))).toBe(false);
+    expect(calls).toContain(`${PRIMARY} eth_getBlockByNumber`);
+    expect(calls).toContain(`${PRIMARY} eth_getBlockReceipts`);
     expect(calls.some((c) => c.startsWith(DRPC_ORG))).toBe(false);
   });
 
-  it("ignores a history RPC that serves another chain", async () => {
+  it("never takes checked fields from the history RPC", async () => {
+    // The history RPC's own view would pass; the primary's block says otherwise.
     stubRpcs({
-      [PRIMARY]: node(ARC_CHAIN),
-      [DRPC]: node("0x14a34", { anchor: true, settlement: true }), // Base Sepolia
-      [DRPC_ORG]: node(ARC_CHAIN),
+      [PRIMARY]: prunedPrimary({
+        anchorTx: { input: "0x" },
+        settlementReceipt: { logs: [{ ...transfer(1n) }] },
+      }),
+      [DRPC]: historyNode(),
+    });
+    const r = await run();
+    expect(anchorOf(r)).toMatchObject({
+      status: "fail",
+      detail: "anchor calldata is not utf8('receptum/1') ‖ receiptHash",
+    });
+    expect(paymentOf(r)).toMatchObject({
+      status: "fail",
+      detail: "no transfer of that amount to the payee in the settlement transaction",
+    });
+    stubRpcs({
+      [PRIMARY]: prunedPrimary({ anchorReceipt: { status: "0x0" } }),
+      [DRPC]: historyNode(),
+    });
+    expect(anchorOf(await run())).toMatchObject({
+      status: "fail",
+      detail: "anchor transaction reverted",
+    });
+  });
+
+  it("rejects a history RPC whose block hash differs from the primary's", async () => {
+    stubRpcs({
+      [PRIMARY]: prunedPrimary(),
+      [DRPC]: historyNode({ blockHash: OTHER_HASH }),
+      [DRPC_ORG]: historyNode({ blockHash: OTHER_HASH }),
     });
     const r = await run();
     expect(anchorOf(r)).toMatchObject(NOT_FOUND);
@@ -189,57 +269,65 @@ describe("EVM history RPC fallback (Arc testnet)", () => {
     expect(r.verdict).toBe("NOT VERIFIED");
   });
 
-  it("moves on to the next history RPC after a wrong chain or a network error", async () => {
+  it("rejects a located block that doesn't hold the transaction on the primary", async () => {
     stubRpcs({
-      [PRIMARY]: node(ARC_CHAIN),
-      [DRPC]: node("0x1", { anchor: true, settlement: true }),
-      [DRPC_ORG]: node(ARC_CHAIN, { anchor: true, settlement: true }),
-    });
-    const r = await run();
-    expect(anchorOf(r)).toMatchObject({
-      status: "pass",
-      detail: expect.stringMatching(/via history RPC arc-testnet\.drpc\.org/),
-    });
-    stubRpcs({
-      [PRIMARY]: node(ARC_CHAIN),
-      // DRPC unreachable (no handler: fetch throws)
-      [DRPC_ORG]: node(ARC_CHAIN, { anchor: true, settlement: true }),
-    });
-    expect(anchorOf(await run())).toMatchObject({ status: "pass" });
-  });
-
-  it("ignores a history RPC that answers with another transaction", async () => {
-    stubRpcs({
-      [PRIMARY]: node(ARC_CHAIN),
-      [DRPC]: node(ARC_CHAIN, { anchor: true, anchorHash: `0x${"ee".repeat(32)}` }),
-      [DRPC_ORG]: node(ARC_CHAIN),
+      [PRIMARY]: prunedPrimary({ withoutAnchor: true }),
+      [DRPC]: historyNode(),
+      [DRPC_ORG]: historyNode(),
     });
     expect(anchorOf(await run())).toMatchObject(NOT_FOUND);
   });
 
-  it("still fails when no RPC knows the transaction", async () => {
+  it("stays not found when the primary doesn't serve the located block", async () => {
+    stubRpcs({ [PRIMARY]: node(), [DRPC]: historyNode(), [DRPC_ORG]: historyNode() });
+    const r = await run();
+    expect(anchorOf(r)).toMatchObject(NOT_FOUND);
+    expect(paymentOf(r)).toMatchObject(NOT_FOUND);
+  });
+
+  it("ignores a history RPC that serves another chain", async () => {
     stubRpcs({
-      [PRIMARY]: node(ARC_CHAIN),
-      [DRPC]: node(ARC_CHAIN),
-      [DRPC_ORG]: node(ARC_CHAIN),
+      [PRIMARY]: prunedPrimary(),
+      [DRPC]: historyNode({ chainId: "0x14a34" }), // Base Sepolia
+      [DRPC_ORG]: node(),
     });
+    const r = await run();
+    expect(anchorOf(r)).toMatchObject(NOT_FOUND);
+    expect(paymentOf(r)).toMatchObject(NOT_FOUND);
+  });
+
+  it("moves on to the next history RPC after a wrong chain, a lie or a network error", async () => {
+    stubRpcs({
+      [PRIMARY]: prunedPrimary(),
+      [DRPC]: historyNode({ chainId: "0x1" }),
+      [DRPC_ORG]: historyNode(),
+    });
+    expect(anchorOf(await run())).toMatchObject({
+      status: "pass",
+      detail: expect.stringMatching(/block located via history RPC arc-testnet\.drpc\.org/),
+    });
+    stubRpcs({
+      [PRIMARY]: prunedPrimary(),
+      [DRPC]: historyNode({ blockHash: OTHER_HASH }),
+      [DRPC_ORG]: historyNode(),
+    });
+    expect(anchorOf(await run())).toMatchObject({ status: "pass" });
+    stubRpcs({ [PRIMARY]: prunedPrimary(), [DRPC_ORG]: historyNode() }); // DRPC unreachable
+    expect(anchorOf(await run())).toMatchObject({ status: "pass" });
+  });
+
+  it("still fails when no RPC knows the transaction", async () => {
+    stubRpcs({ [PRIMARY]: prunedPrimary(), [DRPC]: node(), [DRPC_ORG]: node() });
     const r = await run();
     expect(anchorOf(r)).toMatchObject(NOT_FOUND);
     expect(paymentOf(r)).toMatchObject(NOT_FOUND);
     expect(r.verdict).toBe("NOT VERIFIED");
   });
 
-  it("never asks a history RPC when the primary knows the transaction", async () => {
-    const wrong = node(ARC_CHAIN, { settlement: true });
+  it("never asks a history RPC when the primary's index knows the transaction", async () => {
     const calls = stubRpcs({
-      [PRIMARY]: {
-        ...wrong,
-        // The primary knows the anchor transaction, with other calldata: that answer stands.
-        eth_getTransactionByHash: ([h]) => (h === ANCHOR_TX ? txFields(ANCHOR_TX, "0x") : null),
-        eth_getTransactionReceipt: ([h]) =>
-          h === ANCHOR_TX ? receiptFields(ANCHOR_TX) : receiptFields(TX, [transfer]),
-      },
-      [DRPC]: node(ARC_CHAIN, { anchor: true, settlement: true }),
+      [PRIMARY]: node({ index: true, anchorTx: { input: "0x" } }),
+      [DRPC]: historyNode(),
     });
     const r = await run();
     expect(anchorOf(r)).toMatchObject({
@@ -250,13 +338,12 @@ describe("EVM history RPC fallback (Arc testnet)", () => {
     expect(calls.some((c) => c.startsWith(DRPC))).toBe(false);
   });
 
-  it("keeps an unavailable primary unavailable (no fallback for errors other than not found)", async () => {
+  it("keeps a primary on the wrong chain unavailable, without asking history RPCs", async () => {
     const calls = stubRpcs({
-      [PRIMARY]: { eth_chainId: () => "0x14a34" }, // primary serves the wrong chain
-      [DRPC]: node(ARC_CHAIN, { anchor: true, settlement: true }),
+      [PRIMARY]: prunedPrimary({ chainId: "0x14a34" }),
+      [DRPC]: historyNode(),
     });
-    const r = await run();
-    expect(anchorOf(r)).toMatchObject({
+    expect(anchorOf(await run())).toMatchObject({
       status: "unavailable",
       detail: expect.stringMatching(/serves chain 84532/),
     });

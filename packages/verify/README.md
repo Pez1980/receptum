@@ -21,6 +21,8 @@ Each check is `pass`, `fail`, `pending` (genuine but not final, e.g. an escrow a
 | **NOT VERIFIED**       | any check failed                                                                                                                                                                                                                         | 1    |
 | **PARTIALLY VERIFIED** | otherwise; each missing piece is printed (`missing: …`)                                                                                                                                                                                  | 3    |
 
+EVM lookups go to viem's default public RPC for the network. When that RPC doesn't know a transaction (an anchor or an x402 settlement) — some public RPCs prune old transactions, as Arc testnet's own endpoints have done since October 2026 — the lookup is retried on the network's history RPCs (`EVM_HISTORY_RPCS` in `@receptum/adapter-evm`; Arc testnet: `https://rpc.drpc.testnet.arc.network`, then `https://arc-testnet.drpc.org`). Their answer counts only when they report the receipt's chain id and return that same transaction, and the check says which one answered (`via history RPC …`); when none knows the transaction it still fails. Explorer APIs are never used.
+
 Exit 2 is a usage or input error. The library returns the same verdict: `verify(signed, options)` → `{ verdict, ok, complete, missing, checks, … }`, and `parseReceiptInput(bytes)` → `{ signed, anchors }` applies the input rules. Results across all chains: [E2E_RESULTS.md](E2E_RESULTS.md).
 
 ## Mainnet receipts

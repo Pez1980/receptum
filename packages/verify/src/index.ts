@@ -14,6 +14,7 @@ import {
 import {
   anchorCalldata,
   evmBindingVerifier,
+  lookupWithHistory,
   NETWORKS,
   receptumEscrowAbi,
   receptumEscrowDeployedBytecode,
@@ -47,7 +48,7 @@ import {
   SOLANA_MAINNET,
   solanaBindingVerifier,
 } from "@receptum/adapter-solana";
-import { createPublicClient, getAddress, http, keccak256, type Hex } from "viem";
+import { createPublicClient, getAddress, http, keccak256, type Hex, type PublicClient } from "viem";
 import { Client } from "xrpl";
 import { erc20TransferMatches } from "./evm-transfer.js";
 import { verifyXrplEscrowPayment } from "./xrpl-escrow.js";
@@ -167,8 +168,14 @@ class Unavailable extends Error {}
 function evmClient(network: string) {
   const net = NETWORKS[network as keyof typeof NETWORKS];
   if (!net) return null;
-  return { net, client: createPublicClient({ chain: net.chain, transport: http() }) };
+  return {
+    net,
+    client: createPublicClient({ chain: net.chain, transport: http() }) as PublicClient,
+  };
 }
+
+/** " (via history RPC <host>)" when a history RPC answered (EVM_HISTORY_RPCS), else "". */
+const viaHistory = (rpc?: string) => (rpc ? ` (via history RPC ${new URL(rpc).host})` : "");
 
 /** SPEC §7.3: the RPC's chain id MUST equal the CAIP-2 reference, or nothing can be checked. */
 async function assertChain(client: { getChainId(): Promise<number> }, network: string) {
@@ -498,13 +505,22 @@ async function verifyPayment(signed: SignedReceipt, trustedEscrows: string[] = [
       if (!evm) return unavailable(`unsupported network ${network}`);
       if (!payeeAddr) return noPayee();
       await assertChain(evm.client, network);
-      const tx = await evm.client.getTransactionReceipt({ hash: reference as Hex });
+      // An RPC that doesn't know the transaction is retried on the network's history RPCs.
+      const { value: tx, historyRpc } = await lookupWithHistory(
+        evm.net,
+        evm.client,
+        reference,
+        (client) => client.getTransactionReceipt({ hash: reference as Hex }),
+        (r) => [r.transactionHash],
+      );
       if (tx.status !== "success") return fail("settlement transaction reverted");
       const paid = tx.logs.some((log) =>
         erc20TransferMatches(log, { asset, amount, payee: payeeAddr, payer: payerAddr }),
       );
       return paid
-        ? pass(`${amount} base units paid to ${payeeAddr} in block ${tx.blockNumber}`)
+        ? pass(
+            `${amount} base units paid to ${payeeAddr} in block ${tx.blockNumber}${viaHistory(historyRpc)}`,
+          )
         : fail("no transfer of that amount to the payee in the settlement transaction");
     }
     if (rail === "escrow:xrpl") {
@@ -571,8 +587,21 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
       const evm = evmClient(network);
       if (!evm) return unavailable(`unsupported network ${network}`);
       await assertChain(evm.client, network);
-      const tx = await evm.client.getTransaction({ hash: reference as Hex });
-      const mined = await evm.client.getTransactionReceipt({ hash: reference as Hex });
+      // An RPC that doesn't know the transaction is retried on the network's history RPCs;
+      // the transaction and its receipt always come from the same RPC.
+      const {
+        value: { tx, mined },
+        historyRpc,
+      } = await lookupWithHistory(
+        evm.net,
+        evm.client,
+        reference,
+        async (client) => ({
+          tx: await client.getTransaction({ hash: reference as Hex }),
+          mined: await client.getTransactionReceipt({ hash: reference as Hex }),
+        }),
+        ({ tx, mined }) => [tx.hash, mined.transactionHash],
+      );
       if (mined.status !== "success") return fail("anchor transaction reverted");
       if (tx.input.toLowerCase() !== anchorCalldata(hash).toLowerCase())
         return fail("anchor calldata is not utf8('receptum/1') ‖ receiptHash");
@@ -581,7 +610,7 @@ async function verifyAnchor(signed: SignedReceipt, anchorRef: string): Promise<C
       if (txChain !== undefined && txChain !== evm.net.chain.id)
         return fail("anchor transaction chainId does not match the anchor network");
       return pass(
-        `receiptHash anchored in ${reference} (block ${mined.blockNumber}, from ${tx.from})`,
+        `receiptHash anchored in ${reference} (block ${mined.blockNumber}, from ${tx.from})${viaHistory(historyRpc)}`,
       );
     }
     if (xrplWss(network)) {

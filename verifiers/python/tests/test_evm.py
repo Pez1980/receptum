@@ -205,3 +205,152 @@ def test_transfer_address_topic_with_dirty_upper_bytes_fails(rpc):
     log["topics"][2] = "0x" + "0" * 23 + "1" + PAYEE[2:].lower()
     rpc(eth_getTransactionReceipt=settled([log]))
     assert check_x402_exact(RECEIPT).status == "fail"
+
+
+# History RPCs (HISTORY_RPCS): a transaction the primary RPC does not know is looked up on the
+# network's history RPCs, used only when they serve the CAIP-2 chain id and return that very
+# transaction, mined.
+PRIMARY = evm.DEFAULT_RPCS["eip155:5042002"]
+DRPC, DRPC_ORG = evm.HISTORY_RPCS["eip155:5042002"]
+ARC_CHAIN = "0x4cef52"
+ANCHOR_TX = ANCHOR.rpartition(":")[2]
+
+
+class Node:
+    def __init__(self, url, responses, log):
+        self.url = url
+        self.responses = responses
+        self.log = log
+
+    def call(self, method, params):
+        self.log.append((self.url, method))
+        value = self.responses.get(method)
+        if callable(value):
+            value = value(params)
+        if isinstance(value, Exception):
+            raise value
+        return copy.deepcopy(value)
+
+
+@pytest.fixture
+def nodes(monkeypatch):
+    """Installs one fake JSON-RPC node per URL; an unknown URL is a network error."""
+
+    def install(by_url):
+        log = []
+
+        def factory(url, timeout=20.0):
+            return Node(url, by_url.get(url, {"eth_chainId": evm.RpcError(f"{url} unreachable")}), log)
+
+        monkeypatch.setattr(evm, "JsonRpc", factory)
+        return log
+
+    return install
+
+
+def arc_node(chain=ARC_CHAIN, knows=False, tx_hash=ANCHOR_TX, settlement=None):
+    tx = {"hash": tx_hash, "input": CALLDATA, "value": "0x0", "chainId": ARC_CHAIN, "from": PAYEE}
+    rec = {"transactionHash": tx_hash, "status": "0x1", "blockNumber": "0x3e4a8fc", "logs": []}
+
+    def by_hash(params):
+        return tx if knows and params[0] == ANCHOR_TX else None
+
+    def receipt(params):
+        if knows and params[0] == ANCHOR_TX:
+            return rec
+        if settlement is not None and params[0] == TX:
+            return settlement
+        return None
+
+    return {"eth_chainId": chain, "eth_getTransactionByHash": by_hash, "eth_getTransactionReceipt": receipt}
+
+
+def test_history_rpcs_for_arc_testnet():
+    assert evm.HISTORY_RPCS["eip155:5042002"] == (
+        "https://rpc.drpc.testnet.arc.network",
+        "https://arc-testnet.drpc.org",
+    )
+
+
+def test_anchor_found_on_a_history_rpc_passes(nodes):
+    log = nodes({PRIMARY: arc_node(), DRPC: arc_node(knows=True)})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "pass"
+    assert "via history RPC rpc.drpc.testnet.arc.network" in res.detail
+    assert (DRPC, "eth_chainId") in log
+    assert not any(url == DRPC_ORG for url, _ in log)
+
+
+def test_history_rpc_on_another_chain_is_ignored(nodes):
+    nodes({PRIMARY: arc_node(), DRPC: arc_node(chain="0x14a34", knows=True), DRPC_ORG: arc_node()})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "fail"
+    assert "not found" in res.detail
+
+
+def test_next_history_rpc_after_wrong_chain_or_network_error(nodes):
+    nodes({PRIMARY: arc_node(), DRPC: arc_node(chain="0x1", knows=True), DRPC_ORG: arc_node(knows=True)})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "pass"
+    assert "via history RPC arc-testnet.drpc.org" in res.detail
+    nodes({PRIMARY: arc_node(), DRPC_ORG: arc_node(knows=True)})  # DRPC unreachable
+    assert check_evm_anchor(ANCHOR, RH).status == "pass"
+
+
+def test_history_rpc_answering_another_transaction_is_ignored(nodes):
+    nodes({PRIMARY: arc_node(), DRPC: arc_node(knows=True, tx_hash="0x" + "ee" * 32), DRPC_ORG: arc_node()})
+    assert check_evm_anchor(ANCHOR, RH).status == "fail"
+
+
+def test_not_found_on_every_rpc_still_fails(nodes):
+    nodes({PRIMARY: arc_node(), DRPC: arc_node(), DRPC_ORG: arc_node()})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "fail"
+    assert "not found" in res.detail
+
+
+def test_primary_answer_is_never_replaced(nodes):
+    primary = arc_node(knows=True)
+    primary["eth_getTransactionByHash"] = lambda params: {"hash": ANCHOR_TX, "input": "0x", "value": "0x0", "from": PAYEE}
+    log = nodes({PRIMARY: primary, DRPC: arc_node(knows=True)})
+    res = check_evm_anchor(ANCHOR, RH)
+    assert res.status == "fail"
+    assert "calldata" in res.detail
+    assert not any(url == DRPC for url, _ in log)
+
+
+def test_primary_rpc_error_stays_unavailable(nodes):
+    primary = arc_node()
+    primary["eth_getTransactionByHash"] = evm.RpcError("down")
+    log = nodes({PRIMARY: primary, DRPC: arc_node(knows=True)})
+    assert check_evm_anchor(ANCHOR, RH).status == "unavailable"
+    assert not any(url == DRPC for url, _ in log)
+
+
+ARC_RECEIPT = {
+    "payment": {
+        **RECEIPT["payment"],
+        "network": "eip155:5042002",
+        "payee": f"eip155:5042002:{PAYEE}",
+        "payer": f"eip155:5042002:{PAYER}",
+    }
+}
+
+
+def test_settlement_found_on_a_history_rpc_passes(nodes):
+    found = {**settled(), "transactionHash": TX}
+    nodes({PRIMARY: arc_node(), DRPC: arc_node(settlement=found)})
+    res = check_x402_exact(ARC_RECEIPT)
+    assert res.status == "pass"
+    assert "via history RPC rpc.drpc.testnet.arc.network" in res.detail
+
+
+def test_settlement_history_rpc_on_another_chain_or_hash_is_ignored(nodes):
+    nodes({
+        PRIMARY: arc_node(),
+        DRPC: arc_node(chain="0x14a34", settlement={**settled(), "transactionHash": TX}),
+        DRPC_ORG: arc_node(settlement={**settled(), "transactionHash": "0x" + "ee" * 32}),
+    })
+    res = check_x402_exact(ARC_RECEIPT)
+    assert res.status == "fail"
+    assert "not found" in res.detail

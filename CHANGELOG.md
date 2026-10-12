@@ -2,6 +2,12 @@
 
 All packages are versioned together. Testnet only; contracts are unaudited.
 
+## Unreleased
+
+### Fixed
+
+- **EVM lookups survive RPCs that prune history** (`@receptum/adapter-evm`, `@receptum/verify`, the Python verifier): Arc testnet's public RPCs (`rpc.testnet.arc.network` — viem's default — its QuickNode and Blockdaemon mirrors, and `rpc.testnet.arc.io`) stopped serving older transactions in October 2026, so the x402 receipts anchored on Arc (`examples/x402-base-sepolia.json`, `examples/x402-stellar-testnet.json`, the MCP receipt in `packages/mcp/e2e-results.json`) failed L3 with "transaction not found or not mined" although the anchors are mined. A transaction lookup (anchor or x402 settlement) that the primary RPC answers "not found" is now retried on per-network history RPCs, in order — `EVM_HISTORY_RPCS` in `@receptum/adapter-evm` and `evm.HISTORY_RPCS` in the Python verifier; Arc testnet: `https://rpc.drpc.testnet.arc.network`, then `https://arc-testnet.drpc.org`. A history RPC's answer is used only when its chain id equals the CAIP-2 reference and it returns that same transaction hash, mined (SPEC §7.3, now stating this rule); one that serves another chain, errors or answers for another transaction is ignored, and when none knows the transaction the check still fails. Answers the primary RPC did give are never replaced, other RPC errors stay `unavailable`, and explorer APIs are never used. Passing checks name the history RPC (`via history RPC <host>`). `lookupWithHistory` and `isTransactionNotFound` are exported, and `EvmAnchor.find` uses the same fallback. No receipt, anchor or published example changed: `scripts/verify-examples.mjs` and `verifiers/python/scripts/verify_examples.py` re-verify all 30 published cases again.
+
 ## 0.2.0 — October 2026
 
 Published on npm 4 Oct 2026 (nine `@receptum/*` packages). Testnets stay the default; nothing has been deployed to a mainnet.

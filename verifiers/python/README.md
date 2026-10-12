@@ -49,6 +49,16 @@ chain id or NetworkID is always checked against the receipt):
 | `stellar:testnet`                | Horizon `https://horizon-testnet.stellar.org`, Soroban `https://soroban-testnet.stellar.org` |
 | `stellar:pubnet`                 | Horizon `https://horizon.stellar.org`, Soroban `https://mainnet.sorobanrpc.com`              |
 
+History RPCs: when an EVM RPC doesn't know a transaction (an anchor or an x402 settlement), the
+lookup is retried on the network's history RPCs (`evm.HISTORY_RPCS`, the same list as
+`EVM_HISTORY_RPCS` in `@receptum/adapter-evm`). Some public RPCs prune old transactions: since
+October 2026 Arc testnet's own endpoints (`rpc.testnet.arc.io`, `rpc.testnet.arc.network` and its
+mirrors) answer `null` for older transactions, so `eip155:5042002` falls back to
+`https://rpc.drpc.testnet.arc.network`, then `https://arc-testnet.drpc.org`. A history RPC's answer
+is used only when its chain id equals the CAIP-2 reference and it returns that same transaction,
+mined; the check then says `via history RPC <host>`. When no RPC knows the transaction it still
+fails. Explorer APIs are never used.
+
 Horizon URLs are overridden with `--horizon <caip2>=<url>`, Soroban RPCs with `--rpc stellar:<net>=<url>`. `--trust-escrow` adds a ReceptumEscrow deployment (EVM address or
 Soroban contract id) to the built-in trusted registry.
 

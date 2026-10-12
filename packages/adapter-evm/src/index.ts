@@ -27,6 +27,7 @@ import {
   receptumEscrowBytecode,
   receptumEscrowDeployedBytecode,
 } from "./artifact.js";
+import { lookupWithHistory } from "./history.js";
 
 export { receptumEscrowAbi, receptumEscrowBytecode, receptumEscrowDeployedBytecode };
 
@@ -421,11 +422,24 @@ export class EvmAnchor implements Anchor {
     };
   }
 
+  /**
+   * Reads the anchor transaction at `hint.reference`. When the configured RPC does not know it,
+   * the network's history RPCs are asked too (`lookupWithHistory`, SPEC §7.3).
+   */
   async find(receiptHash: Sha256Hex, hint?: { reference?: string }): Promise<AnchorRecord | null> {
     if (!hint?.reference) return null;
-    const tx = await this.c.publicClient.getTransaction({ hash: hint.reference as Hex });
+    const hash = hint.reference as Hex;
+    const {
+      value: { client, tx },
+    } = await lookupWithHistory(
+      this.c.network,
+      this.c.publicClient,
+      hash,
+      async (client) => ({ client, tx: await client.getTransaction({ hash }) }),
+      ({ tx }) => [tx.hash],
+    );
     if (tx.input.toLowerCase() !== anchorCalldata(receiptHash).toLowerCase()) return null;
-    const block = await this.c.publicClient.getBlock({ blockHash: tx.blockHash! });
+    const block = await client.getBlock({ blockHash: tx.blockHash! });
     return {
       rail: this.id,
       network: this.c.network.caip2,
@@ -437,3 +451,10 @@ export class EvmAnchor implements Anchor {
 }
 
 export { evmAccountSigner, evmBindingVerifier } from "./binding.js";
+export {
+  EVM_HISTORY_RPCS,
+  isTransactionNotFound,
+  lookupWithHistory,
+  type HistoryLookup,
+  type HistoryLookupOptions,
+} from "./history.js";

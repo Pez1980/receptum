@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,6 +16,7 @@ from .receipt import is_caip2
 __all__ = [
     "ANCHOR_PREFIX",
     "DEFAULT_RPCS",
+    "HISTORY_RPCS",
     "CheckResult",
     "RpcError",
     "check_evm_anchor",
@@ -28,6 +31,13 @@ DEFAULT_RPCS: dict[str, str] = {
     "eip155:8453": "https://mainnet.base.org",
     "eip155:5042": "https://rpc.mainnet.arc.io",
     "eip155:42161": "https://arb1.arbitrum.io/rpc",
+}
+# History RPCs per network, tried in order when the primary RPC does not know a transaction
+# (EVM_HISTORY_RPCS in @receptum/adapter-evm). Some public RPCs prune old transactions: since
+# October 2026 Arc testnet's own endpoints (rpc.testnet.arc.io, rpc.testnet.arc.network and its
+# mirrors) answer null for older transactions, while dRPC still serves them.
+HISTORY_RPCS: dict[str, tuple[str, ...]] = {
+    "eip155:5042002": ("https://rpc.drpc.testnet.arc.network", "https://arc-testnet.drpc.org"),
 }
 ANCHOR_PREFIX = b"receptum/1"
 # keccak256("Transfer(address,address,uint256)")
@@ -98,6 +108,43 @@ def _check_chain(rpc: JsonRpc, chain_id: int) -> CheckResult | None:
     return None
 
 
+def _same_hash(value: Any, tx_hash: str) -> bool:
+    return isinstance(value, str) and value.lower() == tx_hash.lower()
+
+
+def _mined(tx_receipt: Any) -> bool:
+    return isinstance(tx_receipt, dict) and bool(tx_receipt.get("blockNumber"))
+
+
+def _from_history(
+    network: str,
+    chain_id: int,
+    lookup: Callable[[JsonRpc], Any],
+    history_rpcs: dict[str, tuple[str, ...]] | None,
+) -> tuple[Any, str] | None:
+    """Retries a lookup the primary RPC answered "not found" on the network's history RPCs, in
+    order. SPEC §7.3: an answer is used only from an RPC that serves ``chain_id``; ``lookup``
+    returns None unless that RPC returned the very transaction asked for, mined. RPC errors and
+    other chains are ignored. Returns (answer, url) from the first RPC that finds it, else None,
+    so a fallback can never turn "not found" into anything but that same mined transaction."""
+    urls = (HISTORY_RPCS if history_rpcs is None else history_rpcs).get(network, ())
+    for url in urls:
+        rpc = JsonRpc(url)
+        try:
+            if _check_chain(rpc, chain_id) is not None:
+                continue
+            found = lookup(rpc)
+        except (RpcError, ValueError, TypeError, AttributeError):
+            continue
+        if found is not None:
+            return found, url
+    return None
+
+
+def _via(url: str) -> str:
+    return f" (via history RPC {urllib.parse.urlsplit(url).netloc})"
+
+
 _WORD = re.compile(r"^0x[0-9a-fA-F]{64}\Z")
 
 
@@ -117,10 +164,15 @@ def _caip10_address(account: str, network: str) -> str | None:
     return addr.lower()
 
 
-def check_x402_exact(receipt: dict, rpcs: dict[str, str] | None = None) -> CheckResult:
+def check_x402_exact(
+    receipt: dict,
+    rpcs: dict[str, str] | None = None,
+    history_rpcs: dict[str, tuple[str, ...]] | None = None,
+) -> CheckResult:
     """x402 `exact` on an EVM chain: the settlement transaction at payment.reference
     succeeded and emitted an ERC-20 Transfer of exactly payment.amount of token
-    payment.asset from payment.payer (when stated) to payment.payee."""
+    payment.asset from payment.payer (when stated) to payment.payee. A settlement the RPC
+    does not know is looked up on the network's history RPCs (``HISTORY_RPCS``)."""
     rpcs = DEFAULT_RPCS if rpcs is None else rpcs
     pay = receipt["payment"]
     network = pay["network"]
@@ -162,8 +214,18 @@ def check_x402_exact(receipt: dict, rpcs: dict[str, str] | None = None) -> Check
         tx_receipt = rpc.call("eth_getTransactionReceipt", [ref])
     except RpcError as exc:
         return CheckResult("unavailable", str(exc))
-    if not isinstance(tx_receipt, dict) or not tx_receipt.get("blockNumber"):
-        return CheckResult("fail", f"settlement transaction {ref} not found or not mined")
+    via = ""
+    if not _mined(tx_receipt):
+
+        def lookup(h: JsonRpc) -> Any:
+            r = h.call("eth_getTransactionReceipt", [ref])
+            return r if _mined(r) and _same_hash(r.get("transactionHash"), ref) else None
+
+        found = _from_history(network, chain_id, lookup, history_rpcs)
+        if found is None:
+            return CheckResult("fail", f"settlement transaction {ref} not found or not mined")
+        tx_receipt, url = found
+        via = _via(url)
     if tx_receipt.get("status") != "0x1":
         return CheckResult("fail", f"settlement transaction {ref} reverted")
     for log in tx_receipt.get("logs") or []:
@@ -188,7 +250,7 @@ def check_x402_exact(receipt: dict, rpcs: dict[str, str] | None = None) -> Check
             return CheckResult(
                 "pass",
                 f"tx {ref} succeeded; Transfer {amount} of {asset} {who} "
-                f"(block {int(tx_receipt['blockNumber'], 16)})",
+                f"(block {int(tx_receipt['blockNumber'], 16)}){via}",
             )
     return CheckResult(
         "fail",
@@ -217,10 +279,14 @@ _OTHER_ANCHOR_TX = {
 
 
 def check_evm_anchor(
-    anchor: str, receipt_hash_hex: str, rpcs: dict[str, str] | None = None
+    anchor: str,
+    receipt_hash_hex: str,
+    rpcs: dict[str, str] | None = None,
+    history_rpcs: dict[str, tuple[str, ...]] | None = None,
 ) -> CheckResult:
     """anchor:evm — a mined, successful, zero-value transaction whose calldata is
-    exactly utf8("receptum/1") || receiptHash (32 raw bytes)."""
+    exactly utf8("receptum/1") || receiptHash (32 raw bytes). A transaction the RPC does
+    not know is looked up on the network's history RPCs (``HISTORY_RPCS``)."""
     rpcs = DEFAULT_RPCS if rpcs is None else rpcs
     try:
         network, tx_hash = parse_anchor(anchor)
@@ -248,6 +314,23 @@ def check_evm_anchor(
         tx_receipt = rpc.call("eth_getTransactionReceipt", [tx_hash])
     except RpcError as exc:
         return CheckResult("unavailable", str(exc))
+    via = ""
+    if not isinstance(tx, dict) or not _mined(tx_receipt):
+
+        def lookup(h: JsonRpc) -> Any:
+            # The transaction and its receipt come from the same RPC, for this very hash.
+            t = h.call("eth_getTransactionByHash", [tx_hash])
+            if not isinstance(t, dict) or not _same_hash(t.get("hash"), tx_hash):
+                return None
+            r = h.call("eth_getTransactionReceipt", [tx_hash])
+            if not _mined(r) or not _same_hash(r.get("transactionHash"), tx_hash):
+                return None
+            return t, r
+
+        found = _from_history(network, chain_id, lookup, history_rpcs)
+        if found is not None:
+            (tx, tx_receipt), url = found
+            via = _via(url)
     if not isinstance(tx, dict) or not isinstance(tx_receipt, dict):
         return CheckResult("fail", f"anchor transaction {tx_hash} not found")
     if not tx_receipt.get("blockNumber"):
@@ -268,5 +351,5 @@ def check_evm_anchor(
     return CheckResult(
         "pass",
         f"{network} tx {tx_hash} commits receiptHash "
-        f"(block {int(tx_receipt['blockNumber'], 16)}, from {tx.get('from')})",
+        f"(block {int(tx_receipt['blockNumber'], 16)}, from {tx.get('from')}){via}",
     )

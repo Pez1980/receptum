@@ -85,6 +85,43 @@ VERIFIED
 
 (L1, L2 and L2.5 pass for all three; L2.5 online, signed by the enabled master key of the seller.) The buyer in the token x402 run capped the price before signing (a requirements selector comparing `xrplValueToUnits(amount)`) and after delivery (`expected.maxAmount: "250000000000000"`), since x402's own per-asset caps are atomic integers and XRPL issued values are decimals. Files: `x402-xrpl-token-testnet.json` (+ `-output.svg`), `xrpl-testnet-escrow-evaluator.json`, `xrpl-testnet-escrow-token.json`, `deliverables/xrpl-testnet-escrow-{evaluator,token}.txt`.
 
+## x402 exact on mainnet: Arc and Base (2026-10-13)
+
+The first mainnet receipts. `examples/x402-self-facilitated/e2e.mjs` sold one render for **0.01 USDC** on each chain over x402 `exact` (EIP-3009), settled by the in-process facilitator from the seller's account (which paid the gas: USDC on Arc, ETH on Base) and anchored on the same chain. Both were run with `RECEPTUM_ALLOW_MAINNET=1` and keys from the environment, each after a `--dry-run`. **Non-custodial**: USDC moved buyer → seller directly; no Receptum contract was involved. **The buyer and the seller are both our own wallets** (test purchases, no external users): buyer `0x1A04DB634477914f22BF06e7649bfE19eebEEfa1`, seller `0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602` (`did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M`, bound to the payout account by EIP-191 on each chain).
+
+| Step                                          | Network            | Reference                                                                                                            |
+| --------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| x402 settlement (seller-sent, block 25670947) | Arc `eip155:5042`  | [`0xaf71601a…47559a`](https://explorer.arc.io/tx/0xaf71601a58c80cb96395c367c670c74b3c300b11e1f7f06297af6517e647559a) |
+| Receipt anchor (block 25670950)               | Arc `eip155:5042`  | [`0x3fff5a28…ccbe72`](https://explorer.arc.io/tx/0x3fff5a28ade79b13e758c5f38e9ebe8af83e6c516415c5128335f82ac4ccbe72) |
+| x402 settlement (seller-sent, block 52531993) | Base `eip155:8453` | [`0xb455011d…ac12c2`](https://basescan.org/tx/0xb455011d69c09fb08eee81707789ee963efb6b9df256c36591cc3febf3ac12c2)    |
+| Receipt anchor (block 52531994)               | Base `eip155:8453` | [`0x07b478da…d3f221`](https://basescan.org/tx/0x07b478dab94dce37241b9d4ecad6c5be6eef51b5540d94358e259f033bd3f221)    |
+
+- Arc: receiptHash `f2e3f781f1f44c4662ed5d819d422d57d82386dbcf917068b17d5bf7290435bd` (`RCPT-SQ8W-YEJ5`). Base: receiptHash `8b3e76d1b5b16cca0063c2f768214db69c523b49b25b531618b7b5fe19f11395` (`RCPT-ZDAZ-RTTE`). Client check: all accepted, `payeeBound: true`, on both.
+
+```text
+$ receptum-verify x402-arc-mainnet.json x402-arc-mainnet-output.svg
+=== MAINNET receipt (eip155:5042) — real funds ===
+[PASS] L1 File matches receipt — SHA-256 efa690d9b09bddfb6bdcce5eaef4a8096fbbbfba81e0fd76b3d188c26ee93408 = outputSha256
+[PASS] L2 Seller signature — signed by did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M
+[PASS] L2.5 Seller controls payee — did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M ↔ eip155:5042:0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602: EIP-191 signature by 0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602 (offline)
+[PASS] L3 Payment on eip155:5042 — 10000 base units paid to 0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602 in block 25670947
+[PASS] L3 Anchor on eip155:5042 — receiptHash anchored in 0x3fff5a28ade79b13e758c5f38e9ebe8af83e6c516415c5128335f82ac4ccbe72 (block 25670950, from 0x0e7d02f47b2add9a990ed7ec39ff36500ea17602)
+
+VERIFIED
+
+$ receptum-verify x402-base-mainnet.json x402-base-mainnet-output.svg
+=== MAINNET receipt (eip155:8453) — real funds ===
+[PASS] L1 File matches receipt — SHA-256 de48cad1421cc9c312d6dcf4ff25b131f50586d579a19544a389242b051025ca = outputSha256
+[PASS] L2 Seller signature — signed by did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M
+[PASS] L2.5 Seller controls payee — did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M ↔ eip155:8453:0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602: EIP-191 signature by 0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602 (offline)
+[PASS] L3 Payment on eip155:8453 — 10000 base units paid to 0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602 in block 52531993
+[PASS] L3 Anchor on eip155:8453 — receiptHash anchored in 0x07b478dab94dce37241b9d4ecad6c5be6eef51b5540d94358e259f033bd3f221 (block 52531994, from 0x0e7d02f47b2add9a990ed7ec39ff36500ea17602)
+
+VERIFIED
+```
+
+The Python verifier prints the same MAINNET header and VERIFIED for both (L3 settlement: `Transfer 10000` of the chain's USDC from the buyer to the seller). Files: `x402-arc-mainnet.json`, `x402-base-mainnet.json` (+ `-output.svg`).
+
 ## x402 exact with a self-hosted facilitator (Arc testnet)
 
 Run 2026-10-13 · `examples/x402-self-facilitated/e2e.mjs` sold one render for **0.25 USDC** over x402 `exact` (EIP-3009) on `eip155:5042002`, settled by a facilitator running **in the seller's process**: `x402Facilitator` + the `@x402/evm` exact facilitator scheme, signing with the seller's EVM account, which paid the gas in USDC (Arc has no public x402 facilitator). The receipt carries the seller's binding (`bindings/evm-arc-testnet.json`) and is anchored on Arc testnet, the payment's own network.

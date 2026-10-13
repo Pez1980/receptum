@@ -1,0 +1,123 @@
+{
+  "network": "eip155:5042",
+  "facilitator": "self-hosted, in-process (@x402/core x402Facilitator + @x402/evm exact)",
+  "facilitatorKind": {
+    "x402Version": 2,
+    "scheme": "exact",
+    "network": "eip155:5042"
+  },
+  "facilitatorSigner": "0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602",
+  "settlement": {
+    "success": true,
+    "transaction": "0xaf71601a58c80cb96395c367c670c74b3c300b11e1f7f06297af6517e647559a",
+    "network": "eip155:5042",
+    "payer": "0x1A04DB634477914f22BF06e7649bfE19eebEEfa1"
+  },
+  "settlementUrl": "https://explorer.arc.io/tx/0xaf71601a58c80cb96395c367c670c74b3c300b11e1f7f06297af6517e647559a",
+  "anchor": "eip155:5042:0x3fff5a28ade79b13e758c5f38e9ebe8af83e6c516415c5128335f82ac4ccbe72",
+  "anchorUrl": "https://explorer.arc.io/tx/0x3fff5a28ade79b13e758c5f38e9ebe8af83e6c516415c5128335f82ac4ccbe72",
+  "signedReceipt": {
+    "receipt": {
+      "version": "receptum/1",
+      "receiptId": "RCPT-SQ8W-YEJ5",
+      "jobIdHash": "bf4e797c70b619725b113fb31e9a3a5d383288b10bb3457d857bb0d37f64b008",
+      "seller": {
+        "id": "did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M",
+        "name": "render.example (arc-mainnet)"
+      },
+      "inputSha256": ["08ab548fb172f98eedeb98d14f43507bc2be368d9a98381973cae463dd2eb5e9"],
+      "outputSha256": "efa690d9b09bddfb6bdcce5eaef4a8096fbbbfba81e0fd76b3d188c26ee93408",
+      "payment": {
+        "rail": "x402:exact",
+        "network": "eip155:5042",
+        "asset": "0x3600000000000000000000000000000000000000",
+        "amount": "10000",
+        "reference": "0xaf71601a58c80cb96395c367c670c74b3c300b11e1f7f06297af6517e647559a",
+        "payee": "eip155:5042:0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602",
+        "payer": "eip155:5042:0x1A04DB634477914f22BF06e7649bfE19eebEEfa1"
+      },
+      "acceptance": {
+        "mode": "auto",
+        "reviewWindowSeconds": 0
+      },
+      "deliveredAt": "2026-10-13T01:01:51.324Z",
+      "remedy": {
+        "kind": "rerender",
+        "withinDays": 30
+      }
+    },
+    "receiptHash": "f2e3f781f1f44c4662ed5d819d422d57d82386dbcf917068b17d5bf7290435bd",
+    "proof": {
+      "type": "jws",
+      "kid": "did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M#z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M",
+      "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3ZSZW1RbkFHeHpaeW8xRlR2ZzhFZWNGRGlwdHVZNFN1S3lzQzZLcGk2NzZNI3o2TWt2UmVtUW5BR3h6WnlvMUZUdmc4RWVjRkRpcHR1WTRTdUt5c0M2S3BpNjc2TSIsInR5cCI6InJlY2VwdHVtK2p3cyJ9..VK_xPJYvaLrhYomeia6olnUTbbz-uUi88pRZxrW1tu2ZMR8fW6YXQwyGmJZSdnbluEtka1lAtPXWGaoDj-X4BQ"
+    },
+    "bindings": [
+      {
+        "statement": {
+          "type": "receptum/account-binding/1",
+          "did": "did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M",
+          "account": "eip155:5042:0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602",
+          "issuedAt": "2026-10-13T01:01:50.890Z",
+          "expiresAt": "2027-10-13T01:01:50.890Z"
+        },
+        "didProof": {
+          "type": "jws",
+          "kid": "did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M#z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M",
+          "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6ImRpZDprZXk6ejZNa3ZSZW1RbkFHeHpaeW8xRlR2ZzhFZWNGRGlwdHVZNFN1S3lzQzZLcGk2NzZNI3o2TWt2UmVtUW5BR3h6WnlvMUZUdmc4RWVjRkRpcHR1WTRTdUt5c0M2S3BpNjc2TSIsInR5cCI6InJlY2VwdHVtLWJpbmRpbmcrandzIn0..E1Bluzf5qA4NDtVFwkcrRPydcuuUk1Q1UMj7XlrGGLp5IfENfVikbAy69i27qzHtSLNCwMA4LGi5_ijnuETdBw"
+        },
+        "accountProof": {
+          "type": "eip191",
+          "signature": "0x7b447e3a405d5ceb6b5588a3543fe8d50945363048cdac497b83f34767cd86d35031c5cd4fff17a0010e37a6897b383de36d0aee00372605cb6e0e47426c55f41c"
+        }
+      }
+    ]
+  },
+  "check": {
+    "ok": true,
+    "signature": true,
+    "outputMatches": true,
+    "settlementMatches": true,
+    "sellerAllowed": true,
+    "expectationsMet": true,
+    "payeeBound": true,
+    "reasons": []
+  },
+  "verify": {
+    "verdict": "VERIFIED",
+    "ok": true,
+    "complete": true,
+    "checks": [
+      {
+        "level": 1,
+        "name": "File matches receipt",
+        "status": "pass",
+        "detail": "SHA-256 efa690d9b09bddfb6bdcce5eaef4a8096fbbbfba81e0fd76b3d188c26ee93408 = outputSha256"
+      },
+      {
+        "level": 2,
+        "name": "Seller signature",
+        "status": "pass",
+        "detail": "signed by did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M"
+      },
+      {
+        "level": 2.5,
+        "name": "Seller controls payee",
+        "status": "pass",
+        "detail": "did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M ↔ eip155:5042:0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602: EIP-191 signature by 0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602 (offline)"
+      },
+      {
+        "level": 3,
+        "name": "Payment on eip155:5042",
+        "status": "pass",
+        "detail": "10000 base units paid to 0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602 in block 25670947"
+      },
+      {
+        "level": 3,
+        "name": "Anchor on eip155:5042",
+        "status": "pass",
+        "detail": "receiptHash anchored in 0x3fff5a28ade79b13e758c5f38e9ebe8af83e6c516415c5128335f82ac4ccbe72 (block 25670950, from 0x0e7d02f47b2add9a990ed7ec39ff36500ea17602)"
+      }
+    ]
+  }
+}

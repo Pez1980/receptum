@@ -61,4 +61,4 @@ RECEPTUM_ALLOW_MAINNET=1 RECEPTUM_MAINNET_BUYER_KEY=0x… RECEPTUM_MAINNET_SELLE
 
 Then run it without `--dry-run` (and with `--network eip155:8453` for Base). The script prints addresses, DIDs, balances and explorer links, never a key. Before writing `examples/x402-<arc|base>-mainnet.json` it refuses any output that contains a key.
 
-Results: [examples/E2E_RESULTS.md](../E2E_RESULTS.md#x402-exact-with-a-self-hosted-facilitator-arc-testnet).
+Results: Arc testnet, 13 Oct 2026 ([examples/E2E_RESULTS.md](../E2E_RESULTS.md#x402-exact-with-a-self-hosted-facilitator-arc-testnet)). The same day it made the first mainnet receipts: 0.01 USDC on Arc and on Base, both VERIFIED by both verifiers (`examples/x402-arc-mainnet.json`, `examples/x402-base-mainnet.json`; [details](../E2E_RESULTS.md#x402-exact-on-mainnet-arc-and-base-2026-10-13)). The buyer and the seller in those runs are both our own wallets: they were test purchases, not customer transactions.

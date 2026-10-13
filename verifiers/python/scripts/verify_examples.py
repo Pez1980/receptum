@@ -1,5 +1,6 @@
-"""Re-verifies every published testnet receipt against live chains with the Python verifier —
-the same cases and expected verdicts as scripts/verify-examples.mjs (needs network; not in CI).
+"""Re-verifies every published receipt against live chains with the Python verifier — the testnet
+receipts and the two x402 mainnet receipts on Arc and Base (verification is read-only) — the same
+cases and expected verdicts as scripts/verify-examples.mjs (needs network; not in CI).
 
     python verifiers/python/scripts/verify_examples.py
 """
@@ -48,6 +49,10 @@ def cases() -> list[tuple[str, tuple[dict, list[str]], bytes | None, str]]:
          read("examples/x402-xrpl-token-testnet-output.svg"), "VERIFIED"),
         ("x402 · Arc testnet, self-hosted facilitator, anchored on Arc", wrapper(doc("examples/x402-arc-testnet.json")),
          read("examples/x402-arc-testnet-output.svg"), "VERIFIED"),
+        ("x402 · Arc mainnet (our own buyer and seller), self-hosted facilitator, anchored on Arc", wrapper(doc("examples/x402-arc-mainnet.json")),
+         read("examples/x402-arc-mainnet-output.svg"), "VERIFIED"),
+        ("x402 · Base mainnet (our own buyer and seller), self-hosted facilitator, anchored on Base", wrapper(doc("examples/x402-base-mainnet.json")),
+         read("examples/x402-base-mainnet-output.svg"), "VERIFIED"),
         ("x402-paid MCP tool · Base Sepolia, anchored on Arc", (mcp["receipt"], [mcp["anchor"]]),
          read("examples/deliverables/mcp-base-sepolia-tool-result.json"), "VERIFIED"),
         ("ReceptumEscrow · Arc · buyer accepts", wrapper(doc("examples/arc-testnet-escrow-a.json")),

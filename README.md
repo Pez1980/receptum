@@ -6,7 +6,7 @@
 
 - **Spec:** [Receptum Receipt Format v1](docs/SPEC.md) with [test vectors](spec/vectors/rrf-v1.json)
 - **Independent verifier:** [Python `receptum-verify`](verifiers/python), written from the spec — check receipts on every rail without trusting the TypeScript code
-- **Status:** v0.2.1, working end to end on **six testnets** (October 2026): x402 payments on Base, Stellar, the XRP Ledger and Solana, escrow on Arc, Arbitrum Sepolia, Stellar (Soroban), the XRP Ledger and Solana. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. Escrow contracts are **unaudited** — do not use with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
+- **Status:** v0.2.1, working end to end on **six testnets** (October 2026): x402 payments on Base, Stellar, the XRP Ledger and Solana, escrow on Arc, Arbitrum Sepolia, Stellar (Soroban), the XRP Ledger and Solana. Every published receipt re-verifies in full with `node scripts/verify-examples.mjs`. **First mainnet receipts on 13 Oct 2026:** non-custodial x402 payments on Arc and Base, between our own test wallets ([Live on mainnet](#live-on-mainnet)). Escrow contracts are **unaudited** and stay on testnets — do not use them with real funds. Mainnet plan: [docs/MAINNET.md](docs/MAINNET.md).
 
 ## Install
 
@@ -16,7 +16,7 @@ npm install @receptum/server @receptum/client   # x402 paid jobs
 npx @receptum/verify receipt.json delivered-file # verify any receipt
 ```
 
-All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0.2.1 · testnet-only, unaudited.
+All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0.2.1 · testnet by default (mainnet only behind an explicit opt-in), unaudited.
 
 ## How it works
 
@@ -38,6 +38,28 @@ All packages: [npmjs.com/org/receptum](https://www.npmjs.com/org/receptum) · v0
 | [`@receptum/adapter-xrpl`](packages/adapter-xrpl)       | XRPL native Escrow with crypto-conditions + memo anchors                                                                          |
 | [`@receptum/adapter-stellar`](packages/adapter-stellar) | Soroban `ReceptumEscrow` contract + rail, claimable-balance escrow (USDC), `MEMO_HASH` anchors, x402 settlement checks            |
 | [`@receptum/adapter-solana`](packages/adapter-solana)   | `receptum_escrow` program (immutable on devnet) + rail, SPL Memo anchors, Solana account bindings, x402 `exact` settlement checks |
+
+## Live on mainnet
+
+On **13 Oct 2026** Receptum issued its first mainnet receipts. There is one x402 `exact` payment of **0.01 USDC on Arc** (`eip155:5042`) and one on **Base** (`eip155:8453`). Each was settled by a self-hosted, in-process facilitator ([examples/x402-self-facilitated](examples/x402-self-facilitated)) and anchored on the same chain.
+
+- **Non-custodial.** USDC moved directly from buyer to seller (EIP-3009 `transferWithAuthorization`); no Receptum contract held funds.
+- **Our own wallets on both sides.** The buyer (`0x1A04DB634477914f22BF06e7649bfE19eebEEfa1`) and the seller (`0x0e7D02f47B2adD9a990Ed7eC39fF36500ea17602`, `did:key:z6MkvRemQnAGxzZyo1FTvg8EecFDiptuY4SuKysC6Kpi676M`) are both wallets we control. These are test purchases on mainnet, not customer transactions; there are no external users yet.
+- **Escrow stays on testnets.** `ReceptumEscrow` (EVM, Soroban) and the Solana `receptum_escrow` program will not be deployed to a mainnet before an independent audit is published ([SECURITY.md](SECURITY.md)).
+
+| Receipt                                         | Network            | Settlement                                                                                                           | Anchor                                                                                                               | Verdict                |
+| ----------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| x402 render, 0.01 USDC, self-hosted facilitator | Arc `eip155:5042`  | [`0xaf71601a…47559a`](https://explorer.arc.io/tx/0xaf71601a58c80cb96395c367c670c74b3c300b11e1f7f06297af6517e647559a) | [`0x3fff5a28…ccbe72`](https://explorer.arc.io/tx/0x3fff5a28ade79b13e758c5f38e9ebe8af83e6c516415c5128335f82ac4ccbe72) | VERIFIED (TS + Python) |
+| x402 render, 0.01 USDC, self-hosted facilitator | Base `eip155:8453` | [`0xb455011d…ac12c2`](https://basescan.org/tx/0xb455011d69c09fb08eee81707789ee963efb6b9df256c36591cc3febf3ac12c2)    | [`0x07b478da…d3f221`](https://basescan.org/tx/0x07b478dab94dce37241b9d4ecad6c5be6eef51b5540d94358e259f033bd3f221)    | VERIFIED (TS + Python) |
+
+```sh
+npx @receptum/verify examples/x402-arc-mainnet.json examples/x402-arc-mainnet-output.svg
+# === MAINNET receipt (eip155:5042) — real funds === … VERIFIED
+```
+
+In the browser, with every check run client-side: [receptum-ai.pages.dev/#verify-arc-mainnet](https://receptum-ai.pages.dev/#verify-arc-mainnet) · [#verify-base-mainnet](https://receptum-ai.pages.dev/#verify-base-mainnet).
+
+Files: `examples/x402-arc-mainnet.json` and `examples/x402-base-mainnet.json`, each with its `-output.svg`. Details: [examples/E2E_RESULTS.md](examples/E2E_RESULTS.md#x402-exact-on-mainnet-arc-and-base-2026-10-13).
 
 ## Live on testnets
 
@@ -73,7 +95,7 @@ pnpm build && node scripts/verify-examples.mjs
 
 ¹ Re-run on 4 Oct 2026 against the canonical Linux x86_64 build of the fixed `receptum_escrow` (reproduced in CI with pinned Agave 4.3.0); the earlier deployments `4iUzsYkr…` (a macOS build CI can't reproduce) and `6VdZ7E96…` (review round 4) are superseded — see [SECURITY.md](SECURITY.md#review-round-4-codex-4-oct-2026).
 
-Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them — the same 31 cases, every rail included — and prints the same lines (`python verifiers/python/scripts/verify_examples.py`).
+Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them — the same 33 cases (31 testnet, 2 mainnet), every rail included — and prints the same lines (`python verifiers/python/scripts/verify_examples.py`).
 
 ## Quick look
 

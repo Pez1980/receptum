@@ -1,4 +1,5 @@
-// Re-verifies every published testnet receipt against live chains (needs network; not in CI).
+// Re-verifies every published receipt against live chains (needs network; not in CI): the testnet
+// receipts and the two x402 mainnet receipts on Arc and Base (verification is read-only).
 //   pnpm build && node scripts/verify-examples.mjs
 // verifiers/python/scripts/verify_examples.py lists exactly the same cases, labels and expected
 // verdicts, and prints the same lines.
@@ -47,6 +48,18 @@ const cases = [
     "x402 · Arc testnet, self-hosted facilitator, anchored on Arc",
     wrapper(json("examples/x402-arc-testnet.json")),
     "examples/x402-arc-testnet-output.svg",
+    "VERIFIED",
+  ],
+  [
+    "x402 · Arc mainnet (our own buyer and seller), self-hosted facilitator, anchored on Arc",
+    wrapper(json("examples/x402-arc-mainnet.json")),
+    "examples/x402-arc-mainnet-output.svg",
+    "VERIFIED",
+  ],
+  [
+    "x402 · Base mainnet (our own buyer and seller), self-hosted facilitator, anchored on Base",
+    wrapper(json("examples/x402-base-mainnet.json")),
+    "examples/x402-base-mainnet-output.svg",
     "VERIFIED",
   ],
   [

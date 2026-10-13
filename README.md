@@ -168,7 +168,7 @@ git config core.hooksPath .githooks          # secret scan on commit, full check
 
 ## Security
 
-Report vulnerabilities privately — see [SECURITY.md](SECURITY.md). The escrow contracts and adapters are unaudited and testnet-only.
+Report vulnerabilities privately — see [SECURITY.md](SECURITY.md). Everything is unaudited. The escrow contracts are testnet-only; on mainnet only non-custodial x402 receipts have run so far ([Live on mainnet](#live-on-mainnet)).
 
 ## License
 

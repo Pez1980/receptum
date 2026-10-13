@@ -174,7 +174,7 @@ both reach the same verdict on every published receipt.
 | `anchor:xrpl`              | `xrpl:1`, `xrpl:0`                                                                                                                  | yes    | yes        |
 | `anchor:stellar`           | `stellar:testnet`, `stellar:pubnet`                                                                                                 | yes    | yes        |
 
-Re-verify every published receipt against live testnets — the same 30 cases, labels and expected
+Re-verify every published receipt against the live chains — the same 33 cases (31 testnet, 2 mainnet), labels and expected
 verdicts as `scripts/verify-examples.mjs`, printed in the same format, so the two outputs are
 identical line for line (`tests/test_examples.py` keeps the lists equal):
 

@@ -53,6 +53,7 @@ pnpm build && node scripts/verify-examples.mjs
 | x402 render, 0.01 USDC, anchored on Arc                                                          | Stellar testnet → Arc      | VERIFIED                                       | [packages/adapter-stellar/E2E_RESULTS.md](packages/adapter-stellar/E2E_RESULTS.md#x402-exact-on-stellar-testnet)                          |
 | x402 render, 0.01 XRP, memo anchor                                                               | XRPL testnet               | VERIFIED                                       | [examples/x402-xrpl](examples/x402-xrpl)                                                                                                  |
 | x402 render, 0.25 RCPT issued token (10^-15 units), memo anchor                                  | XRPL testnet               | VERIFIED                                       | [examples/E2E_RESULTS.md](examples/E2E_RESULTS.md#xrpl-issued-tokens-and-evaluator-mode-escrows-2026-10-04)                               |
+| x402 render, 0.25 USDC, self-hosted in-process facilitator, anchored on Arc                      | Arc testnet                | VERIFIED                                       | [examples/x402-self-facilitated](examples/x402-self-facilitated)                                                                          |
 | Paid MCP tool call with receipt, anchored on Arc                                                 | Base Sepolia → Arc testnet | VERIFIED                                       | [packages/mcp/E2E_RESULTS.md](packages/mcp/E2E_RESULTS.md)                                                                                |
 | `ReceptumEscrow`: buyer accepts · auto-release (also refund)                                     | Arc testnet                | VERIFIED                                       | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)                                                                |
 | `ReceptumEscrow` standalone anchor demo (reference is no escrow)                                 | Arc testnet                | NOT VERIFIED (correct: nothing was escrowed)   | [packages/adapter-evm/E2E_RESULTS.md](packages/adapter-evm/E2E_RESULTS.md)                                                                |
@@ -72,7 +73,7 @@ pnpm build && node scripts/verify-examples.mjs
 
 ¹ Re-run on 4 Oct 2026 against the canonical Linux x86_64 build of the fixed `receptum_escrow` (reproduced in CI with pinned Agave 4.3.0); the earlier deployments `4iUzsYkr…` (a macOS build CI can't reproduce) and `6VdZ7E96…` (review round 4) are superseded — see [SECURITY.md](SECURITY.md#review-round-4-codex-4-oct-2026).
 
-Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them — the same 30 cases, every rail included — and prints the same lines (`python verifiers/python/scripts/verify_examples.py`).
+Full per-check detail: [packages/verify/E2E_RESULTS.md](packages/verify/E2E_RESULTS.md). The [Python verifier](verifiers/python) independently reaches the same verdict on every one of them — the same 31 cases, every rail included — and prints the same lines (`python verifiers/python/scripts/verify_examples.py`).
 
 ## Quick look
 

@@ -2,6 +2,12 @@
 
 All packages are versioned together. Testnet only; contracts are unaudited.
 
+## Unreleased
+
+### Added
+
+- **x402 with a self-hosted, in-process facilitator** — `examples/x402-self-facilitated/e2e.mjs`, for chains without a public x402 facilitator (Arc) and as an alternative to a hosted facilitator account (Base). `x402Facilitator` (`@x402/core/facilitator`) with the `@x402/evm` exact facilitator scheme runs in the seller's process behind an in-process `FacilitatorClient` (`verify`/`settle`/`getSupported`, no HTTP) and settles EIP-3009 `transferWithAuthorization` from the seller's own account, which pays the gas; the receipt is anchored with `EvmAnchor` on the payment's network. Networks: Arc testnet (default) and Base Sepolia; Arc `eip155:5042` and Base `eip155:8453` behind `RECEPTUM_ALLOW_MAINNET=1` with keys from the environment only. Checks the USDC EIP-712 domain on-chain and the seller's gas and buyer's USDC before signing; `--dry-run` stops after the facilitator's verify and prints the planned settlement and anchor with gas estimates. Live Arc testnet run VERIFIED in both verifiers (`examples/x402-arc-testnet.json`); `scripts/verify-examples.mjs` and `verifiers/python/scripts/verify_examples.py` now list 31 cases. No package changed.
+
 ## 0.2.1 — October 2026
 
 Published on npm 13 Oct 2026 (nine `@receptum/*` packages). Patch release of all nine packages and the Python verifier. Nothing else changed: no receipt, anchor, contract or published example.

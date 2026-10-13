@@ -46,6 +46,8 @@ def cases() -> list[tuple[str, tuple[dict, list[str]], bytes | None, str]]:
         ("x402 · XRPL testnet, issued token (RCPT), memo anchor",
          wrapper(doc("examples/x402-xrpl-token-testnet.json")),
          read("examples/x402-xrpl-token-testnet-output.svg"), "VERIFIED"),
+        ("x402 · Arc testnet, self-hosted facilitator, anchored on Arc", wrapper(doc("examples/x402-arc-testnet.json")),
+         read("examples/x402-arc-testnet-output.svg"), "VERIFIED"),
         ("x402-paid MCP tool · Base Sepolia, anchored on Arc", (mcp["receipt"], [mcp["anchor"]]),
          read("examples/deliverables/mcp-base-sepolia-tool-result.json"), "VERIFIED"),
         ("ReceptumEscrow · Arc · buyer accepts", wrapper(doc("examples/arc-testnet-escrow-a.json")),

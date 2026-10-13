@@ -93,6 +93,36 @@ importers:
         specifier: ^2.57.2
         version: 2.57.2(typescript@6.0.3)(zod@3.25.76)
 
+  examples/x402-self-facilitated:
+    dependencies:
+      '@receptum/adapter-evm':
+        specifier: workspace:*
+        version: link:../../packages/adapter-evm
+      '@receptum/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@receptum/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@receptum/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      '@receptum/verify':
+        specifier: workspace:*
+        version: link:../../packages/verify
+      '@x402/core':
+        specifier: ^2.28.0
+        version: 2.28.0
+      '@x402/evm':
+        specifier: ^2.28.0
+        version: 2.28.0(typescript@6.0.3)
+      '@x402/fetch':
+        specifier: ^2.28.0
+        version: 2.28.0
+      viem:
+        specifier: ^2.57.2
+        version: 2.57.2(typescript@6.0.3)(zod@3.25.76)
+
   examples/x402-solana:
     dependencies:
       '@receptum/adapter-solana':

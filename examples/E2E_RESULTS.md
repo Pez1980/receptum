@@ -85,6 +85,36 @@ VERIFIED
 
 (L1, L2 and L2.5 pass for all three; L2.5 online, signed by the enabled master key of the seller.) The buyer in the token x402 run capped the price before signing (a requirements selector comparing `xrplValueToUnits(amount)`) and after delivery (`expected.maxAmount: "250000000000000"`), since x402's own per-asset caps are atomic integers and XRPL issued values are decimals. Files: `x402-xrpl-token-testnet.json` (+ `-output.svg`), `xrpl-testnet-escrow-evaluator.json`, `xrpl-testnet-escrow-token.json`, `deliverables/xrpl-testnet-escrow-{evaluator,token}.txt`.
 
+## x402 exact with a self-hosted facilitator (Arc testnet)
+
+Run 2026-10-13 · `examples/x402-self-facilitated/e2e.mjs` sold one render for **0.25 USDC** over x402 `exact` (EIP-3009) on `eip155:5042002`, settled by a facilitator running **in the seller's process**: `x402Facilitator` + the `@x402/evm` exact facilitator scheme, signing with the seller's EVM account, which paid the gas in USDC (Arc has no public x402 facilitator). The receipt carries the seller's binding (`bindings/evm-arc-testnet.json`) and is anchored on Arc testnet, the payment's own network.
+
+| Step                                                       | Network                      | Reference                                                                                                                    |
+| ---------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| x402 settlement (`transferWithAuthorization`, seller-sent) | Arc testnet `eip155:5042002` | [`0x83384ce1…58ec0a`](https://explorer.testnet.arc.io/tx/0x83384ce1f5faa28c190d4733923bbac813c823fb6a684615716740714158ec0a) |
+| Receipt anchor (`receptum/1` ‖ receiptHash)                | Arc testnet `eip155:5042002` | [`0xe557e482…301bf4`](https://explorer.testnet.arc.io/tx/0xe557e482aa22084c7dca6756c525ab3d6f3f20fdd04508f766fad83330301bf4) |
+
+- receiptHash `53245ad6e944e16de216d1385aa629d356c616d4e171eece02fa4d6f123a5955` (`RCPT-M2CJ-EJ2W`), payer `eip155:5042002:0x62E5fFEcdc8be558F0a05031242ea1E9D3e921e5`, payee `eip155:5042002:0x6344D17a80775A71b51A61124767AbCD22B0328B`, blocks 66906844 (settlement) and 66906854 (anchor). Planned before settling: settlement ≈ 88,086 gas, anchor ≈ 23,016 gas, ≈ 0.0028 USDC together. Client check: all accepted, `payeeBound: true`.
+- `--dry-run` was run first: the facilitator's verify (EIP-712 signature + `eth_call` simulation) passed and nothing was sent. A Base Sepolia dry run also passed verify and priced the settlement (≈ 86,655 gas, including the OP-stack L1 fee); the Base Sepolia leg was not run because the testnet seller holds no Base Sepolia ETH.
+
+```text
+$ receptum-verify x402-arc-testnet.json x402-arc-testnet-output.svg
+[PASS] L1 File matches receipt — SHA-256 2bb19270f4c48b20299fcb37110822b9fb8e6b9d0d4e1317af0a9d7e4bd38b20 = outputSha256
+[PASS] L2 Seller signature — signed by did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t
+[PASS] L2.5 Seller controls payee — did:key:z6Mkqc7RGNmmfbG4HeUF6UdeeBXuRiXfUk1fMf9sg1Adby4t ↔ eip155:5042002:0x6344D17a80775A71b51A61124767AbCD22B0328B: EIP-191 signature by 0x6344D17a80775A71b51A61124767AbCD22B0328B (offline)
+[PASS] L3 Payment on eip155:5042002 — 250000 base units paid to 0x6344D17a80775A71b51A61124767AbCD22B0328B in block 66906844
+[PASS] L3 Anchor on eip155:5042002 — receiptHash anchored in 0xe557e482aa22084c7dca6756c525ab3d6f3f20fdd04508f766fad83330301bf4 (block 66906854, from 0x6344d17a80775a71b51a61124767abcd22b0328b)
+
+VERIFIED
+
+$ python -m receptum_verify x402-arc-testnet.json x402-arc-testnet-output.svg   # anchor read from the file
+VERIFIED
+  L3 settlement  PASS  tx 0x83384ce1…58ec0a succeeded; Transfer 250000 of 0x3600000000000000000000000000000000000000 0x62e5…21e5 -> 0x6344…328b (block 66906844)
+  L3 anchor      PASS  eip155:5042002 tx 0xe557e482…301bf4 commits receiptHash (block 66906854)
+```
+
+Files: `x402-arc-testnet.json` (settlement, anchor, signed receipt, client check, verify report), `x402-arc-testnet-output.svg`.
+
 ## Escrow receipts with bindings and deliverables
 
 Bindings live outside the hashed receipt, so they can be added to receipts issued before bindings existed without changing `receiptHash`; the escrow e2e scripts now attach them (matched on `payment.payee`) and publish the synthetic delivered bytes in [`deliverables/`](deliverables).

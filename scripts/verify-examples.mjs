@@ -44,6 +44,12 @@ const cases = [
     "VERIFIED",
   ],
   [
+    "x402 · Arc testnet, self-hosted facilitator, anchored on Arc",
+    wrapper(json("examples/x402-arc-testnet.json")),
+    "examples/x402-arc-testnet-output.svg",
+    "VERIFIED",
+  ],
+  [
     "x402-paid MCP tool · Base Sepolia, anchored on Arc",
     { signed: mcp.receipt, anchors: [mcp.anchor] },
     "examples/deliverables/mcp-base-sepolia-tool-result.json",

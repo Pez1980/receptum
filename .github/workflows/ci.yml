@@ -101,7 +101,7 @@ jobs:
           [ "$built" = "$committed" ] || { echo "::error::receptum_escrow.so does not match the committed (deployed) build"; exit 1; }
       - name: Keep the CI build for comparison
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: receptum_escrow-ci-build
           path: packages/adapter-solana/program/target/deploy/receptum_escrow.so
